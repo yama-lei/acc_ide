@@ -61,14 +61,8 @@ class LocaleHelper {
             val configuration = Configuration(resources.configuration)
             configuration.setLocale(locale)
 
-            // 在API 17+上使用createConfigurationContext，但也更新原始上下文的资源
-            // 这样有助于在处理configChanges时正确更新资源
-            val updatedContext = context.createConfigurationContext(configuration)
-            
-            // 同时更新资源配置，对于在onConfigurationChanged中使用
-            resources.updateConfiguration(configuration, resources.displayMetrics)
-            
-            return updatedContext
+            // 在API 17+上使用createConfigurationContext
+            return context.createConfigurationContext(configuration)
         }
     }
 } 

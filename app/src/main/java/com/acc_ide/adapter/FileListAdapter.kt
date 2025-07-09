@@ -9,6 +9,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.acc_ide.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import androidx.appcompat.widget.PopupMenu
+import android.view.Gravity
 
 /**
  * 文件列表适配器
@@ -17,7 +19,11 @@ class FileListAdapter(
     private var fileList: List<String> = emptyList(),
     private val onFileClickListener: (String) -> Unit,
     private val onRenameClickListener: (String) -> Unit,
-    private val onDeleteClickListener: (String) -> Unit
+    private val onDeleteClickListener: (String) -> Unit,
+    private val onCloseClickListener: (String) -> Unit,
+    private val onSaveClickListener: (String) -> Unit,
+    private val onSaveAsClickListener: (String) -> Unit, // 新增另存为回调
+    private var externalSavedFilesMap: Map<String, Boolean> = emptyMap() // 文件名到是否外部保存的映射
 ) : RecyclerView.Adapter<FileListAdapter.FileViewHolder>() {
 
     // 当前选中的文件位置
@@ -31,8 +37,15 @@ class FileListAdapter(
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val fileName = fileList[position]
         
-        // 设置文件名
-        holder.fileName.text = fileName
+        // 检查文件是否已保存到外部
+        val isExternallySaved = externalSavedFilesMap[fileName] ?: false
+        
+        // 设置文件名，添加星号标记仅保存在临时目录的文件
+        if (isExternallySaved) {
+            holder.fileName.text = fileName // 已保存到外部，不显示星号
+        } else {
+            holder.fileName.text = "$fileName*" // 添加星号表示仅保存在临时目录
+        }
         
         // 设置文件图标（根据文件类型可以设置不同图标）
         when {
@@ -60,24 +73,88 @@ class FileListAdapter(
             onFileClickListener(fileName)
         }
         
-        // 设置重命名按钮点击事件
-        holder.renameButton.setOnClickListener {
-            onRenameClickListener(fileName)
+        // 设置长按事件
+        holder.fileItemContainer.setOnLongClickListener {
+            showFileOptionsMenu(it, fileName, isExternallySaved)
+            true
         }
         
-        // 设置删除按钮点击事件
-        holder.deleteButton.setOnClickListener {
-            onDeleteClickListener(fileName)
+        // 设置关闭按钮点击事件
+        holder.closeButton.setOnClickListener {
+            onCloseClickListener(fileName)
         }
     }
 
     override fun getItemCount(): Int = fileList.size
     
     /**
+     * 显示文件操作菜单
+     */
+    private fun showFileOptionsMenu(view: View, fileName: String, isExternallySaved: Boolean) {
+        val popupMenu = PopupMenu(view.context, view, Gravity.END)
+        popupMenu.inflate(R.menu.file_options_menu)
+        
+        // 根据文件保存状态设置菜单项文本和可见性
+        val saveMenuItem = popupMenu.menu.findItem(R.id.action_save_file)
+        val saveAsMenuItem = popupMenu.menu.findItem(R.id.action_save_as_file)
+        
+        if (isExternallySaved) {
+            // 已保存到外部，显示"保存"选项（覆盖保存）
+            saveMenuItem.isVisible = true
+            saveMenuItem.setTitle(R.string.save)
+            
+            // 显示"另存为"选项
+            saveAsMenuItem.isVisible = true
+        } else {
+            // 仅保存在临时目录，只显示"保存"选项
+            saveMenuItem.isVisible = true
+            saveMenuItem.setTitle(R.string.save)
+            
+            // 隐藏"另存为"选项
+            saveAsMenuItem.isVisible = false
+        }
+        
+        popupMenu.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.action_rename_file -> {
+                    onRenameClickListener(fileName)
+                    true
+                }
+                R.id.action_save_file -> {
+                    onSaveClickListener(fileName)
+                    true
+                }
+                R.id.action_save_as_file -> {
+                    onSaveAsClickListener(fileName)
+                    true
+                }
+                R.id.action_delete_file -> {
+                    onDeleteClickListener(fileName)
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        popupMenu.show()
+    }
+    
+    /**
      * 更新文件列表数据
      */
-    fun updateFileList(newFileList: List<String>, currentFileName: String? = null) {
+    fun updateFileList(
+        newFileList: List<String>,
+        currentFileName: String? = null,
+        newExternalSavedMap: Map<String, Boolean> = emptyMap()
+    ) {
         fileList = newFileList
+        
+        // 更新外部保存状态映射
+        val updatedMap = mutableMapOf<String, Boolean>()
+        updatedMap.putAll(newExternalSavedMap)
+        
+        // 保存外部保存状态映射
+        externalSavedFilesMap = updatedMap
         
         // 如果有当前文件名，更新选中位置
         if (currentFileName != null) {
@@ -110,7 +187,6 @@ class FileListAdapter(
         val fileItemContainer: MaterialCardView = itemView.findViewById(R.id.file_item_container)
         val fileIcon: ImageView = itemView.findViewById(R.id.file_icon)
         val fileName: TextView = itemView.findViewById(R.id.file_name)
-        val renameButton: MaterialButton = itemView.findViewById(R.id.file_rename_button)
-        val deleteButton: MaterialButton = itemView.findViewById(R.id.file_delete_button)
+        val closeButton: MaterialButton = itemView.findViewById(R.id.file_close_button)
     }
 } 

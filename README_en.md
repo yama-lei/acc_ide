@@ -1,4 +1,4 @@
-![展示1](img/Display1.png)
+![Display1](img/Display1.png)
 
 # ACC IDE
 
@@ -6,17 +6,17 @@
 - [English](README_en.md)
 - [简体中文](README.md)
 
-If you find the built-in IDEs on OJ platforms unfriendly on mobile, or if you’ve ever wanted to jot down a brilliant algorithm idea on your phone, then ACC IDE is just what you need 🤗.
+If you're tired of OJ platforms with their mobile-unfriendly IDEs, or if you've ever wanted to jot down a brilliant algorithm idea on your phone, then ACC IDE is just what you need 🤗.
 
-ACC IDE is a native Android integrated development environment designed specifically for algorithm and programming competitions. It aims to enhance the competitive programming experience on mobile devices by providing a feature-rich environment for writing, testing, and submitting algorithmic solutions 😋.
+ACC IDE is a native Android integrated development environment designed specifically for algorithm competitions. It aims to enhance the competitive programming experience on mobile devices by providing a feature-rich environment for writing, testing, and submitting algorithmic solutions 😋.
 
 ## Overview
 
-ACC IDE aims to be a comprehensive mobile solution for competitive programmers who need to code and test algorithms on the go. The application provides syntax highlighting, code completion, file management, and other essential IDE features tailored for competitive programming challenges.
+ACC IDE aims to be a comprehensive mobile solution for competitive programmers who need to code and test algorithms on the go. The application provides syntax highlighting, code completion, file management, and other essential features tailored for competitive programming.
 
 ## Project Structure
 
-The project follows a standard Android application architecture with a focus on modular components:
+The project is built with native Android and includes the following main components:
 
 ### Core Structure
 ```
@@ -25,139 +25,116 @@ acc_ide_android/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/acc_ide/
-│   │   │   │   ├── adapter/       # RecyclerView adapters
-│   │   │   │   ├── dialog/        # Dialog fragments
-│   │   │   │   ├── model/         # Data models
-│   │   │   │   ├── util/          # Utility classes
-│   │   │   │   ├── view/          # Custom views
-│   │   │   │   ├── ui/            # UI components
-│   │   │   │   ├── MainActivity.kt # Main application entry point
-│   │   │   │   ├── EditorFragment.kt # Code editor implementation
-│   │   │   │   ├── IOPanelFragment.kt # Input/output panel
-│   │   │   │   ├── SettingsFragment.kt # Application settings
-│   │   │   │   ├── WelcomeFragment.kt # Welcome screen
-│   │   │   │   └── NewFileDialogFragment.kt # New file creation dialog
-│   │   │   ├── res/              # Android resources
+│   │   │   │   ├── adapter/                      # RecyclerView adapters
+│   │   │   │   ├── dialog/                       # Dialog components
+│   │   │   │   ├── model/                        # Data models
+│   │   │   │   ├── util/                         # Utility classes
+│   │   │   │   ├── view/                         # Custom views
+│   │   │   │   ├── MainActivity.kt               # Main application entry point
+│   │   │   │   ├── EditorFragment.kt             # Code editor implementation
+│   │   │   │   ├── IOPanelFragment.kt            # Input/output panel
+│   │   │   │   ├── SettingsFragment.kt           # Application settings
+│   │   │   │   ├── SplashActivity.kt             # Splash screen
+│   │   │   │   ├── WelcomeFragment.kt            # Welcome screen
+│   │   │   │   └── NewFileDialogFragment.kt      # New file creation dialog
+│   │   │   ├── res/                              # Android resources
+│   │   │   │   ├── drawable/                     # Image resources
+│   │   │   │   ├── layout/                       # Layout files
+│   │   │   │   ├── menu/                         # Menu resources
+│   │   │   │   ├── values/                       # Strings, colors, etc.
+│   │   │   │   └── values-zh-rCN/                # Chinese localization
+│   │   │   ├── assets/                           # Application assets
 │   │   │   └── AndroidManifest.xml
-│   ├── build.gradle             # Module-level build config
-├── gradle/                      # Gradle wrapper files
-└── build.gradle                # Project-level build config
+│   ├── build.gradle                              # Module build config
+│   ├── build.gradle.kts                          # Kotlin DSL build config
+├── gradle/                                       # Gradle wrapper files
+└── build.gradle                                  # Project build config
 ```
 
-### Key Components
+### Interaction Flow
 
-#### Main Activity (`MainActivity.kt`)
-The central component of the application that manages:
-- File navigation drawer
-- Fragment transactions
-- Storage permissions
-- File operations (create, open, save, rename, delete)
-- Application language and theme settings
+```mermaid
+flowchart TD
+    U["User"]
+    APP["ACC IDE (Android App)"]
+    GHA["GitHub Action<br/>code-execution.yml"]
+    JUDGE["Compilation/Execution<br/>Environment"]
+    RESULT["Evaluation Results"]
 
-#### Editor Fragment (`EditorFragment.kt`)
-A powerful code editor with:
-- Syntax highlighting for multiple languages
-- Code completion
-- Line numbering
-- Code block indication
-- Font size control via gestures
-- Theme-aware styling
-- Automatic indentation
+    U -- "Write/Submit code,<br/>input, expected output" --> APP
+    APP -- "Trigger GitHub Action<br/>via API/Network" --> GHA
+    GHA -- "Setup evaluation environment<br/>Write code/input/output files" --> JUDGE
+    JUDGE -- "Compile/Run/Compare outputs" --> GHA
+    GHA -- "Generate results<br/>(AC/WA/CE/RE/TLE/RS)" --> RESULT
+    RESULT -- "Return evaluation<br/>results to APP" --> APP
+    APP -- "Display results<br/>to user" --> U
 
-#### IO Panel Fragment (`IOPanelFragment.kt`)
-An interface for:
-- Input/output testing
-- Viewing execution results
-- Running code
-
-#### Settings Fragment (`SettingsFragment.kt`)
-User preferences configuration:
-- Theme selection (dark/light mode)
-- Font size adjustment
-- Language preferences
-- Editor behavior options
-
-
-
-#### Dialog Components
-Various dialog fragments for user interactions:
-- `NewFileDialogFragment.kt`: For creating new code files
-- Dialog classes in the dialog package for confirmation and input
-
-#### Utility Layer
-Classes in the `util` package:
-- `FileStorageManager`: Manages the app's file operations
-- `LocaleHelper`: Handles localization and language switching
+    style U fill:#f9f,stroke:#333,stroke-width:2
+    style APP fill:#bbf,stroke:#333,stroke-width:2
+    style GHA fill:#ffd,stroke:#333,stroke-width:2
+    style JUDGE fill:#bfb,stroke:#333,stroke-width:2
+    style RESULT fill:#fc9,stroke:#333,stroke-width:2
+```
 
 ## Implemented Features
 
 ### Editor Capabilities
 - **Robust Code Editing**: Based on the Sora Editor library with performance optimizations
-- **Syntax Highlighting**: Support for Java, with basic support for other languages
-- **Code Completion**: Context-aware suggestions as you type
+- **Syntax Highlighting**: Currently only supports Java, with C++ highlighting ported directly from Java
+- **Code Completion**: Simple code completion for common keywords and functions
 - **Theme Support**: Dark and light modes with appropriate syntax coloring
-- **Gesture Controls**: Zoom in/out for font size adjustment
+- **Gesture Controls**: Adjust font size through zoom gestures
 - **Line Numbers and Block Indentation**: Visual aids for code structure
-- **Symbol Panel**: Minimalist, mobile-friendly panel for quick input of common programming symbols, auto-adapts to dark and light themes.
+- **Symbol Panel**: Minimalist, mobile-friendly panel for easy input of common programming symbols
+- **Undo and Redo**: Support for code editing undo and redo operations
 
 ### File Management
 - **Create, Open, Save Files**: Basic file operations through an intuitive interface
-- **File Browser**: Side drawer with list of available files
+- **File Browser**: Side drawer with a list of available files
 - **Rename and Delete**: File management tools with confirmation dialogs
-- **Automatic Saving**: Changes are automatically persisted to prevent data loss
-
-### User Interface
-- **Responsive Design**: Works across different Android device sizes
-- **Navigation Drawer**: Easy access to file list and settings
-- **Toolbar Actions**: Context-sensitive actions based on current fragment
-- **Fragment-based Navigation**: Smooth transitions between different screens
+- **Automatic Saving**: Changes are automatically saved to prevent data loss, with temporary files stored at `/storage/emulated/0/Android/data/com.acc_ide/files` and templates at `/template`
 
 ### Customization
 - **Language Selection**: Interface language can be changed in settings
 - **Theme Selection**: Toggle between dark and light themes
 - **Font Size Control**: Adjust editor font size from settings or with gestures
-- **Cursor Width**: Enhanced visual experience on mobile devices (actually the author was too lazy to adjust the cursor😫)
-- **Editor Preferences**: Customize editor behavior through settings
+- **Editor Preferences**: Customize editor behavior through settings, such as cursor width and symbol panel display
 
-### Input/Output Panel (Not fully implemented yet🤫)
-- **Test Input**: Enter test data to validate algorithm outputs
-- **Output Display**: View execution results
-- **Parallel Testing**: Test algorithm functionality directly within the IDE
+### Input/Output Panel
+- **Input/Output Panel**: For manual input and output viewing
+- **GitHub Action Backend**: Free runtime environment through GitHub Actions [repository link](https://github.com/META-Xiao/accide-code-execution), supporting compilation and execution of C/C++, Java, and Python (currently only C/C++ has been tested successfully 😾)
+- **Compilation Progress Indicator**: Shows compilation progress and results upon completion
+- **Memory and Time Limits**: Restricts code execution time (2s) and memory (512MB) through the GitHub Action backend
+- **Execution Status Display**: Shows code execution status and runtime, including AC, WA, TLE, MLE, RE, CE, RS (Run Successful, indicated when user hasn't input an expected output)
 
 ## Planned Features
 
-### Compiler Integration
+### Improvements to Existing Features
+- **Syntax Highlighting**: True syntax highlighting for C++ and Python
+- **Enhanced GitHub Action**: Better support for Java and Python compilation and execution
+- **Code Completion**: More comprehensive code completion functionality
+- **Android Error Lens**: Highlight compilation errors directly in the editor
+
+### competitive-companion Integration
+- Android version of competitive-companion
+- Import test cases directly from problem statements
+- Support for major competitive programming platforms:
+  - Codeforces
+  - AtCoder
+  - Luogu
+  - Niuke
+
+### Local Compiler Integration
 - Integration with C/C++, Java, and Python compilers
 - Local compilation and execution
 - Support for different compiler versions
 - Compilation progress indicators
 - Compilation error highlighting in the editor
 
-### Problem Status Detection
-- Automatic detection of solution status:
-  - AC (Accepted)
-  - WA (Wrong Answer)
-  - CE (Compilation Error)
-  - MLE (Memory Limit Exceeded)
-  - TLE (Time Limit Exceeded)
-  - RE (Runtime Error)
-- Execution time and memory usage statistics
-- Test case result visualization
-
-### competitive-companion Integration
-- Android version of the competitive-companion
-- Import test cases directly from problem statements
-- Support for major competitive programming platforms:
-  - Codeforces
-  - AtCoder
-  - LeetCode
-  - Luogu
-  - Niuke
-
 ## Installation
 
-- Download and install the latest version from the [releases](https://github.com/META-Xiao/acc_ide/releases/latest) page.
-- Alternatively, clone the repository locally, open it in Android Studio, and run the project.
+- Download the latest version from [releases](https://github.com/META-Xiao/acc_ide/releases/latest)
+- Or `clone` the repository locally, open it with Android Studio, and run the project
 
 ## Contributing
 
@@ -165,7 +142,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This software is released under an open-source license with the following conditions:
+This software is released as open-source under the following conditions:
 
 1. This software is free to use for personal and non-commercial purposes.
 2. Commercial use is permitted, but requires:
@@ -185,4 +162,4 @@ Copyright © 2024 ACC IDE Project. All rights reserved except as specified in th
 
 ---
 
-ACC IDE - Enhancing your competitive programming experience on Android. 
+ACC IDE - Enhancing your OJ experience on Android. 

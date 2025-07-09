@@ -24,8 +24,8 @@ class SymbolPanelView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : LinearLayout(context, attrs, defStyleAttr) {
 
-    private lateinit var viewPager: ViewPager2
-    private lateinit var pageIndicator: LinearLayout
+    private val viewPager: ViewPager2
+    private val pageIndicator: LinearLayout
     private var editor: CodeEditor? = null
     private var currentPage = 0
     private val pageCount = 2

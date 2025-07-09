@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
+import androidx.core.view.MenuProvider
 import com.google.android.material.button.MaterialButton
 import com.acc_ide.view.SymbolPanelView
 import io.github.rosemoe.sora.lang.EmptyLanguage
@@ -24,7 +25,6 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.schemes.SchemeDarcula
 import io.github.rosemoe.sora.widget.schemes.SchemeVS2019
 import io.github.rosemoe.sora.event.ContentChangeEvent
-import kotlin.jvm.functions.Function1
 import android.util.TypedValue
 
 class EditorFragment : Fragment() {
@@ -34,7 +34,8 @@ class EditorFragment : Fragment() {
     private var initialized = false
     private var isIOPanelOpen = false
     private var runMenuItem: MenuItem? = null
-    private var symbolPanelMenuItem: MenuItem? = null
+    private var undoMenuItem: MenuItem? = null
+    private var redoMenuItem: MenuItem? = null
     private var hasUnsavedChanges = false
     private var isUpdatingFontSize = false // 防止缩放监听器和设置更新相互触发
     
@@ -44,7 +45,7 @@ class EditorFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setHasOptionsMenu(true) // 启用选项菜单
+        // We'll set up the menu in onViewCreated instead of here
     }
 
     override fun onCreateView(
@@ -104,8 +105,47 @@ class EditorFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        // 设置菜单提供者 - 在视图创建后设置，确保可以安全访问 viewLifecycleOwner
+        activity?.addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menu.clear() // 清除旧菜单
+                menuInflater.inflate(R.menu.editor_menu, menu)
+                runMenuItem = menu.findItem(R.id.action_run)
+                undoMenuItem = menu.findItem(R.id.action_undo)
+                redoMenuItem = menu.findItem(R.id.action_redo)
+                updateUndoRedoMenuState()
+            }
+            
+            override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                return when (menuItem.itemId) {
+                    R.id.action_run -> {
+                        if (isIOPanelOpen) {
+                            // 如果IO面板已打开，则关闭它
+                            closeIOPanel()
+                        } else {
+                            // 运行代码前先保存
+                            saveContent(false)
+                            
+                            // 打开IO面板
+                            openIOPanel()
+                        }
+                        true
+                    }
+                    R.id.action_undo -> {
+                        performUndo()
+                        true
+                    }
+                    R.id.action_redo -> {
+                        performRedo()
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }, viewLifecycleOwner)
+        
         // 初始化界面视图
-        initViews(view)
+        initViews()
         
         // 配置语言支持
         configureLanguage()
@@ -190,7 +230,7 @@ class EditorFragment : Fragment() {
      * 初始化界面视图
      * 此方法在Fragment视图创建后被调用，用于设置视图相关组件
      */
-    private fun initViews(view: View) {
+    private fun initViews() {
         try {
             // 初始化编辑器视图的其他UI元素（如工具栏、按钮等）
             // 在此处添加编辑器相关的视图初始化代码
@@ -387,15 +427,24 @@ class EditorFragment : Fragment() {
             // 撤销/重做
             isUndoEnabled = true  // 启用撤销/重做功能
             
+            // 设置内容变化监听器
+            subscribeEvent(ContentChangeEvent::class.java) { _, _ ->
+                // 标记有未保存的更改
+                hasUnsavedChanges = true
+                
+                // 更新撤销/重做按钮状态
+                updateUndoRedoMenuState()
+            }
+            
             // 从应用偏好设置获取保存的字体大小
-            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-            val fontSize = prefs.getFloat(SettingsFragment.PREF_FONT_SIZE, SettingsFragment.DEFAULT_FONT_SIZE)
+            val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
+            val fontSize = sharedPrefs.getFloat(SettingsFragment.PREF_FONT_SIZE, SettingsFragment.DEFAULT_FONT_SIZE)
             
             // 设置编辑器字体大小
             setTextSize(fontSize)
             
             // 设置光标宽度 - 从设置中读取
-            val cursorWidth = prefs.getFloat(SettingsFragment.PREF_CURSOR_WIDTH, SettingsFragment.DEFAULT_CURSOR_WIDTH)
+            val cursorWidth = sharedPrefs.getFloat(SettingsFragment.PREF_CURSOR_WIDTH, SettingsFragment.DEFAULT_CURSOR_WIDTH)
             setCursorWidth(cursorWidth)
             
             // 启用缩放功能，允许用户通过手势调整字体大小
@@ -1247,120 +1296,21 @@ class EditorFragment : Fragment() {
 
     /**
      * 设置光标宽度
-     * 使用多种方法尝试设置光标宽度，确保至少一种方法生效
+     * 使用有效方法设置光标宽度
      * @param widthInDp 光标宽度（单位：dp）
      */
     private fun setCursorWidth(widthInDp: Float) {
         try {
             android.util.Log.d("EditorFragment", "尝试设置光标宽度为 $widthInDp dp")
             
-            // 1. 尝试使用直接字段访问
-            try {
-                val cursorWidthField = CodeEditor::class.java.getDeclaredField("mCursorWidth")
-                cursorWidthField.isAccessible = true
-                val widthInPixels = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP,
-                    widthInDp,
-                    resources.displayMetrics
-                )
-                cursorWidthField.setFloat(editor, widthInPixels)
-                android.util.Log.d("EditorFragment", "方法1：通过字段设置光标宽度成功")
-            } catch (e: Exception) {
-                android.util.Log.w("EditorFragment", "方法1失败: ${e.message}")
-            }
-            
-            // 2. 尝试使用setCursorWidth方法
+            // 尝试使用setCursorWidth方法
             try {
                 val setCursorWidthMethod = CodeEditor::class.java.getDeclaredMethod("setCursorWidth", Float::class.java)
                 setCursorWidthMethod.isAccessible = true
                 setCursorWidthMethod.invoke(editor, widthInDp)
                 android.util.Log.d("EditorFragment", "方法2：通过方法设置光标宽度成功")
             } catch (e: Exception) {
-                android.util.Log.w("EditorFragment", "方法2失败: ${e.message}")
-            }
-            
-            // 3. 尝试修改InsertHandle的宽度
-            try {
-                val insertHandleField = CodeEditor::class.java.getDeclaredField("mInsertHandle")
-                insertHandleField.isAccessible = true
-                val insertHandle = insertHandleField.get(editor)
-                if (insertHandle != null) {
-                    val insertHandleClass = insertHandle.javaClass
-                    val widthField = insertHandleClass.getDeclaredField("width")
-                    widthField.isAccessible = true
-                    val widthInPixels = TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP,
-                        widthInDp,
-                        resources.displayMetrics
-                    )
-                    widthField.setFloat(insertHandle, widthInPixels)
-                    android.util.Log.d("EditorFragment", "方法3：通过修改InsertHandle宽度成功")
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("EditorFragment", "方法3失败: ${e.message}")
-            }
-            
-            // 4. 尝试修改渲染器中的光标宽度
-            try {
-                val rendererField = CodeEditor::class.java.getDeclaredField("mRenderer")
-                rendererField.isAccessible = true
-                val renderer = rendererField.get(editor)
-                if (renderer != null) {
-                    val rendererClass = renderer.javaClass
-                    
-                    // 尝试找到所有可能与光标宽度相关的字段
-                    val possibleFields = listOf("cursorWidth", "mCursorWidth", "insertWidth", "insertHandleWidth")
-                    
-                    for (fieldName in possibleFields) {
-                        try {
-                            val field = rendererClass.getDeclaredField(fieldName)
-                            field.isAccessible = true
-                            val widthInPixels = TypedValue.applyDimension(
-                                TypedValue.COMPLEX_UNIT_DIP,
-                                widthInDp,
-                                resources.displayMetrics
-                            )
-                            field.setFloat(renderer, widthInPixels)
-                            android.util.Log.d("EditorFragment", "方法4：通过修改渲染器字段 $fieldName 成功")
-                        } catch (e: Exception) {
-                            // 忽略单个字段的错误
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("EditorFragment", "方法4失败: ${e.message}")
-            }
-            
-            // 5. 尝试修改EditorPainter中的光标宽度
-            try {
-                val painterField = CodeEditor::class.java.getDeclaredField("mPainter")
-                painterField.isAccessible = true
-                val painter = painterField.get(editor)
-                if (painter != null) {
-                    val painterClass = painter.javaClass
-                    val possibleFields = listOf("cursorWidth", "mCursorWidth", "insertWidth")
-                    
-                    for (fieldName in possibleFields) {
-                        try {
-                            val field = painterClass.getDeclaredField(fieldName)
-                            field.isAccessible = true
-                            val widthInPixels = TypedValue.applyDimension(
-                                TypedValue.COMPLEX_UNIT_DIP,
-                                widthInDp,
-                                resources.displayMetrics
-                            )
-                            field.setFloat(painter, widthInPixels)
-                            android.util.Log.d("EditorFragment", "方法5：通过修改绘制器字段 $fieldName 成功")
-                        } catch (e: Exception) {
-                            // 忽略单个字段的错误
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("EditorFragment", "方法5失败: ${e.message}")
-            }
-            
-            // 6. 尝试使用反射调用任何可能的设置光标宽度的方法
+                // 如果方法2失败，尝试方法6
             try {
                 val methods = CodeEditor::class.java.declaredMethods
                 for (method in methods) {
@@ -1381,10 +1331,11 @@ class EditorFragment : Fragment() {
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.w("EditorFragment", "方法6失败: ${e.message}")
+                    android.util.Log.w("EditorFragment", "设置光标宽度失败: ${e.message}")
+                }
             }
             
-            // 7. 强制刷新编辑器，确保更改生效
+            // 强制刷新编辑器，确保更改生效
             editor.postInvalidate()
             
         } catch (e: Exception) {
@@ -1416,66 +1367,57 @@ class EditorFragment : Fragment() {
         }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-        menu.clear() // 清除旧菜单
-        inflater.inflate(R.menu.editor_menu, menu)
-        runMenuItem = menu.findItem(R.id.action_run)
-        symbolPanelMenuItem = menu.findItem(R.id.action_toggle_symbol_panel)
-        updateSymbolPanelMenuIcon()
-        super.onCreateOptionsMenu(menu, inflater)
-    }
-    
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_run -> {
-                if (isIOPanelOpen) {
-                    // 如果IO面板已打开，则关闭它
-                    closeIOPanel()
-                } else {
-                    // 运行代码前先保存
-                    saveContent(false)
-                    
-                    // 打开IO面板
-                    openIOPanel()
-                }
-                true
-            }
-            R.id.action_toggle_symbol_panel -> {
-                toggleSymbolPanel()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
+    // onCreateOptionsMenu 和 onOptionsItemSelected 已被移除
+    // 使用 MenuProvider 替代，在 onCreate 方法中已实现
     
     /**
-     * 切换符号面板的可见性
+     * 执行撤销操作
      */
-    private fun toggleSymbolPanel() {
-        isSymbolPanelVisible = !isSymbolPanelVisible
-        setSymbolPanelVisibility(isSymbolPanelVisible)
-        updateSymbolPanelMenuIcon()
-        
-        // 显示提示
-        val message = if (isSymbolPanelVisible) 
-            getString(R.string.symbol_panel_shown) 
-        else 
-            getString(R.string.symbol_panel_hidden)
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-    }
-    
-    /**
-     * 更新符号面板菜单图标
-     */
-    private fun updateSymbolPanelMenuIcon() {
-        symbolPanelMenuItem?.let {
-            if (isSymbolPanelVisible) {
-                it.setIcon(android.R.drawable.ic_menu_close_clear_cancel)
+    private fun performUndo() {
+        try {
+            if (::editor.isInitialized && editor.canUndo()) {
+                editor.undo()
+                updateUndoRedoMenuState()
             } else {
-                it.setIcon(android.R.drawable.ic_menu_sort_by_size)
+                Toast.makeText(context, "无法撤销", Toast.LENGTH_SHORT).show()
             }
+        } catch (e: Exception) {
+            android.util.Log.e("EditorFragment", "撤销操作失败: ${e.message}")
+            Toast.makeText(context, "撤销操作失败", Toast.LENGTH_SHORT).show()
         }
     }
+
+    /**
+     * 执行重做操作
+     */
+    private fun performRedo() {
+        try {
+            if (::editor.isInitialized && editor.canRedo()) {
+                editor.redo()
+                updateUndoRedoMenuState()
+            } else {
+                Toast.makeText(context, "无法重做", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("EditorFragment", "重做操作失败: ${e.message}")
+            Toast.makeText(context, "重做操作失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 更新撤销/重做菜单项状态
+     */
+    private fun updateUndoRedoMenuState() {
+        undoMenuItem?.isEnabled = editor.canUndo()
+        redoMenuItem?.isEnabled = editor.canRedo()
+        
+        // 可选：根据启用状态调整图标的透明度
+        undoMenuItem?.icon?.alpha = if (editor.canUndo()) 255 else 128
+        redoMenuItem?.icon?.alpha = if (editor.canRedo()) 255 else 128
+    }
+
+    
+
 
     companion object {
         private const val ARG_LANGUAGE = "language"

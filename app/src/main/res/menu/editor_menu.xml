@@ -3,14 +3,20 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     
     <item
-        android:id="@+id/action_run"
-        android:icon="@android:drawable/ic_media_play"
-        android:title="@string/run"
+        android:id="@+id/action_undo"
+        android:icon="@drawable/baseline_undo_24"
+        android:title="@string/undo"
         app:showAsAction="always" />
         
     <item
-        android:id="@+id/action_toggle_symbol_panel"
-        android:icon="@android:drawable/ic_menu_sort_by_size"
-        android:title="@string/toggle_symbol_panel"
+        android:id="@+id/action_redo"
+        android:icon="@drawable/baseline_redo_24"
+        android:title="@string/redo"
+        app:showAsAction="always" />
+    
+    <item
+        android:id="@+id/action_run"
+        android:icon="@android:drawable/ic_media_play"
+        android:title="@string/run"
         app:showAsAction="always" />
 </menu> 

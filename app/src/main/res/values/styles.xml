@@ -23,6 +23,14 @@
         <item name="colorOnSurfaceVariant">@color/onSurfaceVariant_light</item>
     </style>
 
+    <!-- 无操作栏主题，用于启动页面 -->
+    <style name="Theme.AccIDE.NoActionBar" parent="Theme.AccIDE">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+
     <!-- Dark theme -->
     <style name="Theme.AccIDE.Dark" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary brand color. -->

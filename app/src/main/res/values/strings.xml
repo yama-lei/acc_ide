@@ -5,12 +5,14 @@
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
     <string name="new_file">New File</string>
+    <string name="open_file">Open File</string>
     <string name="settings">Settings</string>
     <string name="files">Files</string>
     <string name="actions">Actions</string>
     <string name="no_files">No files, please create a new one</string>
     <string name="run">Run</string>
-    <string name="save">Save</string>
+    <string name="save">保存</string>
+    <string name="save_as">另存为</string>
     <string name="input">Input:</string>
     <string name="current_output">Current Output:</string>
     <string name="answer_output">Answer Output (Optional):</string>
@@ -25,8 +27,10 @@
     <string name="font_size">Font Size</string>
     <string name="cursor_width">Cursor Width</string>
     <string name="file_options">File Options</string>
-    <string name="delete">Delete</string>
+    <string name="delete">删除</string>
     <string name="rename">Rename</string>
+    <string name="close">Close</string>
+    <string name="file_closed">File closed: %1$s</string>
     <string name="empty_files_list">No files yet</string>
     <string name="create_first_file">Create your first file</string>
     <string name="file_name_empty">File name cannot be empty</string>
@@ -42,9 +46,34 @@
     <string name="language_changed">Language changed successfully, applying new language...</string>
     <string name="language_change_failed">Failed to change language: %1$s</string>
     <string name="file_saved">%1$s saved</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="loading">Initializing...</string>
+    <string name="initializing_file_system">Initializing file system...</string>
+    <string name="cleaning_temp_files">Cleaning temporary files...</string>
+    <string name="verifying_file_system">Verifying file system...</string>
+    <string name="initializing_templates">Initializing templates...</string>
+    <string name="loading_complete">Loading complete!</string>
+    
+    <!-- Splash Activity Log Messages -->
+    <string name="log_start_init_fs">Starting file system initialization...</string>
+    <string name="log_fs_manager_init_complete">File storage manager initialized</string>
+    <string name="log_start_cleaning_temp">Starting temporary files cleanup...</string>
+    <string name="log_start_verifying_fs">Starting file system verification...</string>
+    <string name="log_start_init_templates">Starting templates initialization...</string>
+    <string name="log_templates_init_complete">Templates initialization complete</string>
+    <string name="log_all_tasks_complete">All initialization tasks completed</string>
+    <string name="log_found_orphaned_meta">Found %1$d orphaned metadata files, cleaning up...</string>
+    <string name="log_deleted_orphaned_meta">Deleted orphaned metadata file: %1$s</string>
+    <string name="log_no_orphaned_meta">No orphaned metadata files found</string>
+    <string name="log_cleanup_error">Error during cleanup: %1$s</string>
+    <string name="log_found_code_files">Found %1$d code files, verifying metadata...</string>
+    <string name="log_fixed_missing_meta">Created missing metadata for %1$d files</string>
+    <string name="log_all_meta_complete">All files have complete metadata</string>
+    <string name="log_verify_error">Error during verification: %1$s</string>
+    <string name="log_error">Error: %1$s</string>
     
     <!-- IO Panel Strings -->
-    <string name="close">Close</string>
     <string name="actual_output">Actual Output:</string>
     <string name="expected_output">Expected Output:</string>
     <string name="copy">Copy</string>
@@ -53,6 +82,7 @@
     <string name="status_tle">TLE</string>
     <string name="status_mle">MLE</string>
     <string name="status_ce">CE</string>
+    <string name="status_rs">RS</string>
     
     <!-- Storage Permission Strings -->
     <string name="storage_permission_title">Storage Permission Required</string>
@@ -83,4 +113,45 @@
     <string name="symbol_panel_hidden">Symbol panel hidden</string>
     <string name="auto_complete_switch_label">Auto-complete</string>
     <string name="symbol_panel_switch_label">Symbol Panel</string>
+    
+    <!-- GitHub Action Settings -->
+    <string name="github_runner_settings">GitHub Action Settings</string>
+    <string name="github_repo_url_hint">GitHub Repository URL</string>
+    <string name="github_pat_hint">Repository Token</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="connection_testing">Testing connection...</string>
+    <string name="connection_successful">Connection successful!</string>
+    <string name="connection_failed">Connection failed: %1$s</string>
+    <string name="github_settings_saved">GitHub settings saved.</string>
+    <string name="github_repo_pat_empty">Repository URL and PAT cannot be empty.</string>
+    <string name="github_repo_invalid">Invalid GitHub Repository URL format.</string>
+    
+    <!-- GitHub Code Execution Messages -->
+    <string name="code_running">Running...</string>
+    <string name="code_running_on_github">Running code on GitHub Actions...</string>
+    <string name="code_running_time">Running... (%1$d seconds)</string>
+    <string name="workflow_timeout">Workflow execution timed out</string>
+    <string name="workflow_trigger_failed">Failed to trigger GitHub workflow</string>
+    <string name="workflow_error">Error: %1$s</string>
+    <string name="workflow_polling_error">Polling error: %1$s</string>
+    <string name="already_running">Code is already running, please wait</string>
+    <string name="no_github_settings">Please configure GitHub repository and PAT in settings</string>
+    <string name="invalid_repo_url">Invalid GitHub repository URL</string>
+    <string name="code_empty">Code cannot be empty</string>
+    <string name="artifact_not_found">Result artifact not found</string>
+    <string name="result_processing_error">Error processing results: %1$s</string>
+    <string name="no_output">No output available</string>
+    <string name="run_successful">Run Successful</string>
+    
+    <!-- Simulation Messages -->
+    <string name="unsupported_language">Unsupported language: %1$s</string>
+    <string name="simulated_cpp_output">Simulated C++ output:</string>
+    <string name="simulated_python_output">Simulated Python output:</string>
+    <string name="simulated_java_output">Simulated Java output:</string>
+    <string name="processing_input">Processing: %1$s</string>
+    <string name="cpp_compile_error">// Compilation error: No output statement in code</string>
+    <string name="python_error"># Error: No output statement in code</string>
+    <string name="java_compile_error">// Compilation error: No output statement in code</string>
+    <string name="error_keyword">error</string>
+    <string name="compile_error_keyword">Compilation error</string>
 </resources>

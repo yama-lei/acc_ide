@@ -63,7 +63,7 @@
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:src="@android:drawable/ic_menu_preferences"
+                    android:src="@drawable/ic_settings_gear"
                     android:layout_marginEnd="16dp"
                     android:contentDescription="@string/settings"
                     app:tint="?attr/colorPrimary"/>
@@ -102,6 +102,16 @@
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="?attr/colorOnSurface"/>
+                
+                <ImageButton
+                    android:id="@+id/open_file_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:src="@android:drawable/ic_menu_upload"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    app:tint="?attr/colorPrimary"
+                    android:contentDescription="@string/open_file"
+                    android:layout_marginEnd="8dp"/>
                 
                 <ImageButton
                     android:id="@+id/new_file_button"

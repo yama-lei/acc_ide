@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -26,6 +27,17 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
 import java.util.Locale
+import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class SettingsFragment : Fragment() {
     private lateinit var themeSwitch: SwitchCompat
@@ -37,6 +49,10 @@ class SettingsFragment : Fragment() {
     private lateinit var cursorWidthValue: TextView
     private lateinit var prefs: SharedPreferences
     private lateinit var switchSymbolPanel: SwitchCompat
+    private lateinit var githubRepoEditText: TextInputEditText
+    private lateinit var githubPatEditText: TextInputEditText
+    private lateinit var testGithubButton: Button
+    private lateinit var githubStatusText: TextView
     
     // 当前应用语言
     private var currentLanguage: String = ""
@@ -53,6 +69,11 @@ class SettingsFragment : Fragment() {
         const val DEFAULT_CURSOR_WIDTH = 8f
         const val MIN_CURSOR_WIDTH = 2f
         const val MAX_CURSOR_WIDTH = 14f
+        const val PREF_GITHUB_REPO_URL = "github_repo_url"
+        // Warning: Storing PAT in plaintext SharedPreferences is insecure.
+        // For a production app, use EncryptedSharedPreferences or the Android Keystore system.
+        const val PREF_GITHUB_PAT = "github_pat"
+        const val GITHUB_API_BASE = "https://api.github.com"
     }
 
     override fun onCreateView(
@@ -71,6 +92,10 @@ class SettingsFragment : Fragment() {
         cursorWidthSlider = view.findViewById(R.id.cursor_width_slider)
         cursorWidthValue = view.findViewById(R.id.cursor_width_value)
         switchSymbolPanel = view.findViewById(R.id.switch_symbol_panel)
+        githubRepoEditText = view.findViewById(R.id.github_repo_edit_text)
+        githubPatEditText = view.findViewById(R.id.github_pat_edit_text)
+        testGithubButton = view.findViewById(R.id.test_github_button)
+        githubStatusText = view.findViewById(R.id.github_status_text)
 
         // 初始化SharedPreferences
         prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
@@ -199,6 +224,12 @@ class SettingsFragment : Fragment() {
             prefs.edit().putBoolean(PREF_ENABLE_SYMBOL_PANEL, isChecked).apply()
         }
 
+        // Load saved GitHub settings
+        loadGitHubSettings()
+
+        // Setup GitHub listeners
+        setupGitHubListeners()
+
         return view
     }
     
@@ -305,7 +336,7 @@ class SettingsFragment : Fragment() {
             parentFragmentManager.popBackStack()
         } else {
             // 直接通知Activity处理返回
-            (activity as? MainActivity)?.onBackPressed()
+            (activity as? MainActivity)?.onBackPressedDispatcher?.onBackPressed()
         }
     }
     
@@ -353,5 +384,97 @@ class SettingsFragment : Fragment() {
         )
         switch.thumbTintList = ColorStateList(thumbStates, thumbColors)
         switch.trackTintList = ColorStateList(trackStates, trackColors)
+    }
+
+    private fun loadGitHubSettings() {
+        val repoUrl = prefs.getString(PREF_GITHUB_REPO_URL, "")
+        val pat = prefs.getString(PREF_GITHUB_PAT, "")
+        githubRepoEditText.setText(repoUrl)
+        githubPatEditText.setText(pat)
+    }
+
+    private fun setupGitHubListeners() {
+        testGithubButton.setOnClickListener {
+            val repoUrl = githubRepoEditText.text.toString().trim()
+            val pat = githubPatEditText.text.toString().trim()
+            testGitHubConnection(repoUrl, pat)
+        }
+    }
+
+    private fun testGitHubConnection(repoUrl: String, pat: String) {
+        if (repoUrl.isEmpty() || pat.isEmpty()) {
+            githubStatusText.text = getString(R.string.github_repo_pat_empty)
+            githubStatusText.setTextColor(Color.RED)
+            return
+        }
+
+        val regex = "https://github.com/([^/]+)/([^/]+)".toRegex()
+        val match = regex.find(repoUrl)
+
+        if (match == null || match.groupValues.size < 3) {
+            githubStatusText.text = getString(R.string.github_repo_invalid)
+            githubStatusText.setTextColor(Color.RED)
+            return
+        }
+
+        val owner = match.groupValues[1]
+        val repo = match.groupValues[2].removeSuffix(".git")
+
+        githubStatusText.text = getString(R.string.connection_testing)
+        githubStatusText.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+
+        // Use coroutine to perform network operation
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Create OkHttp client with timeout
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .build()
+                    
+                // Build request
+                val request = Request.Builder()
+                    .url("$GITHUB_API_BASE/repos/$owner/$repo")
+                    .header("Authorization", "token $pat")
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .build()
+
+                // Execute request synchronously within the IO coroutine
+                val response = client.newCall(request).execute()
+                
+                // Switch to Main thread to update UI
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        githubStatusText.text = getString(R.string.connection_successful)
+                        githubStatusText.setTextColor(Color.parseColor("#388E3C")) // Green
+
+                        // Save credentials on successful connection
+                        prefs.edit()
+                            .putString(PREF_GITHUB_REPO_URL, repoUrl)
+                            .putString(PREF_GITHUB_PAT, pat)
+                            .apply()
+
+                        Toast.makeText(context, getString(R.string.github_settings_saved), Toast.LENGTH_SHORT).show()
+                    } else {
+                        val errorBody = response.body?.string() ?: "Unknown error"
+                        val message = try { 
+                            JSONObject(errorBody).getString("message") 
+                        } catch (e: Exception) { 
+                            "${response.code} ${response.message}" 
+                        }
+                        githubStatusText.text = getString(R.string.connection_failed, message)
+                        githubStatusText.setTextColor(Color.RED)
+                    }
+                    
+                    // Close the response body to prevent resource leaks
+                    response.body?.close()
+                }
+            } catch (e: IOException) {
+                withContext(Dispatchers.Main) {
+                    githubStatusText.text = getString(R.string.connection_failed, e.message)
+                    githubStatusText.setTextColor(Color.RED)
+                }
+            }
+        }
     }
 } 

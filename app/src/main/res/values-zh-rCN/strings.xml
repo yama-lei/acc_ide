@@ -52,6 +52,8 @@
     <string name="status_tle">超时</string>
     <string name="status_mle">超内存</string>
     <string name="status_ce">编译错误</string>
+    <string name="status_rs">运行成功</string>
+    <string name="run_successful">运行成功</string>
     
     <!-- Storage Permission Strings -->
     <string name="storage_permission_title">需要存储权限</string>
