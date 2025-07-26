@@ -11,6 +11,7 @@ import androidx.preference.PreferenceManager
 import com.acc_ide.util.FileStorageManager
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TemplateManager
+import com.acc_ide.util.TextMateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,6 +70,12 @@ class SplashActivity : AppCompatActivity() {
                 templateManager.initializeTemplates()
                 logInfo(getString(R.string.log_templates_init_complete))
                 
+                // 初始化TextMate
+                updateLoadingText(getString(R.string.initializing_syntax_highlighting))
+                logInfo(getString(R.string.log_start_init_textmate))
+                TextMateManager.initialize(this@SplashActivity)
+                logInfo(getString(R.string.log_textmate_init_complete))
+                
                 // 所有初始化工作完成后，启动主Activity
                 updateLoadingText(getString(R.string.loading_complete))
                 logInfo(getString(R.string.log_all_tasks_complete))
@@ -100,14 +107,11 @@ class SplashActivity : AppCompatActivity() {
         val savedLanguage = LocaleHelper.getLanguage(this)
         
         if (savedLanguage.isNotEmpty()) {
-            // 用户已经设置了语言，使用该语言
             Log.d("SplashActivity", "应用用户设置的语言: $savedLanguage")
             LocaleHelper.setLocale(this, savedLanguage)
         } else {
-            // 用户未设置语言，使用系统语言
             val systemLanguage = Locale.getDefault().language
             Log.d("SplashActivity", "应用系统语言: $systemLanguage")
-            // 不保存系统语言到设置，只应用它
             LocaleHelper.setLocale(this, systemLanguage)
         }
     }
@@ -192,7 +196,6 @@ class SplashActivity : AppCompatActivity() {
                 
                 // 如果元数据文件不存在，创建一个默认的
                 if (!metaFile.exists()) {
-                    // 根据文件扩展名推断语言
                     val language = when {
                         file.name.endsWith(".cpp") -> "cpp"
                         file.name.endsWith(".java") -> "java"
@@ -200,7 +203,6 @@ class SplashActivity : AppCompatActivity() {
                         else -> "text"
                     }
                     
-                    // 创建默认元数据
                     metaFile.writeText("$language\n${System.currentTimeMillis()}\nfalse\n")
                     fixedCount++
                 }

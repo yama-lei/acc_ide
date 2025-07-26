@@ -17,6 +17,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.acc_ide.util.LocaleHelper
+import com.acc_ide.util.TextMateManager
 import com.google.android.material.slider.Slider
 import androidx.appcompat.app.AppCompatDelegate
 import android.content.SharedPreferences
@@ -123,6 +124,11 @@ class SettingsFragment : Fragment() {
                 if (selectedMode != nightMode) {
                     // 保存设置
                     prefs.edit().putInt("app_night_mode", selectedMode).apply()
+                    
+                    // 更新TextMate主题
+                    val textMateTheme = if (isChecked) "dark_plus" else "light_plus"
+                    TextMateManager.setTheme(textMateTheme)
+                    
                     // 切换主题
                     AppCompatDelegate.setDefaultNightMode(selectedMode)
                     // 重启 Activity 以应用主题

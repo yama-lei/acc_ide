@@ -53,6 +53,7 @@
     <string name="cleaning_temp_files">Cleaning temporary files...</string>
     <string name="verifying_file_system">Verifying file system...</string>
     <string name="initializing_templates">Initializing templates...</string>
+    <string name="initializing_syntax_highlighting">Initializing syntax highlighting...</string>
     <string name="loading_complete">Loading complete!</string>
     
     <!-- Splash Activity Log Messages -->
@@ -62,6 +63,8 @@
     <string name="log_start_verifying_fs">Starting file system verification...</string>
     <string name="log_start_init_templates">Starting templates initialization...</string>
     <string name="log_templates_init_complete">Templates initialization complete</string>
+    <string name="log_start_init_textmate">Starting TextMate syntax highlighting initialization...</string>
+    <string name="log_textmate_init_complete">TextMate syntax highlighting initialized</string>
     <string name="log_all_tasks_complete">All initialization tasks completed</string>
     <string name="log_found_orphaned_meta">Found %1$d orphaned metadata files, cleaning up...</string>
     <string name="log_deleted_orphaned_meta">Deleted orphaned metadata file: %1$s</string>

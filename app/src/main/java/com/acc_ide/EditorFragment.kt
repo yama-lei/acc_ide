@@ -19,7 +19,6 @@ import androidx.core.view.MenuProvider
 import com.google.android.material.button.MaterialButton
 import com.acc_ide.view.SymbolPanelView
 import io.github.rosemoe.sora.lang.EmptyLanguage
-import io.github.rosemoe.sora.langs.java.JavaLanguage
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.schemes.SchemeDarcula
@@ -41,7 +40,7 @@ class EditorFragment : Fragment() {
     
     // Symbol panel components
     private lateinit var symbolPanel: SymbolPanelView
-    private var isSymbolPanelVisible = true // 默认显示符号面板
+    private var isSymbolPanelVisible = true 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,13 +119,10 @@ class EditorFragment : Fragment() {
                 return when (menuItem.itemId) {
                     R.id.action_run -> {
                         if (isIOPanelOpen) {
-                            // 如果IO面板已打开，则关闭它
                             closeIOPanel()
                         } else {
                             // 运行代码前先保存
                             saveContent(false)
-                            
-                            // 打开IO面板
                             openIOPanel()
                         }
                         true
@@ -235,7 +231,6 @@ class EditorFragment : Fragment() {
             // 初始化编辑器视图的其他UI元素（如工具栏、按钮等）
             // 在此处添加编辑器相关的视图初始化代码
             
-            // 示例：设置编辑器的长按监听器
             editor.setOnLongClickListener {
                 // 显示上下文菜单或者执行其他操作
                 true
@@ -905,21 +900,27 @@ class EditorFragment : Fragment() {
      */
     private fun setupLanguageSupport() {
         try {
-            // 根据文件类型设置相应的语言解析器
-            val languageToUse = when (language) {
-                "java" -> JavaLanguage() // Java语言解析器
-                "cpp" -> JavaLanguage()  // 临时使用Java语言解析器代替C++
-                "python" -> EmptyLanguage() // 目前使用空语言解析器，未来可添加Python支持
-                else -> EmptyLanguage() // 默认使用空语言解析器
+            // 使用TextMate语法高亮
+            val activity = requireActivity()
+            val fileExtension = when (language) {
+                "java" -> "java"
+                "cpp" -> "cpp" 
+                "python" -> "py"
+                else -> "txt"
             }
             
-            // 将选定的语言解析器应用到编辑器
-            editor.setEditorLanguage(languageToUse)
-            android.util.Log.d("EditorFragment", "已设置${language}语言支持")
+            // 获取文件扩展名对应的语言作用域
+            val languageMapping = com.acc_ide.util.TextMateManager.getLanguageMapping()
+            val scopeName = languageMapping[fileExtension] ?: "text.plain"
+            
+            // 应用TextMate语言和配色方案到编辑器
+            com.acc_ide.util.TextMateManager.applyTextMate(editor, scopeName)
+            
+            android.util.Log.d("EditorFragment", "已设置${language}语言支持(TextMate: $scopeName)")
         } catch (e: Exception) {
             e.printStackTrace()
             // 发生错误时退回到空语言解析器，确保编辑器仍可用
-            editor.setEditorLanguage(EmptyLanguage())
+            editor.setEditorLanguage(io.github.rosemoe.sora.lang.EmptyLanguage())
             android.util.Log.e("EditorFragment", "设置语言支持时出错: ${e.message}，已退回到空语言解析器")
         }
     }
