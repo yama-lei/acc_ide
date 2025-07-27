@@ -15,5 +15,6 @@
 /temp_apk
 .externalNativeBuild
 .cxx
+/release
 local.properties
 

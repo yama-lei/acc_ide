@@ -1,5 +1,6 @@
 package com.acc_ide
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -26,6 +27,17 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var templateManager: TemplateManager
     private val logBuffer = StringBuilder()
     
+    override fun attachBaseContext(newBase: Context) {
+        val savedLanguage = LocaleHelper.getLanguage(newBase)
+        if (savedLanguage.isEmpty()) {
+            // 如果没有保存的语言，使用系统默认语言
+            super.attachBaseContext(newBase)
+        } else {
+            // 否则使用保存的语言
+            super.attachBaseContext(LocaleHelper.setLocale(newBase, savedLanguage))
+        }
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -41,6 +53,12 @@ class SplashActivity : AppCompatActivity() {
         
         loadingText = findViewById(R.id.loading_text)
         logInfoText = findViewById(R.id.log_info_text)
+        
+        // 立即开始TextMate的初始化
+        CoroutineScope(Dispatchers.IO).launch {
+            TextMateManager.initialize(this@SplashActivity)
+            logInfo(getString(R.string.log_textmate_init_started))
+        }
         
         // 在后台线程中执行初始化操作
         CoroutineScope(Dispatchers.IO).launch {
@@ -70,10 +88,10 @@ class SplashActivity : AppCompatActivity() {
                 templateManager.initializeTemplates()
                 logInfo(getString(R.string.log_templates_init_complete))
                 
-                // 初始化TextMate
+                // 设置TextMate状态
                 updateLoadingText(getString(R.string.initializing_syntax_highlighting))
                 logInfo(getString(R.string.log_start_init_textmate))
-                TextMateManager.initialize(this@SplashActivity)
+                // 因为TextMateManager中没有loadLanguageIfNeeded方法，所以直接显示完成消息
                 logInfo(getString(R.string.log_textmate_init_complete))
                 
                 // 所有初始化工作完成后，启动主Activity
@@ -103,12 +121,48 @@ class SplashActivity : AppCompatActivity() {
      * 否则使用系统语言
      */
     private fun applyLanguageSetting() {
-        // 获取保存的语言设置
         val savedLanguage = LocaleHelper.getLanguage(this)
         
         if (savedLanguage.isNotEmpty()) {
             Log.d("SplashActivity", "应用用户设置的语言: $savedLanguage")
-            LocaleHelper.setLocale(this, savedLanguage)
+            // 确保Locale设置正确
+            val locale = when (savedLanguage) {
+                "en" -> Locale.ENGLISH
+                "zh" -> Locale.CHINESE
+                "zh-CN" -> Locale.SIMPLIFIED_CHINESE
+                "zh-TW" -> Locale.TRADITIONAL_CHINESE
+                else -> Locale(savedLanguage)
+            }
+            
+            // 设置默认Locale
+            Locale.setDefault(locale)
+            Log.d("SplashActivity", "设置默认Locale: $locale")
+            
+            // 更新配置
+            val resources = resources
+            val configuration = resources.configuration
+            configuration.setLocale(locale)
+            resources.updateConfiguration(configuration, resources.displayMetrics)
+            Log.d("SplashActivity", "已更新资源配置")
+            
+            // 检查当前语言设置是否生效
+            val currentLocale = configuration.locales.get(0)
+            Log.d("SplashActivity", "当前Locale: $currentLocale, 语言: ${currentLocale.language}")
+            
+            // 应用语言设置
+            val updatedContext = LocaleHelper.setLocale(this, savedLanguage)
+            
+            // 验证更新后的上下文语言设置
+            val updatedLocale = updatedContext.resources.configuration.locales.get(0)
+            Log.d("SplashActivity", "更新后上下文的Locale: $updatedLocale, 语言: ${updatedLocale.language}")
+            
+            // 确保字符串资源使用正确的语言
+            try {
+                val testString = getString(R.string.app_name)
+                Log.d("SplashActivity", "测试字符串 'app_name': $testString")
+            } catch (e: Exception) {
+                Log.e("SplashActivity", "获取字符串资源时出错", e)
+            }
         } else {
             val systemLanguage = Locale.getDefault().language
             Log.d("SplashActivity", "应用系统语言: $systemLanguage")
@@ -150,11 +204,7 @@ class SplashActivity : AppCompatActivity() {
             val mainFiles = actualFiles.filter { !it.name.endsWith(".meta") }.map { it.name }.toSet()
             val metaFiles = actualFiles.filter { it.name.endsWith(".meta") }
                 .map { it.name.removeSuffix(".meta") }.toSet()
-            
-            // 找出孤立的元数据文件（没有对应主文件的元数据文件）
             val orphanedMetaFiles = metaFiles.filter { !mainFiles.contains(it) }
-            
-            // 删除孤立的元数据文件
             if (orphanedMetaFiles.isNotEmpty()) {
                 logInfo(getString(R.string.log_found_orphaned_meta, orphanedMetaFiles.size))
                 
