@@ -20,7 +20,7 @@ The project is built with native Android and includes the following main compone
 
 ### Core Structure
 ```
-acc_ide_android/
+acc_ide/
 ├── app/
 │   ├── src/
 │   │   ├── main/
@@ -42,13 +42,14 @@ acc_ide_android/
 │   │   │   │   ├── layout/                       # Layout files
 │   │   │   │   ├── menu/                         # Menu resources
 │   │   │   │   ├── values/                       # Strings, colors, etc.
-│   │   │   │   └── values-zh-rCN/                # Chinese localization
+│   │   │   │   └── values-zh/                    # Chinese localization
 │   │   │   ├── assets/                           # Application assets
+│   │   │   │   ├── fonts/                        # Font files
+│   │   │   │   └── textmate/                     # TextMate syntax configuration
 │   │   │   └── AndroidManifest.xml
 │   ├── build.gradle                              # Module build config
-│   ├── build.gradle.kts                          # Kotlin DSL build config
 ├── gradle/                                       # Gradle wrapper files
-└── build.gradle                                  # Project build config
+└── build.gradle.kts                              # Project build config
 ```
 
 ### Interaction Flow
@@ -79,8 +80,7 @@ flowchart TD
 ## Implemented Features
 
 ### Editor Capabilities
-- **Robust Code Editing**: Based on the Sora Editor library with performance optimizations
-- **Syntax Highlighting**: Currently only supports Java, with C++ highlighting ported directly from Java
+- **Syntax highlighting**: Use textmate for syntax highlighting
 - **Code Completion**: Simple code completion for common keywords and functions
 - **Theme Support**: Dark and light modes with appropriate syntax coloring
 - **Gesture Controls**: Adjust font size through zoom gestures
@@ -110,7 +110,6 @@ flowchart TD
 ## Planned Features
 
 ### Improvements to Existing Features
-- **Syntax Highlighting**: True syntax highlighting for C++ and Python
 - **Enhanced GitHub Action**: Better support for Java and Python compilation and execution
 - **Code Completion**: More comprehensive code completion functionality
 - **Android Error Lens**: Highlight compilation errors directly in the editor
@@ -140,25 +139,10 @@ flowchart TD
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
-
-This software is released as open-source under the following conditions:
-
-1. This software is free to use for personal and non-commercial purposes.
-2. Commercial use is permitted, but requires:
-   - Prior notification to the author before commercial use
-   - Clear attribution to the original author in any commercial product or service
-3. Modifications and redistribution are allowed, provided that:
-   - The original license terms are maintained
-   - Attribution to the original author is preserved
-   - Changes are clearly documented
-
-Copyright © 2024 ACC IDE Project. All rights reserved except as specified in this license.
-
 ## Acknowledgements
 
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) for the code editing capabilities
-- Other open-source libraries used in this project
+- [VSCode TextMate](https://github.com/microsoft/vscode-textmate) for syntax highlighting support
 
 ---
 

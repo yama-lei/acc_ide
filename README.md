@@ -19,8 +19,9 @@ ACC IDE 致力于为需要随时随地编码和测试算法的竞赛程序员提
 该项目由安卓原生构建，包含以下主要部分：
 
 ### 核心结构
+
 ```
-acc_ide_android/
+acc_ide/
 ├── app/
 │   ├── src/
 │   │   ├── main/
@@ -42,13 +43,14 @@ acc_ide_android/
 │   │   │   │   ├── layout/                       # 布局文件
 │   │   │   │   ├── menu/                         # 菜单资源
 │   │   │   │   ├── values/                       # 字符串、色彩等资源
-│   │   │   │   └── values-zh-rCN/                # 中文本地化资源
+│   │   │   │   └── values-zh/                    # 中文本地化资源
 │   │   │   ├── assets/                           # 应用资产文件
+│   │   │   │   ├── fonts/                        # 字体文件
+│   │   │   │   └── textmate/                     # TextMate 语法配置
 │   │   │   └── AndroidManifest.xml
 │   ├── build.gradle                              # 模块构建配置
-│   ├── build.gradle.kts                          # Kotlin DSL构建配置
 ├── gradle/                                       # Gradle 包装器文件
-└── build.gradle                                  # 项目建配置
+└── build.gradle.kts                              # 项目构建配置
 ```
 
 ### 交互流程
@@ -79,8 +81,7 @@ flowchart TD
 ## 已实现功能
 
 ### 编辑器功能
-- **强大的代码编辑**：基于 Sora Editor 库，并进行了性能优化
-- **语法高亮**：目前仅支持Java ，Cpp的语法高亮是直接由Java移植的
+- **语法高亮**：使用textmate进行语法高亮
 - **代码补全**：简单的代码补全功能，支持常用关键字和函数
 - **主题支持**：深色和浅色模式，适当的语法着色
 - **手势控制**：通过缩放手势调整字体大小
@@ -110,7 +111,6 @@ flowchart TD
 ## 计划实现功能
 
 ### 完善部分功能
-- **语法高亮**：真正对 C++ 和 Python 的语法高亮支持
 - **完善Github Action**： 完善对 Java 和 Python 的编译运行支持
 - **代码补全**：更完善的代码补全功能
 - **安卓版本的Error Lens**： 在编辑器中高亮显示编译错误
@@ -141,25 +141,11 @@ flowchart TD
 
 欢迎贡献！请随时提交 Pull Request。
 
-## 许可证
-
-本软件根据以下条件发布为开源软件：
-
-1. 本软件可免费用于个人和非商业用途。
-2. 允许商业使用，但要求：
-   - 在商业使用前通知作者
-   - 在任何商业产品或服务中明确标明原作者署名
-3. 允许修改和再发布，前提是：
-   - 保持原始许可条款
-   - 保留对原作者的署名
-   - 明确记录所做的更改
-
-版权所有 © 2024 ACC IDE 项目。除本许可证中指定外，保留所有权利。
 
 ## 致谢
 
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) 提供代码编辑功能
-- 本项目中使用的其他开源库
+- [VSCode TextMate](https://github.com/microsoft/vscode-textmate) 提供语法高亮支持
 
 ---
 
