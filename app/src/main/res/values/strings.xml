@@ -5,153 +5,157 @@
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
     <string name="new_file">New File</string>
-    <string name="open_file">Open File</string>
     <string name="settings">Settings</string>
     <string name="files">Files</string>
     <string name="actions">Actions</string>
-    <string name="no_files">No files, please create a new one</string>
+    <string name="no_files">No files yet. Create a new one.</string>
     <string name="run">Run</string>
-    <string name="save">保存</string>
-    <string name="save_as">另存为</string>
+    <string name="save">Save</string>
     <string name="input">Input:</string>
-    <string name="current_output">Current Output:</string>
-    <string name="answer_output">Answer Output (Optional):</string>
+    <string name="current_output">Current output:</string>
+    <string name="answer_output">Reference output (optional):</string>
     <string name="cpp">C++</string>
     <string name="python">Python</string>
     <string name="java">Java</string>
     <string name="welcome_message">Welcome to ACC IDE</string>
-    <string name="welcome">Welcome</string>
-    <string name="start_coding">Start Coding</string>
-    <string name="theme">Dark Mode</string>
+    <string name="start_coding">Start coding</string>
+    <string name="theme">Dark mode</string>
     <string name="language">Language</string>
-    <string name="font_size">Font Size</string>
-    <string name="cursor_width">Cursor Width</string>
-    <string name="file_options">File Options</string>
-    <string name="delete">删除</string>
-    <string name="rename">Rename</string>
-    <string name="close">Close</string>
-    <string name="file_closed">File closed: %1$s</string>
-    <string name="empty_files_list">No files yet</string>
-    <string name="create_first_file">Create your first file</string>
+    <string name="font_size">Font size</string>
+    <string name="cursor_width">Cursor width</string>
+    <string name="file_options">File options</string>
     <string name="file_name_empty">File name cannot be empty</string>
-    <string name="rename_file">Rename File</string>
+    <string name="delete">Delete</string>
+    <string name="rename">Rename</string>
+    <string name="rename_file">Rename file</string>
     <string name="enter_new_filename">Enter new file name</string>
-    <string name="delete_file">Delete File</string>
-    <string name="delete_file_confirm">Are you sure you want to delete file \"%1$s\"?</string>
-    <string name="file_exists">File \"%1$s\" already exists</string>
-    <string name="file_renamed">File \"%1$s\" has been renamed to \"%2$s\"</string>
-    <string name="file_deleted">File \"%1$s\" has been deleted</string>
-    <string name="editor">Editor</string>
+    <string name="empty_files_list">No files</string>
+    <string name="create_first_file">Create your first file</string>
+    <string name="delete_file">Delete file</string>
+    <string name="delete_file_confirm">Are you sure you want to delete "%1$s"?</string>
+    <string name="file_exists">File "%1$s" already exists</string>
+    <string name="file_renamed">File "%1$s" renamed to "%2$s"</string>
+    <string name="file_deleted">File "%1$s" deleted</string>
     <string name="file_not_exist">File does not exist</string>
-    <string name="language_changed">Language changed successfully, applying new language...</string>
+    <string name="language_changed">Language changed successfully. Applying…</string>
     <string name="language_change_failed">Failed to change language: %1$s</string>
-    <string name="file_saved">%1$s saved</string>
-    <string name="undo">Undo</string>
-    <string name="redo">Redo</string>
-    <string name="loading">Initializing...</string>
-    <string name="initializing_file_system">Initializing file system...</string>
-    <string name="cleaning_temp_files">Cleaning temporary files...</string>
-    <string name="verifying_file_system">Verifying file system...</string>
-    <string name="initializing_templates">Initializing templates...</string>
-    <string name="loading_complete">Loading complete!</string>
-    
-    <!-- Splash Activity Log Messages -->
-    <string name="log_start_init_fs">Starting file system initialization...</string>
-    <string name="log_fs_manager_init_complete">File storage manager initialized</string>
-    <string name="log_start_cleaning_temp">Starting temporary files cleanup...</string>
-    <string name="log_start_verifying_fs">Starting file system verification...</string>
-    <string name="log_start_init_templates">Starting templates initialization...</string>
-    <string name="log_templates_init_complete">Templates initialization complete</string>
-    <string name="log_all_tasks_complete">All initialization tasks completed</string>
-    <string name="log_found_orphaned_meta">Found %1$d orphaned metadata files, cleaning up...</string>
-    <string name="log_deleted_orphaned_meta">Deleted orphaned metadata file: %1$s</string>
-    <string name="log_no_orphaned_meta">No orphaned metadata files found</string>
-    <string name="log_cleanup_error">Error during cleanup: %1$s</string>
-    <string name="log_found_code_files">Found %1$d code files, verifying metadata...</string>
-    <string name="log_fixed_missing_meta">Created missing metadata for %1$d files</string>
-    <string name="log_all_meta_complete">All files have complete metadata</string>
-    <string name="log_verify_error">Error during verification: %1$s</string>
-    <string name="log_error">Error: %1$s</string>
-    
-    <!-- IO Panel Strings -->
-    <string name="actual_output">Actual Output:</string>
-    <string name="expected_output">Expected Output:</string>
+    <string name="editor">Editor</string>
+    <string name="close">Close</string>
+    <string name="actual_output">Actual output:</string>
+    <string name="expected_output">Expected output:</string>
     <string name="copy">Copy</string>
     <string name="status_ac">AC</string>
     <string name="status_wa">WA</string>
     <string name="status_tle">TLE</string>
     <string name="status_mle">MLE</string>
     <string name="status_ce">CE</string>
-    <string name="status_rs">RS</string>
+    <string name="file_saved">File "%1$s" saved successfully</string>
+    <string name="loading">Initializing…</string>
+    <string name="initializing_file_system">Initializing file system…</string>
+    <string name="cleaning_temp_files">Cleaning temporary files…</string>
+    <string name="verifying_file_system">Verifying file system…</string>
+    <string name="initializing_templates">Initializing templates…</string>
+    <string name="initializing_syntax_highlighting">Initializing syntax highlighting…</string>
+    <string name="loading_complete">Loading complete!</string>
+    <string name="welcome">Welcome</string>
+    <string name="file_closed">File "%1$s" closed</string>
     
-    <!-- Storage Permission Strings -->
-    <string name="storage_permission_title">Storage Permission Required</string>
-    <string name="storage_permission_message">ACC IDE needs storage permission to save your code files. Without this permission, your files won\'t be saved permanently and will be lost when you close the app or change language settings.</string>
-    <string name="storage_permission_denied">Storage permission denied. Your files will only be kept in memory and will be lost when the app is closed.</string>
-    
-    <!-- Menu Strings -->
-    <string name="action_refresh_files">刷新文件列表</string>
-    <string name="action_clear_all_files">清除所有文件</string>
-    <string name="clear_all_files_title">清除所有文件</string>
-    <string name="clear_all_files_message">确定要删除所有文件吗？此操作不可撤销。</string>
-    <string name="clear_all_files_success">所有文件已删除</string>
-    <string name="clear_all_files_failure">删除所有文件失败</string>
-    <string name="files_refreshed">文件列表已刷新</string>
-    <string name="show_storage_path">显示存储路径</string>
-    <string name="storage_path_title">文件存储路径</string>
-    <string name="storage_path_message">您的文件存储在:\n%1$s\n\n您可以通过文件管理器访问此路径</string>
-    <string name="theme_system">System Default</string>
+    <!-- Editor actions -->
+    <string name="open_file">Open file</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="save_as">Save as</string>
+
+    <!-- Splash Activity Log Messages -->
+    <string name="log_start_init_fs">Initializing file system...</string>
+    <string name="log_fs_manager_init_complete">File storage manager initialization complete</string>
+    <string name="log_start_cleaning_temp">Cleaning temporary files...</string>
+    <string name="log_start_verifying_fs">Verifying file system integrity...</string>
+    <string name="log_start_init_templates">Initializing code templates...</string>
+    <string name="log_templates_init_complete">Code template initialization complete</string>
+    <string name="log_textmate_init_started">Initializing syntax highlighter...</string>
+    <string name="log_start_init_textmate">Configuring syntax highlighter...</string>
+    <string name="log_textmate_init_complete">Syntax highlighter initialization complete</string>
+    <string name="log_all_tasks_complete">All initialization tasks complete</string>
+    <string name="log_found_orphaned_meta">Found %1$d orphaned metadata files, cleaning up...</string>
+    <string name="log_deleted_orphaned_meta">Deleted orphaned metadata file: %1$s</string>
+    <string name="log_no_orphaned_meta">No orphaned metadata files found</string>
+    <string name="log_cleanup_error">Error cleaning up temporary files: %1$s</string>
+    <string name="log_found_code_files">Found %1$d code files, validating metadata...</string>
+    <string name="log_fixed_missing_meta">Created missing metadata for %1$d files</string>
+    <string name="log_all_meta_complete">All file metadata is complete</string>
+    <string name="log_verify_error">Error verifying file system integrity: %1$s</string>
+    <string name="log_error">Error: %1$s</string>
+
+    <!-- Storage permission strings -->
+    <string name="storage_permission_title">Storage permission required</string>
+    <string name="storage_permission_message">ACC IDE needs storage permission to save your code files. Without it, your files will not be persisted and will be lost when you close the app or change language settings.</string>
+    <string name="storage_permission_denied">Storage permission denied. Your files will only be stored in memory and will be lost after closing the app.</string>
+
+    <!-- Menu strings -->
+    <string name="action_refresh_files">Refresh file list</string>
+    <string name="action_clear_all_files">Clear all files</string>
+    <string name="clear_all_files_title">Clear all files</string>
+    <string name="clear_all_files_message">Are you sure you want to delete all files? This action cannot be undone.</string>
+    <string name="clear_all_files_success">All files deleted</string>
+    <string name="clear_all_files_failure">Failed to delete all files</string>
+    <string name="files_refreshed">File list refreshed</string>
+    <string name="show_storage_path">Show storage path</string>
+    <string name="storage_path_title">File storage path</string>
+    <string name="storage_path_message">Your files are stored at:\n%1$s\n\nYou can access this path through a file manager</string>
+    <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="error_title">Error</string>
     <string name="error_message">An error occurred: %1$s</string>
     <string name="ok_button">OK</string>
-    
+
     <!-- Symbol Panel Strings -->
-    <string name="toggle_symbol_panel">Toggle Symbol Panel</string>
+    <string name="toggle_symbol_panel">Toggle symbol panel</string>
     <string name="symbol_panel_shown">Symbol panel shown</string>
     <string name="symbol_panel_hidden">Symbol panel hidden</string>
-    <string name="auto_complete_switch_label">Auto-complete</string>
-    <string name="symbol_panel_switch_label">Symbol Panel</string>
-    
+    <string name="auto_completion_switch_label">Auto-completion</string>
+    <string name="symbol_panel_switch_label">Symbol panel</string>
+
     <!-- GitHub Action Settings -->
     <string name="github_runner_settings">GitHub Action Settings</string>
-    <string name="github_repo_url_hint">GitHub Repository URL</string>
-    <string name="github_pat_hint">Repository Token</string>
-    <string name="test_connection">Test Connection</string>
-    <string name="connection_testing">Testing connection...</string>
+    <string name="github_repo_url_hint">GitHub repository URL</string>
+    <string name="github_pat_hint">Repository token</string>
+    <string name="test_connection">Test connection</string>
+    <string name="connection_testing">Testing connection…</string>
     <string name="connection_successful">Connection successful!</string>
     <string name="connection_failed">Connection failed: %1$s</string>
-    <string name="github_settings_saved">GitHub settings saved.</string>
-    <string name="github_repo_pat_empty">Repository URL and PAT cannot be empty.</string>
-    <string name="github_repo_invalid">Invalid GitHub Repository URL format.</string>
-    
-    <!-- GitHub Code Execution Messages -->
-    <string name="code_running">Running...</string>
-    <string name="code_running_on_github">Running code on GitHub Actions...</string>
-    <string name="code_running_time">Running... (%1$d seconds)</string>
+    <string name="github_settings_saved">GitHub settings saved</string>
+    <string name="github_repo_pat_empty">Repository URL and access token cannot be empty</string>
+    <string name="github_repo_invalid">Invalid GitHub repository URL format</string>
+
+    <!-- GitHub code execution messages -->
+    <string name="code_running">Running…</string>
+    <string name="code_running_on_github">Compiling and running code on GitHub Actions…</string>
+    <string name="code_running_time">Running… (%1$ds elapsed)</string>
     <string name="workflow_timeout">Workflow execution timed out</string>
     <string name="workflow_trigger_failed">Failed to trigger GitHub workflow</string>
     <string name="workflow_error">Error: %1$s</string>
     <string name="workflow_polling_error">Polling error: %1$s</string>
     <string name="already_running">Code is already running, please wait</string>
-    <string name="no_github_settings">Please configure GitHub repository and PAT in settings</string>
-    <string name="invalid_repo_url">Invalid GitHub repository URL</string>
+    <string name="no_github_settings">Configure GitHub repository and access token in settings first</string>
+    <string name="invalid_repo_url">Invalid GitHub repository URL format</string>
     <string name="code_empty">Code cannot be empty</string>
-    <string name="artifact_not_found">Result artifact not found</string>
-    <string name="result_processing_error">Error processing results: %1$s</string>
+    <string name="artifact_not_found">Result file not found</string>
+    <string name="result_processing_error">Error processing result: %1$s</string>
     <string name="no_output">No output available</string>
-    <string name="run_successful">Run Successful</string>
-    
-    <!-- Simulation Messages -->
+
+    <!-- Simulated execution messages -->
     <string name="unsupported_language">Unsupported language: %1$s</string>
     <string name="simulated_cpp_output">Simulated C++ output:</string>
     <string name="simulated_python_output">Simulated Python output:</string>
     <string name="simulated_java_output">Simulated Java output:</string>
     <string name="processing_input">Processing: %1$s</string>
-    <string name="cpp_compile_error">// Compilation error: No output statement in code</string>
-    <string name="python_error"># Error: No output statement in code</string>
-    <string name="java_compile_error">// Compilation error: No output statement in code</string>
-    <string name="error_keyword">error</string>
+    <string name="cpp_compile_error">// Compilation error: no output statement in code</string>
+    <string name="python_error"># Error: no output statement in code</string>
+    <string name="java_compile_error">// Compilation error: no output statement in code</string>
+    <string name="error_keyword">Error</string>
     <string name="compile_error_keyword">Compilation error</string>
+    
+    <!-- Missing strings -->
 </resources>

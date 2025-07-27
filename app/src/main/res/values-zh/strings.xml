@@ -44,18 +44,27 @@
     <string name="actual_output">实际输出:</string>
     <string name="expected_output">答案输出:</string>
     <string name="copy">复制</string>
-    <string name="status_ac">通过</string>
-    <string name="status_wa">答案错误</string>
-    <string name="status_tle">超时</string>
-    <string name="status_mle">内存超限</string>
-    <string name="status_ce">编译错误</string>
+    <string name="status_ac">AC</string>
+    <string name="status_wa">WA</string>
+    <string name="status_tle">TLE</string>
+    <string name="status_mle">MLE</string>
+    <string name="status_ce">CE</string>
     <string name="file_saved">文件 "%1$s" 保存成功</string>
     <string name="loading">正在初始化...</string>
     <string name="initializing_file_system">正在初始化文件系统...</string>
     <string name="cleaning_temp_files">正在清理临时文件...</string>
     <string name="verifying_file_system">正在验证文件系统...</string>
     <string name="initializing_templates">正在初始化模板...</string>
+    <string name="initializing_syntax_highlighting">正在初始化语法高亮...</string>
     <string name="loading_complete">加载完成！</string>
+    <string name="welcome">欢迎</string>
+    <string name="file_closed">文件 "%1$s" 已关闭</string>
+    
+    <!-- 编辑器操作 -->
+    <string name="open_file">打开文件</string>
+    <string name="undo">撤销</string>
+    <string name="redo">重做</string>
+    <string name="save_as">另存为</string>
     
     <!-- Splash Activity Log Messages -->
     <string name="log_start_init_fs">开始初始化文件系统...</string>
@@ -64,6 +73,9 @@
     <string name="log_start_verifying_fs">开始验证文件系统完整性...</string>
     <string name="log_start_init_templates">开始初始化代码模板...</string>
     <string name="log_templates_init_complete">代码模板初始化完成</string>
+    <string name="log_textmate_init_started">开始初始化语法高亮组件...</string>
+    <string name="log_start_init_textmate">配置语法高亮组件...</string>
+    <string name="log_textmate_init_complete">语法高亮组件初始化完成</string>
     <string name="log_all_tasks_complete">所有初始化任务已完成</string>
     <string name="log_found_orphaned_meta">发现 %1$d 个孤立的元数据文件，正在清理...</string>
     <string name="log_deleted_orphaned_meta">已删除孤立的元数据文件: %1$s</string>
@@ -91,10 +103,18 @@
     <string name="show_storage_path">显示存储路径</string>
     <string name="storage_path_title">文件存储路径</string>
     <string name="storage_path_message">您的文件存储在:\n%1$s\n\n您可以通过文件管理器访问此路径</string>
-    <string name="theme_system">跟随系统</string>
+    <string name="theme_system">系统默认</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
-    <string name="auto_complete_switch_label">智能提示</string>
+    <string name="error_title">错误</string>
+    <string name="error_message">发生错误: %1$s</string>
+    <string name="ok_button">确定</string>
+    
+    <!-- Symbol Panel Strings -->
+    <string name="toggle_symbol_panel">切换符号面板</string>
+    <string name="symbol_panel_shown">符号面板已显示</string>
+    <string name="symbol_panel_hidden">符号面板已隐藏</string>
+    <string name="auto_completion_switch_label">自动补全</string>
     <string name="symbol_panel_switch_label">符号面板</string>
     
     <!-- GitHub Action 设置 -->

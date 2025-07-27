@@ -21,7 +21,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AccIDE"
         android:enableOnBackInvokedCallback="true"
-        tools:targetApi="31">
+        android:versionCode="121"
+        android:versionName="1.2.1"
+        tools:targetApi="33">
         
         <activity
             android:name="com.acc_ide.SplashActivity"

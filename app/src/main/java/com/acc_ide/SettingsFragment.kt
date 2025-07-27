@@ -17,6 +17,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.acc_ide.util.LocaleHelper
+import com.acc_ide.util.TextMateManager
 import com.google.android.material.slider.Slider
 import androidx.appcompat.app.AppCompatDelegate
 import android.content.SharedPreferences
@@ -49,6 +50,7 @@ class SettingsFragment : Fragment() {
     private lateinit var cursorWidthValue: TextView
     private lateinit var prefs: SharedPreferences
     private lateinit var switchSymbolPanel: SwitchCompat
+    private lateinit var switchAutoCompletion: SwitchCompat
     private lateinit var githubRepoEditText: TextInputEditText
     private lateinit var githubPatEditText: TextInputEditText
     private lateinit var testGithubButton: Button
@@ -65,6 +67,7 @@ class SettingsFragment : Fragment() {
         const val PREF_FONT_SIZE = "editor_font_size"
         const val DEFAULT_FONT_SIZE = 18f
         const val PREF_ENABLE_SYMBOL_PANEL = "enable_symbol_panel"
+        const val PREF_ENABLE_AUTO_COMPLETION = "enable_auto_completion"
         const val PREF_CURSOR_WIDTH = "editor_cursor_width"
         const val DEFAULT_CURSOR_WIDTH = 8f
         const val MIN_CURSOR_WIDTH = 2f
@@ -123,6 +126,11 @@ class SettingsFragment : Fragment() {
                 if (selectedMode != nightMode) {
                     // 保存设置
                     prefs.edit().putInt("app_night_mode", selectedMode).apply()
+                    
+                    // 更新TextMate主题 - 根据是否是深色或浅色模式
+                        val textMateTheme = if (isChecked) "dark.json" else "light.json"
+                    TextMateManager.setTheme(textMateTheme)
+                    
                     // 切换主题
                     AppCompatDelegate.setDefaultNightMode(selectedMode)
                     // 重启 Activity 以应用主题
@@ -223,6 +231,17 @@ class SettingsFragment : Fragment() {
         switchSymbolPanel.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean(PREF_ENABLE_SYMBOL_PANEL, isChecked).apply()
         }
+        
+        // 设置自动补全开关
+        switchAutoCompletion = view.findViewById(R.id.switch_auto_completion)
+        val autoCompletionEnabled = prefs.getBoolean(PREF_ENABLE_AUTO_COMPLETION, true) // 默认开启
+        switchAutoCompletion.isChecked = autoCompletionEnabled
+        setSwitchColor(switchAutoCompletion)
+        switchAutoCompletion.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(PREF_ENABLE_AUTO_COMPLETION, isChecked).apply()
+            // 通知所有打开的编辑器更新自动补全状态
+            (activity as? MainActivity)?.updateAutoCompletionState(isChecked)
+        }
 
         // Load saved GitHub settings
         loadGitHubSettings()
@@ -320,23 +339,31 @@ class SettingsFragment : Fragment() {
     
     private fun setupBackNavigation() {
         // 处理系统返回按钮
-        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
+        val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 Log.d("SettingsFragment", "系统返回按钮点击")
-                navigateBack()
+                navigateBack(this)
             }
-        })
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, callback)
     }
     
-    private fun navigateBack() {
+    private fun navigateBack(callback: OnBackPressedCallback? = null) {
         Log.d("SettingsFragment", "执行返回操作，当前回退栈数量: ${parentFragmentManager.backStackEntryCount}")
         
         // 弹出回退栈以返回前一个Fragment，如果没有回退栈，直接调用onBackPressed
         if (parentFragmentManager.backStackEntryCount > 0) {
             parentFragmentManager.popBackStack()
         } else {
-            // 直接通知Activity处理返回
-            (activity as? MainActivity)?.onBackPressedDispatcher?.onBackPressed()
+            // 重要：禁用回调以避免递归调用
+            callback?.remove()
+            
+            // 如果Activity存在，直接结束当前Fragment
+            activity?.let { mainActivity ->
+                if (mainActivity is MainActivity) {
+                    mainActivity.onFragmentBackPressed()
+                }
+            }
         }
     }
     
