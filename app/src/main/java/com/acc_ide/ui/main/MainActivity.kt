@@ -5,8 +5,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.MenuItem
 import android.widget.LinearLayout
@@ -21,13 +19,14 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.lifecycleScope
 import com.acc_ide.R
 import com.acc_ide.data.repository.FileRepository
 import com.acc_ide.ui.editor.EditorFragment
 import com.acc_ide.ui.settings.SettingsFragment
 import com.acc_ide.ui.welcome.WelcomeFragment
 import com.acc_ide.util.*
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -202,30 +201,27 @@ class MainActivity : AppCompatActivity() {
      * 从设置页面返回后刷新编辑器
      */
     private fun refreshEditorAfterReturn(editorFragment: EditorFragment) {
-        // Immediately try one refresh
-        editorFragment.refreshEditorTheme()
-
-        // Ensure editor content and syntax highlighting are correct when returning from settings
-        Handler(Looper.getMainLooper()).postDelayed({
+        // Use lifecycle-aware coroutine scope to avoid race conditions
+        lifecycleScope.launch {
             try {
                 Log.d("MainActivity", "Refreshing editor after returning from settings: $currentFileName")
 
+                // Immediate refresh
+                editorFragment.refreshEditorTheme()
+
+                // Allow time for UI to settle before applying language support
+                delay(200)
+                
                 // Re-apply TextMate syntax highlighting
                 val language = editorFragment.getLanguageForFile(currentFileName)
                 editorFragment.setupLanguageSupport(language)
                 editorFragment.refreshEditorTheme()
 
-                Log.d("MainActivity", "Syntax highlighting refresh completed, using language: $language")
+                Log.d("MainActivity", "Editor refresh completed using language: $language")
             } catch (e: Exception) {
                 Log.e("MainActivity", "Failed to refresh editor after returning from settings: ${e.message}")
             }
-        }, 200)
-
-        // Add another refresh with longer delay
-        Handler(Looper.getMainLooper()).postDelayed({
-            editorFragment.refreshEditorTheme()
-            Log.d("MainActivity", "Executed final syntax highlighting refresh attempt")
-        }, 500)
+        }
     }
 
     /**
@@ -453,8 +449,8 @@ class MainActivity : AppCompatActivity() {
      * 使用选择的语言创建新文件
      */
     fun createNewFile(language: String) {
-        // Use coroutines to avoid blocking main thread
-        CoroutineScope(Dispatchers.IO).launch {
+        // Use lifecycle-aware coroutine scope to prevent memory leaks
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
                 // Create file in background thread
                 val newFileName = fileRepository.createNewFile(language)
