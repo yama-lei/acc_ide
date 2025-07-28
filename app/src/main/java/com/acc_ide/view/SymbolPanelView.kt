@@ -16,8 +16,8 @@ import android.view.Gravity
 import android.util.TypedValue
 
 /**
- * 符号面板自定义视图
- * 提供编程符号输入功能，方便用户在移动设备上输入特殊字符
+ * Symbol panel custom view for providing programming symbol input functionality
+ * 符号面板自定义视图 - 提供编程符号输入功能，方便用户在移动设备上输入特殊字符
  */
 class SymbolPanelView @JvmOverloads constructor(
     context: Context,
@@ -35,15 +35,16 @@ class SymbolPanelView @JvmOverloads constructor(
         orientation = VERTICAL
         LayoutInflater.from(context).inflate(R.layout.view_symbol_panel, this, true)
         
-        // 初始化视图
+        // Initialize views
         viewPager = findViewById(R.id.symbol_view_pager)
         pageIndicator = findViewById(R.id.page_indicator)
         
-        // 设置ViewPager适配器
+        // Setup ViewPager adapter
         setupViewPager()
     }
     
     /**
+     * Set editor instance for symbol insertion
      * 设置编辑器实例
      */
     fun setEditor(editor: CodeEditor) {
@@ -51,6 +52,7 @@ class SymbolPanelView @JvmOverloads constructor(
     }
     
     /**
+     * Setup ViewPager with symbol pages
      * 设置ViewPager
      */
     private fun setupViewPager() {
@@ -62,11 +64,12 @@ class SymbolPanelView @JvmOverloads constructor(
             }
         })
         
-        // 初始化页面指示器
+        // Initialize page indicator
         setupPageIndicator()
     }
     
     /**
+     * Setup page indicator dots
      * 设置页面指示器
      */
     private fun setupPageIndicator() {
@@ -85,6 +88,7 @@ class SymbolPanelView @JvmOverloads constructor(
     }
     
     /**
+     * Update page indicator selection state
      * 更新页面指示器
      */
     private fun updatePageIndicator() {
@@ -95,6 +99,7 @@ class SymbolPanelView @JvmOverloads constructor(
     }
     
     /**
+     * Symbol pager adapter for managing symbol pages
      * 符号页面适配器
      */
     private inner class SymbolPagerAdapter : androidx.recyclerview.widget.RecyclerView.Adapter<SymbolPagerAdapter.SymbolPageViewHolder>() {
@@ -103,7 +108,7 @@ class SymbolPanelView @JvmOverloads constructor(
             val pageView = LayoutInflater.from(parent.context)
                 .inflate(R.layout.view_symbol_page, parent, false)
                 
-            // Ensure the page view fills the ViewPager2
+            // Ensure page view fills the ViewPager2
             pageView.layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -122,6 +127,7 @@ class SymbolPanelView @JvmOverloads constructor(
         override fun getItemCount(): Int = pageCount
         
         /**
+         * Symbol page ViewHolder for displaying symbol buttons
          * 符号页面ViewHolder
          */
         inner class SymbolPageViewHolder(itemView: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(itemView) {
@@ -129,14 +135,15 @@ class SymbolPanelView @JvmOverloads constructor(
             private val row2: LinearLayout = itemView.findViewById(R.id.symbol_buttons_row2)
             
             /**
+             * Setup first page symbols including brackets and navigation
              * 设置第一页符号
              */
             fun setupFirstPage() {
-                // 清空现有按钮
+                // Clear existing buttons
                 row1.removeAllViews()
                 row2.removeAllViews()
                 
-                // 第一行符号
+                // First row symbols
                 val row1Symbols = listOf(
                     "TAB" to "\t",
                     "(" to "(",
@@ -149,7 +156,7 @@ class SymbolPanelView @JvmOverloads constructor(
                     "=" to "="
                 )
                 
-                // 第二行符号
+                // Second row symbols
                 val row2Symbols = listOf(
                     ";" to ";",
                     "<" to "<",
@@ -162,26 +169,27 @@ class SymbolPanelView @JvmOverloads constructor(
                     "→" to "RIGHT"
                 )
                 
-                // 添加第一行符号按钮
+                // Add first row symbol buttons
                 for ((label, value) in row1Symbols) {
                     addSymbolButton(row1, label, value)
                 }
                 
-                // 添加第二行符号按钮
+                // Add second row symbol buttons
                 for ((label, value) in row2Symbols) {
                     addSymbolButton(row2, label, value)
                 }
             }
             
             /**
+             * Setup second page symbols including operators and special characters
              * 设置第二页符号
              */
             fun setupSecondPage() {
-                // 清空现有按钮
+                // Clear existing buttons
                 row1.removeAllViews()
                 row2.removeAllViews()
                 
-                // 第一行符号
+                // First row symbols
                 val row1Symbols = listOf(
                     "*" to "*",
                     "/" to "/",
@@ -194,7 +202,7 @@ class SymbolPanelView @JvmOverloads constructor(
                     "&" to "&"
                 )
                 
-                // 第二行符号
+                // Second row symbols
                 val row2Symbols = listOf(
                     "@" to "@",
                     "!" to "!",
@@ -207,12 +215,12 @@ class SymbolPanelView @JvmOverloads constructor(
                     ":" to ":"
                 )
                 
-                // 添加第一行符号按钮
+                // Add first row symbol buttons
                 for ((label, value) in row1Symbols) {
                     addSymbolButton(row1, label, value)
                 }
                 
-                // 添加第二行符号按钮
+                // Add second row symbol buttons
                 for ((label, value) in row2Symbols) {
                     addSymbolButton(row2, label, value)
                 }
@@ -221,6 +229,7 @@ class SymbolPanelView @JvmOverloads constructor(
     }
     
     /**
+     * Add symbol button to parent layout with click handling
      * 添加符号按钮
      */
     private fun addSymbolButton(parent: LinearLayout, label: String, value: String) {
@@ -235,7 +244,7 @@ class SymbolPanelView @JvmOverloads constructor(
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(2, 2, 2, 2)
             }
-            // 添加水波纹点击反馈
+            // Add ripple click feedback
             val typedArray = context.obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackground))
             foreground = typedArray.getDrawable(0)
             typedArray.recycle()
@@ -254,34 +263,36 @@ class SymbolPanelView @JvmOverloads constructor(
     
     
     /**
+     * Insert text at current cursor position
      * 插入文本
      */
     private fun insertText(text: String) {
         try {
             editor?.let { editor ->
-                // 获取当前光标位置
+                // Get current cursor position
                 val cursor = editor.cursor
                 
-                // 插入文本
+                // Insert text
                 val line = cursor.leftLine
                 val column = cursor.leftColumn
                 editor.text.insert(line, column, text)
             }
         } catch (e: Exception) {
-            android.util.Log.e("SymbolPanelView", "插入文本失败: ${e.message}")
+            android.util.Log.e("SymbolPanelView", "Failed to insert text: ${e.message}")
         }
     }
     
     /**
+     * Move cursor by specified delta values
      * 移动光标
      */
     private fun moveCursor(deltaX: Int, deltaY: Int) {
         try {
             editor?.let { editor ->
-                // 获取当前光标位置
+                // Get current cursor position
                 val cursor = editor.cursor
                 
-                // 简单移动光标
+                // Simple cursor movement
                 if (deltaY != 0) {
                     val newLine = cursor.leftLine + deltaY
                     if (newLine >= 0 && newLine < editor.text.lineCount) {
@@ -297,7 +308,7 @@ class SymbolPanelView @JvmOverloads constructor(
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("SymbolPanelView", "移动光标失败: ${e.message}")
+            android.util.Log.e("SymbolPanelView", "Failed to move cursor: ${e.message}")
         }
     }
 } 

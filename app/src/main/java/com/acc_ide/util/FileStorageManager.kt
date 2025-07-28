@@ -15,33 +15,35 @@ import android.content.Intent
 import android.media.MediaScannerConnection
 
 /**
- * 文件存储管理器，用于处理文件的持久化存储和读取
+ * File storage manager for handling persistent file storage and reading operations
+ * 文件存储管理器 - 用于处理文件的持久化存储和读取
  */
 class FileStorageManager(private val context: Context) {
     
     companion object {
         private const val TAG = "FileStorageManager"
         
-        // 文件锁集合，防止同一个文件被并发删除
+        // File lock set to prevent concurrent deletion of same file
         private val fileLocks = ConcurrentHashMap<String, Boolean>()
         
-        // 协程作用域，用于异步执行文件操作
+        // Coroutine scope for async file operations
         private val fileOperationScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         
-        // 文件删除队列
+        // File deletion queue
         private val deletionQueue = ConcurrentLinkedQueue<Pair<String, (Boolean) -> Unit>>()
         
-        // 是否正在处理删除队列
+        // Whether currently processing deletion queue
         private val isProcessingQueue = AtomicBoolean(false)
     }
     
     /**
+     * Get directory for storing code files
      * 获取存储代码文件的目录
      */
     fun getCodeFilesDir(): File {
-        // 直接使用外部存储目录，路径为: /storage/emulated/0/Android/data/com.acc_ide/files
+        // Directly use external storage directory, path: /storage/emulated/0/Android/data/com.acc_ide/files
         val dir = context.getExternalFilesDir(null)
-            ?: throw IOException("无法获取外部存储目录")
+            ?: throw IOException("Cannot get external storage directory")
             
         if (!dir.exists()) {
             dir.mkdirs()
@@ -50,17 +52,17 @@ class FileStorageManager(private val context: Context) {
     }
     
     /**
-     * 从磁盘刷新文件状态
-     * 主要用于确保文件系统状态是最新的，特别是在文件删除后
+     * Refresh file system state from disk - mainly to ensure file system state is up-to-date, especially after file deletion
+     * 从磁盘刷新文件状态 - 主要用于确保文件系统状态是最新的，特别是在文件删除后
      */
     fun refreshFileSystem() {
         try {
-            Log.d(TAG, "开始刷新文件系统状态...")
+            Log.d(TAG, "Starting file system state refresh...")
             val filesDir = getCodeFilesDir()
             
-            // 强制刷新文件系统缓存
+            // Force refresh file system cache
             try {
-                // 使用MediaScannerConnection刷新文件目录
+                // Use MediaScannerConnection to refresh file directory
                 MediaScannerConnection.scanFile(
                     context,
                     arrayOf(filesDir.absolutePath),
@@ -68,210 +70,206 @@ class FileStorageManager(private val context: Context) {
                     null
                 )
                 
-                // 等待一小段时间，让系统完成扫描
+                // Wait a bit for system to complete scan
                 Thread.sleep(100)
                 
-                // 列出所有文件，强制刷新缓存
+                // List all files to force cache refresh
                 val files = filesDir.listFiles() ?: emptyArray()
-                Log.d(TAG, "文件系统刷新完成，发现 ${files.size} 个文件")
+                Log.d(TAG, "File system refresh completed, found ${files.size} files")
             
-                // 输出所有文件名，用于调试
+                // Output all file names for debugging
                 files.forEach { file ->
-                    Log.d(TAG, "文件: ${file.name}, 大小: ${file.length()}, 最后修改时间: ${file.lastModified()}")
+                    Log.d(TAG, "File: ${file.name}, size: ${file.length()}, last modified: ${file.lastModified()}")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "刷新文件系统缓存失败", e)
+                Log.e(TAG, "Failed to refresh file system cache", e)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "刷新文件系统状态失败", e)
+            Log.e(TAG, "Failed to refresh file system state", e)
         }
     }
     
     /**
+     * Save file to internal storage
      * 将文件存储到内部存储
-     * 
-     * @param file 要存储的代码文件
-     * @return 是否存储成功
+     * @param file Code file to store
+     * @return Whether storage was successful
      */
     fun saveFile(file: CodeFile): Boolean {
         try {
             val filesDir = getCodeFilesDir()
             val destFile = File(filesDir, sanitizeFileName(file.name))
             
-            // 创建目录（如果不存在）
+            // Create directory if not exists
             if (!filesDir.exists()) {
                 filesDir.mkdirs()
             }
             
-            // 写入文件内容
+            // Write file content
             destFile.writeText(file.content)
             
-            // 写入文件元数据
+            // Write file metadata
             val metaFile = File(filesDir, "${sanitizeFileName(file.name)}.meta")
             metaFile.writeText("${file.language}\n${file.lastModified}\n${file.isExternallySaved}\n${file.externalUri}")
             
-            Log.d(TAG, "文件保存成功: ${file.name}, 外部保存状态: ${file.isExternallySaved}, URI: ${file.externalUri}")
+            Log.d(TAG, "File saved successfully: ${file.name}, external save status: ${file.isExternallySaved}, URI: ${file.externalUri}")
             return true
         } catch (e: IOException) {
-            Log.e(TAG, "文件保存失败: ${file.name}", e)
+            Log.e(TAG, "File save failed: ${file.name}", e)
             return false
         }
     }
     
     /**
+     * Save file to user-selected location
      * 将文件保存到用户选择的位置
-     * 
-     * @param file 要保存的代码文件
-     * @param uri 目标URI
-     * @return 是否保存成功
+     * @param file Code file to save
+     * @param uri Target URI
+     * @return Whether save was successful
      */
     fun saveFileToUri(file: CodeFile, uri: Uri): Boolean {
         try {
-            // 尝试获取持久性权限，以便后续更新文件
+            // Try to get persistent permission for future file updates
             try {
                 val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 context.contentResolver.takePersistableUriPermission(uri, takeFlags)
-                Log.d(TAG, "已获取文件的持久性权限: $uri")
+                Log.d(TAG, "Obtained persistent permission for file: $uri")
             } catch (e: Exception) {
-                Log.w(TAG, "无法获取文件的持久性权限: ${e.message}")
-                // 继续处理，即使没有持久性权限也可以尝试保存文件
+                Log.w(TAG, "Cannot get persistent permission for file: ${e.message}")
+                // Continue processing, even without persistent permission we can try to save file
             }
             
-            // 尝试使用不同的模式打开输出流
+            // Try to open output stream with different modes
             var outputStream = try {
-                // 首先尝试使用"wt"模式（覆盖写入文本）
+                // First try "wt" mode (overwrite text)
                 context.contentResolver.openOutputStream(uri, "wt")
             } catch (e: Exception) {
-                Log.w(TAG, "使用'wt'模式打开输出流失败，尝试使用'w'模式: ${e.message}")
+                Log.w(TAG, "Failed to open output stream with 'wt' mode, trying 'w' mode: ${e.message}")
                 try {
-                    // 如果失败，尝试使用"w"模式（覆盖写入）
+                    // If failed, try "w" mode (overwrite)
                     context.contentResolver.openOutputStream(uri, "w")
                 } catch (e2: Exception) {
-                    Log.w(TAG, "使用'w'模式打开输出流失败，尝试使用默认模式: ${e2.message}")
-                    // 如果仍然失败，尝试使用默认模式
+                    Log.w(TAG, "Failed to open output stream with 'w' mode, trying default mode: ${e2.message}")
+                    // If still failed, try default mode
                     context.contentResolver.openOutputStream(uri)
                 }
             }
             
             if (outputStream == null) {
-                Log.e(TAG, "无法打开输出流，可能是权限问题: ${file.name}, URI: $uri")
+                Log.e(TAG, "Cannot open output stream, possibly permission issue: ${file.name}, URI: $uri")
                 return false
             }
             
-            // 写入文件内容
             outputStream.use { stream ->
                 stream.write(file.content.toByteArray())
                 stream.flush()
             }
             
-            // 将URI转换为字符串保存
+            // Convert URI to string for saving
             val uriString = uri.toString()
             
-            // 创建更新后的CodeFile对象，包含外部URI
+            // Create updated CodeFile object with external URI
             val updatedCodeFile = file.copy(
                 isExternallySaved = true,
                 externalUri = uriString
             )
             
-            // 保存更新后的元数据
             saveFile(updatedCodeFile)
             
-            Log.d(TAG, "文件已保存到外部URI: ${file.name}, URI: $uriString")
+            Log.d(TAG, "File saved to external URI: ${file.name}, URI: $uriString")
             return true
         } catch (e: SecurityException) {
-            Log.e(TAG, "保存文件到外部URI失败，权限被拒绝: ${file.name}", e)
+            Log.e(TAG, "Save file to external URI failed, permission denied: ${file.name}", e)
             return false
         } catch (e: Exception) {
-            Log.e(TAG, "保存文件到外部URI失败: ${file.name}", e)
+            Log.e(TAG, "Save file to external URI failed: ${file.name}", e)
             return false
         }
     }
     
     /**
+     * Update external file directly
      * 直接更新外部文件
-     * 
-     * @param file 包含最新内容的代码文件
-     * @return 是否更新成功
+     * @param file Code file with latest content
+     * @return Whether update was successful
      */
     fun updateExternalFile(file: CodeFile): Boolean {
         if (!file.isExternallySaved || file.externalUri.isEmpty()) {
-            Log.e(TAG, "无法更新外部文件，文件未保存到外部或URI为空: ${file.name}")
+            Log.e(TAG, "Cannot update external file, file not saved externally or URI empty: ${file.name}")
             return false
         }
         
         try {
             val uri = Uri.parse(file.externalUri)
             
-            // 尝试使用不同的模式打开输出流
+            // Try to open output stream with different modes
             var outputStream = try {
-                // 首先尝试使用"wt"模式（覆盖写入文本）
+                // First try "wt" mode (overwrite text)
                 context.contentResolver.openOutputStream(uri, "wt")
             } catch (e: Exception) {
-                Log.w(TAG, "使用'wt'模式打开输出流失败，尝试使用'w'模式: ${e.message}")
+                Log.w(TAG, "Failed to open output stream with 'wt' mode, trying 'w' mode: ${e.message}")
                 try {
-                    // 如果失败，尝试使用"w"模式（覆盖写入）
                     context.contentResolver.openOutputStream(uri, "w")
                 } catch (e2: Exception) {
-                    Log.w(TAG, "使用'w'模式打开输出流失败，尝试使用默认模式: ${e2.message}")
-                    // 如果仍然失败，尝试使用默认模式
+                    Log.w(TAG, "Failed to open output stream with 'w' mode, trying default mode: ${e2.message}")
                     context.contentResolver.openOutputStream(uri)
                 }
             }
             
             if (outputStream == null) {
-                Log.e(TAG, "无法打开输出流，可能是权限问题: ${file.name}, URI: ${file.externalUri}")
+                Log.e(TAG, "Cannot open output stream, possibly permission issue: ${file.name}, URI: ${file.externalUri}")
                 return false
             }
             
-            // 写入文件内容
+            // Write file content
             outputStream.use { stream ->
                 stream.write(file.content.toByteArray())
                 stream.flush()
             }
             
-            Log.d(TAG, "已更新外部文件: ${file.name}, URI: ${file.externalUri}")
+            Log.d(TAG, "Updated external file: ${file.name}, URI: ${file.externalUri}")
             return true
         } catch (e: SecurityException) {
-            Log.e(TAG, "更新外部文件失败，权限被拒绝: ${file.name}", e)
+            Log.e(TAG, "Update external file failed, permission denied: ${file.name}", e)
             return false
         } catch (e: Exception) {
-            Log.e(TAG, "更新外部文件失败: ${file.name}", e)
+            Log.e(TAG, "Update external file failed: ${file.name}", e)
             return false
         }
     }
     
     /**
+     * Delete file from storage
      * 删除文件
-     * 
-     * @param fileName 要删除的文件名
-     * @return 是否删除成功
+     * @param fileName Name of file to delete
+     * @return Whether deletion was successful
      */
     fun deleteFile(fileName: String): Boolean {
-        // 如果文件正在被删除，直接返回false
+        // If file is being deleted, return false directly
         if (fileLocks.putIfAbsent(fileName, true) != null) {
-            Log.w(TAG, "文件 $fileName 正在被其他操作删除，跳过本次删除")
+            Log.w(TAG, "File $fileName is being deleted by another operation, skipping this deletion")
             return false
         }
         
         try {
-            Log.d(TAG, "开始删除文件: $fileName")
+            Log.d(TAG, "Starting file deletion: $fileName")
             val filesDir = getCodeFilesDir()
             val sanitizedFileName = sanitizeFileName(fileName)
             val fileToDelete = File(filesDir, sanitizedFileName)
             val metaFileToDelete = File(filesDir, "${sanitizedFileName}.meta")
             
-            // 强制关闭任何可能打开的文件流
+            // Force close any possibly open file streams
             try {
                 System.gc()
-                Thread.sleep(200) // 给GC更多时间
+                Thread.sleep(200) // Give GC more time
             } catch (e: Exception) {
-                Log.e(TAG, "GC调用失败", e)
+                Log.e(TAG, "GC call failed", e)
             }
             
             var success = true
             
-            // 强制刷新文件状态
+            // Force refresh file state
             if (fileToDelete.exists()) {
             fileToDelete.setLastModified(System.currentTimeMillis())
             }
@@ -280,7 +278,7 @@ class FileStorageManager(private val context: Context) {
             metaFileToDelete.setLastModified(System.currentTimeMillis())
             }
             
-            // 确保文件可写
+            // Ensure files are writable
             if (fileToDelete.exists()) {
                 fileToDelete.setWritable(true)
             }
@@ -289,102 +287,102 @@ class FileStorageManager(private val context: Context) {
                 metaFileToDelete.setWritable(true)
             }
             
-            // 检查文件是否存在
+            // Check if file exists
             if (!fileToDelete.exists()) {
-                Log.d(TAG, "要删除的文件不存在: $fileName (路径: ${fileToDelete.absolutePath})")
-                // 如果文件不存在，也算删除成功
+                Log.d(TAG, "File to delete does not exist: $fileName (path: ${fileToDelete.absolutePath})")
+                // If file doesn't exist, consider deletion successful
             } else {
-                // 删除主文件
-                for (i in 1..3) {  // 尝试最多3次
+                // Delete main file
+                for (i in 1..3) {  // Try up to 3 times
                     if (fileToDelete.delete()) {
-                        Log.d(TAG, "成功删除主文件: $fileName (第" + i + "次尝试)")
+                        Log.d(TAG, "Successfully deleted main file: $fileName (attempt $i)")
                         break
                     } else {
-                        Log.e(TAG, "删除文件失败: $fileName (第" + i + "次尝试)")
+                        Log.e(TAG, "File deletion failed: $fileName (attempt $i)")
                         if (i == 3) success = false
-                        // 在尝试之间短暂延迟
-                        Thread.sleep(200) // 增加延迟时间
+                        // Brief delay between attempts
+                        Thread.sleep(200) // Increase delay time
                     }
                 }
             }
             
-            // 检查元数据文件是否存在
+            // Check if metadata file exists
             if (!metaFileToDelete.exists()) {
-                Log.d(TAG, "要删除的元数据文件不存在: ${fileName}.meta (路径: ${metaFileToDelete.absolutePath})")
+                Log.d(TAG, "Metadata file to delete does not exist: ${fileName}.meta (path: ${metaFileToDelete.absolutePath})")
             } else {
-                // 删除元数据文件
-                for (i in 1..3) {  // 尝试最多3次
+                // Delete metadata file
+                for (i in 1..3) {  // Try up to 3 times
                     if (metaFileToDelete.delete()) {
-                        Log.d(TAG, "成功删除元数据文件: ${fileName}.meta (第" + i + "次尝试)")
+                        Log.d(TAG, "Successfully deleted metadata file: ${fileName}.meta (attempt $i)")
                         break
                     } else {
-                        Log.e(TAG, "删除元数据文件失败: ${fileName}.meta (第" + i + "次尝试)")
+                        Log.e(TAG, "Metadata file deletion failed: ${fileName}.meta (attempt $i)")
                         if (i == 3) success = false
-                        // 在尝试之间短暂延迟
-                        Thread.sleep(200) // 增加延迟时间
+                        // Brief delay between attempts
+                        Thread.sleep(200) // Increase delay time
                     }
                 }
             }
             
-            // 额外的文件删除方法 - 强制删除
+            // Additional file deletion method - force delete
             if (fileToDelete.exists()) {
                 try {
-                    Log.d(TAG, "尝试强制删除文件: ${fileToDelete.absolutePath}")
-                    // 强制删除文件
+                    Log.d(TAG, "Attempting forced file deletion: ${fileToDelete.absolutePath}")
+                    // Force delete file
                     val runtime = Runtime.getRuntime()
                     runtime.exec("rm -f ${fileToDelete.absolutePath}")
                     
-                    // 等待文件系统完成删除操作
-                    Thread.sleep(300) // 增加等待时间
+                    // Wait for file system to complete deletion operation
+                    Thread.sleep(300) // Increase wait time
                     
                     if (fileToDelete.exists()) {
-                        // 如果仍然存在，尝试使用Java IO的方式强制删除
-                        Log.d(TAG, "尝试使用Java IO方式删除文件")
+                        // If still exists, try using Java IO method for forced deletion
+                        Log.d(TAG, "Attempting Java IO method file deletion")
                         if (fileToDelete.setWritable(true) && fileToDelete.delete()) {
-                            Log.d(TAG, "Java IO方式删除文件成功")
+                            Log.d(TAG, "Java IO method file deletion successful")
                         } else {
-                            Log.e(TAG, "强制删除文件后文件仍然存在: ${fileToDelete.absolutePath}")
+                            Log.e(TAG, "File still exists after forced deletion: ${fileToDelete.absolutePath}")
                             success = false
                         }
                     } else {
-                        Log.d(TAG, "强制删除文件成功: ${fileToDelete.absolutePath}")
+                        Log.d(TAG, "Forced file deletion successful: ${fileToDelete.absolutePath}")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "强制删除文件出错: ${e.message}")
+                    Log.e(TAG, "Error during forced file deletion: ${e.message}")
                 }
             }
             
-            // 如果元数据文件仍然存在，也尝试强制删除
+            // If metadata file still exists, also try forced deletion
             if (metaFileToDelete.exists()) {
                 try {
-                    Log.d(TAG, "尝试强制删除元数据文件: ${metaFileToDelete.absolutePath}")
-                    // 强制删除文件
+                    Log.d(TAG, "Attempting forced metadata file deletion: ${metaFileToDelete.absolutePath}")
+                    // Force delete file
                     val runtime = Runtime.getRuntime()
                     runtime.exec("rm -f ${metaFileToDelete.absolutePath}")
                     
-                    // 等待文件系统完成删除操作
-                    Thread.sleep(300) // 增加等待时间
+                    // Wait for file system to complete deletion operation
+                    Thread.sleep(300) // Increase wait time
                     
                     if (metaFileToDelete.exists()) {
-                        // 如果仍然存在，尝试使用Java IO的方式强制删除
-                        Log.d(TAG, "尝试使用Java IO方式删除元数据文件")
+                        // If still exists, try using Java IO method for forced deletion
+                        Log.d(TAG, "Attempting Java IO method metadata file deletion")
                         if (metaFileToDelete.setWritable(true) && metaFileToDelete.delete()) {
-                            Log.d(TAG, "Java IO方式删除元数据文件成功")
+                            Log.d(TAG, "Java IO method metadata file deletion successful")
                         } else {
-                            Log.e(TAG, "强制删除元数据文件后文件仍然存在: ${metaFileToDelete.absolutePath}")
+                            Log.e(TAG, "Metadata file still exists after forced deletion: ${metaFileToDelete.absolutePath}")
                             success = false
                         }
                     } else {
-                        Log.d(TAG, "强制删除元数据文件成功: ${metaFileToDelete.absolutePath}")
+                        Log.d(TAG, "Forced metadata file deletion successful: ${metaFileToDelete.absolutePath}")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "强制删除元数据文件出错: ${e.message}")
+                    Log.e(TAG, "Error during forced metadata file deletion: ${e.message}")
                 }
             }
             
-            // 强制刷新媒体库
+            // Force refresh media library
             try {
-                // 通知媒体扫描器刷新文件目录
+                // Notify media scanner to refresh file directory
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     // Android 10+
                     try {
@@ -402,11 +400,11 @@ class FileStorageManager(private val context: Context) {
                             context.contentResolver.update(android.net.Uri.fromFile(metaFileToDelete), contentValues, null, null)
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "更新媒体存储时出错", e)
-                        // 继续执行，不要因为媒体扫描器更新失败而中断删除过程
+                        Log.e(TAG, "Error updating media store", e)
+                        // Continue execution, don't interrupt deletion process due to media scanner update failure
                     }
                 } else {
-                    // 旧版Android - 使用MediaScannerConnection
+                    // Older Android - use MediaScannerConnection
                     MediaScannerConnection.scanFile(
                         context,
                         arrayOf(filesDir.absolutePath),
@@ -415,51 +413,52 @@ class FileStorageManager(private val context: Context) {
                     )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "刷新媒体库时出错", e)
-                // 继续执行，不要因为媒体扫描器更新失败而中断删除过程
+                Log.e(TAG, "Error refreshing media library", e)
+                // Continue execution, don't interrupt deletion process due to media scanner update failure
                 }
                 
-            // 最终验证
+            // Final verification
             val fileStillExists = fileToDelete.exists()
             val metaFileStillExists = metaFileToDelete.exists()
             
             if (fileStillExists || metaFileStillExists) {
-                Log.e(TAG, "删除后文件仍然存在: 主文件=${fileStillExists}, 元数据文件=${metaFileStillExists}")
+                Log.e(TAG, "Files still exist after deletion: main file=$fileStillExists, metadata file=$metaFileStillExists")
                 success = false
             } else {
-                Log.d(TAG, "文件删除验证成功: $fileName")
+                Log.d(TAG, "File deletion verification successful: $fileName")
                 success = true
             }
             
-            // 列出删除后目录中的所有文件
+            // List all files in directory after deletion
             val remainingFiles = filesDir.listFiles()
-            Log.d(TAG, "删除后目录中剩余 ${remainingFiles?.size ?: 0} 个文件")
+            Log.d(TAG, "Remaining ${remainingFiles?.size ?: 0} files in directory after deletion")
             remainingFiles?.forEach { file ->
-                Log.d(TAG, "  - 剩余文件: ${file.name}")
+                Log.d(TAG, "  - Remaining file: ${file.name}")
             }
             
-            // 强制刷新文件系统状态
+            // Force refresh file system state
             refreshFileSystem()
             
             return success
         } catch (e: Exception) {
-            Log.e(TAG, "删除文件过程中发生异常: $fileName", e)
+            Log.e(TAG, "Exception during file deletion process: $fileName", e)
             return false
         } finally {
-            // 无论成功失败，都释放文件锁
+            // Release file lock regardless of success or failure
             fileLocks.remove(fileName)
             
-            // 处理队列中的下一个文件
+            // Process next file in queue
             processNextInQueue()
         }
     }
     
     /**
+     * Process next file deletion request in queue
      * 处理队列中的下一个文件删除请求
      */
     private fun processNextInQueue() {
         if (isProcessingQueue.get()) {
-            return  // 已经有一个线程在处理队列
+            return  // Already have a thread processing queue
         }
         
         val nextItem = deletionQueue.poll() ?: return
@@ -471,17 +470,17 @@ class FileStorageManager(private val context: Context) {
                 val (fileName, callback) = nextItem
                 val result = deleteFile(fileName)
                 
-                // 在主线程中调用回调
+                // Call callback on main thread
                 withContext(Dispatchers.Main) {
                     callback(result)
                 }
                 
-                // 添加延迟，确保文件系统有足够时间完成操作
+                // Add delay to ensure file system has enough time to complete operation
                 delay(300)
             } finally {
                 isProcessingQueue.set(false)
                 
-                // 如果队列中还有项目，继续处理
+                // If queue still has items, continue processing
                 if (!deletionQueue.isEmpty()) {
                     processNextInQueue()
                 }
@@ -490,44 +489,44 @@ class FileStorageManager(private val context: Context) {
     }
     
     /**
+     * Delete file asynchronously
      * 异步删除文件
-     * 
-     * @param fileName 要删除的文件名
-     * @param onComplete 删除完成后的回调函数，参数为是否删除成功
+     * @param fileName Name of file to delete
+     * @param onComplete Callback function after deletion complete, parameter is whether deletion was successful
      */
     fun deleteFileAsync(fileName: String, onComplete: ((Boolean) -> Unit)? = null) {
-        // 先释放之前可能存在的文件锁
+        // First release any previously existing file lock
         fileLocks.remove(fileName)
         
-        // 将删除请求添加到队列
+        // Add deletion request to queue
         deletionQueue.offer(fileName to { success ->
-            // 在删除完成后，无论成功与否，都刷新文件系统状态
+            // After deletion completes, refresh file system state regardless of success
             if (success) {
-                Log.d(TAG, "文件 $fileName 删除成功，正在刷新文件系统状态")
+                Log.d(TAG, "File $fileName deletion successful, refreshing file system state")
                 refreshFileSystem()
             } else {
-                Log.d(TAG, "文件 $fileName 删除失败，尝试刷新文件系统状态")
+                Log.d(TAG, "File $fileName deletion failed, attempting to refresh file system state")
                 refreshFileSystem()
             }
             
-            // 调用原始回调
+            // Call original callback
             onComplete?.invoke(success)
         })
         
-        // 如果队列之前是空的，开始处理
+        // If queue was previously empty, start processing
         if (deletionQueue.size == 1 && !isProcessingQueue.get()) {
             processNextInQueue()
         } else {
-            Log.d(TAG, "文件 $fileName 已添加到删除队列，当前队列长度: ${deletionQueue.size}")
+            Log.d(TAG, "File $fileName added to deletion queue, current queue length: ${deletionQueue.size}")
         }
     }
     
     /**
+     * Rename file
      * 重命名文件
-     * 
-     * @param oldFileName 旧文件名
-     * @param newFileName 新文件名
-     * @return 是否重命名成功
+     * @param oldFileName Old file name
+     * @param newFileName New file name
+     * @return Whether rename was successful
      */
     fun renameFile(oldFileName: String, newFileName: String): Boolean {
         try {
@@ -536,20 +535,20 @@ class FileStorageManager(private val context: Context) {
             val oldMetaFile = File(filesDir, "${sanitizeFileName(oldFileName)}.meta")
             
             if (!oldFile.exists() || !oldMetaFile.exists()) {
-                Log.e(TAG, "要重命名的文件不存在: $oldFileName")
+                Log.e(TAG, "File to rename does not exist: $oldFileName")
                 return false
             }
             
-            // 读取旧文件内容和元数据
+            // Read old file content and metadata
             val content = oldFile.readText()
             val metaLines = oldMetaFile.readLines()
             
             if (metaLines.size < 2) {
-                Log.e(TAG, "元数据格式错误: $oldFileName")
+                Log.e(TAG, "Metadata format error: $oldFileName")
                 return false
             }
             
-            // 创建新文件对象
+            // Create new file object
             val codeFile = CodeFile(
                 name = newFileName,
                 content = content,
@@ -557,24 +556,24 @@ class FileStorageManager(private val context: Context) {
                 lastModified = metaLines[1].toLongOrNull() ?: System.currentTimeMillis()
             )
             
-            // 保存新文件
+            // Save new file
             if (!saveFile(codeFile)) {
                 return false
             }
             
-            // 删除旧文件
+            // Delete old file
             return deleteFile(oldFileName)
         } catch (e: Exception) {
-            Log.e(TAG, "文件重命名失败: $oldFileName -> $newFileName", e)
+            Log.e(TAG, "File rename failed: $oldFileName -> $newFileName", e)
             return false
         }
     }
     
     /**
+     * Read file content
      * 读取文件内容
-     * 
-     * @param fileName 文件名
-     * @return 代码文件对象，如果读取失败返回null
+     * @param fileName File name
+     * @return Code file object, null if read failed
      */
     fun readFile(fileName: String): CodeFile? {
         try {
@@ -583,13 +582,13 @@ class FileStorageManager(private val context: Context) {
             val metaFile = File(filesDir, "${sanitizeFileName(fileName)}.meta")
             
             if (!file.exists()) {
-                Log.e(TAG, "文件不存在: $fileName")
+                Log.e(TAG, "File does not exist: $fileName")
                 return null
             }
             
             if (!metaFile.exists()) {
-                Log.e(TAG, "元数据文件不存在: $fileName")
-                // 创建默认元数据
+                Log.e(TAG, "Metadata file does not exist: $fileName")
+                // Create default metadata
                 val defaultLanguage = when {
                     fileName.endsWith(".cpp") -> "cpp"
                     fileName.endsWith(".py") -> "python"
@@ -599,10 +598,7 @@ class FileStorageManager(private val context: Context) {
                 metaFile.writeText("$defaultLanguage\n${System.currentTimeMillis()}\nfalse\n")
             }
             
-            // 读取文件内容
             val content = file.readText()
-            
-            // 读取元数据
             val metaLines = metaFile.readLines()
             val language = if (metaLines.isNotEmpty()) metaLines[0] else "text"
             val lastModified = if (metaLines.size > 1) metaLines[1].toLongOrNull() ?: System.currentTimeMillis() else System.currentTimeMillis()
@@ -618,25 +614,24 @@ class FileStorageManager(private val context: Context) {
                 externalUri = externalUri
             )
         } catch (e: Exception) {
-            Log.e(TAG, "文件读取失败: $fileName", e)
+            Log.e(TAG, "File read failed: $fileName", e)
             return null
         }
     }
     
-
-    
     /**
+     * Sanitize file name to ensure safety
      * 清理文件名，确保安全
      */
     fun sanitizeFileName(fileName: String): String {
-        // 替换不安全的字符
+        // Replace unsafe characters
         return fileName.replace("[\\\\/:*?\"<>|]".toRegex(), "_")
     }
     
     /**
+     * Get all code files from storage
      * 获取所有代码文件
-     * 
-     * @return 代码文件列表
+     * @return List of code files
      */
     fun getAllCodeFiles(): List<CodeFile> {
         val files = mutableListOf<CodeFile>()
@@ -647,18 +642,17 @@ class FileStorageManager(private val context: Context) {
                 return files
             }
             
-            // 获取所有文件
             val fileList = filesDir.listFiles() ?: return files
             
-            // 只处理实际代码文件（非元数据文件）
+            // Only process actual code files (not metadata files)
             val codeFiles = fileList.filter { 
                 !it.isDirectory && !it.name.endsWith(".meta") && !it.name.startsWith(".") 
             }
             
-            // 将每个文件转换为CodeFile对象
+            // Convert each file to CodeFile object
             for (file in codeFiles) {
                 try {
-                    // 读取元数据
+                    // Read metadata
                     val metaFile = File(filesDir, "${file.name}.meta")
                     var isExternallySaved = false
                     var externalUri = ""
@@ -675,22 +669,22 @@ class FileStorageManager(private val context: Context) {
                     
                     files.add(CodeFile(file.name, content, language, lastModified, isExternallySaved, externalUri))
                 } catch (e: Exception) {
-                    Log.e(TAG, "读取文件时出错: ${file.name}", e)
+                    Log.e(TAG, "Error reading file: ${file.name}", e)
                 }
             }
             
-            Log.d(TAG, "已加载 ${files.size} 个代码文件")
+            Log.d(TAG, "Loaded ${files.size} code files")
         } catch (e: Exception) {
-            Log.e(TAG, "获取代码文件列表失败", e)
+            Log.e(TAG, "Failed to get code file list", e)
         }
         return files
     }
     
     /**
+     * Determine programming language based on file name
      * 根据文件名确定编程语言
-     * 
-     * @param fileName 文件名
-     * @return 对应的编程语言
+     * @param fileName File name
+     * @return Corresponding programming language
      */
     private fun getFileLanguage(fileName: String): String {
         return when {

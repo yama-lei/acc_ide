@@ -12,8 +12,18 @@ import com.acc_ide.R
 import com.acc_ide.ui.main.MainActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
+/**
+ * New file creation dialog
+ * 新文件创建对话框
+ */
 class NewFileDialogFragment : DialogFragment() {
 
+    /**
+     * Create dialog for selecting file type
+     * 创建用于选择文件类型的对话框
+     * @param savedInstanceState 保存的实例状态
+     * @return Dialog 对话框
+     */
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = MaterialAlertDialogBuilder(requireContext())
         builder.setTitle(R.string.new_file)
@@ -25,7 +35,7 @@ class NewFileDialogFragment : DialogFragment() {
                     else -> "cpp"
                 }
                 
-                // 使用选择的语言创建新文件
+                // Create new file with selected language
                 val activity = activity as MainActivity
                 activity.createNewFile(language)
             }

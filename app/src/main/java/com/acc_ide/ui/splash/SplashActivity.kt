@@ -22,6 +22,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+/**
+ * Splash activity for app initialization and system setup
+ * 启动页活动 - 用于应用初始化和系统设置
+ */
 class SplashActivity : AppCompatActivity() {
     
     private lateinit var loadingText: TextView
@@ -33,10 +37,10 @@ class SplashActivity : AppCompatActivity() {
     override fun attachBaseContext(newBase: Context) {
         val savedLanguage = LocaleHelper.getLanguage(newBase)
         if (savedLanguage.isEmpty()) {
-            // 如果没有保存的语言，使用系统默认语言
+            // If no saved language, use system default language
             super.attachBaseContext(newBase)
         } else {
-            // 否则使用保存的语言
+            // Otherwise use saved language
             super.attachBaseContext(LocaleHelper.setLocale(newBase, savedLanguage))
         }
     }
@@ -44,12 +48,12 @@ class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 应用保存的主题设置
+        // Apply saved theme settings
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val nightMode = prefs.getInt("app_night_mode", AppCompatDelegate.MODE_NIGHT_YES)
         AppCompatDelegate.setDefaultNightMode(nightMode)
         
-        // 应用语言设置
+        // Apply language settings
         applyLanguageSetting()
         
         setContentView(R.layout.activity_splash)
@@ -57,60 +61,60 @@ class SplashActivity : AppCompatActivity() {
         loadingText = findViewById(R.id.loading_text)
         logInfoText = findViewById(R.id.log_info_text)
         
-        // 立即开始TextMate的初始化
+        // Start TextMate initialization immediately
         CoroutineScope(Dispatchers.IO).launch {
             TextMateManager.initialize(this@SplashActivity)
             logInfo(getString(R.string.log_textmate_init_started))
         }
         
-        // 在后台线程中执行初始化操作
+        // Execute initialization operations in background thread
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 更新UI显示当前正在执行的操作
+                // Update UI to show current operation
                 updateLoadingText(getString(R.string.initializing_file_system))
                 logInfo(getString(R.string.log_start_init_fs))
                 
-                // 初始化文件存储管理器
+                // Initialize file storage manager
                 fileStorageManager = FileStorageManager(this@SplashActivity)
                 logInfo(getString(R.string.log_fs_manager_init_complete))
                 
-                // 清理过期的删除标记
+                // Clean expired deletion markers
                 updateLoadingText(getString(R.string.cleaning_temp_files))
                 logInfo(getString(R.string.log_start_cleaning_temp))
                 cleanupExpiredDeletionMarkers()
                 
-                // 验证文件系统完整性
+                // Verify file system integrity
                 updateLoadingText(getString(R.string.verifying_file_system))
                 logInfo(getString(R.string.log_start_verifying_fs))
                 verifyFileSystemIntegrity()
                 
-                // 初始化模板系统
+                // Initialize template system
                 updateLoadingText(getString(R.string.initializing_templates))
                 logInfo(getString(R.string.log_start_init_templates))
                 templateManager = TemplateManager(this@SplashActivity)
                 templateManager.initializeTemplates()
                 logInfo(getString(R.string.log_templates_init_complete))
                 
-                // 设置TextMate状态
+                // Set TextMate status
                 updateLoadingText(getString(R.string.initializing_syntax_highlighting))
                 logInfo(getString(R.string.log_start_init_textmate))
-                // 因为TextMateManager中没有loadLanguageIfNeeded方法，所以直接显示完成消息
+                // Since TextMateManager doesn't have loadLanguageIfNeeded method, directly show completion message
                 logInfo(getString(R.string.log_textmate_init_complete))
                 
-                // 所有初始化工作完成后，启动主Activity
+                // After all initialization work is complete, start MainActivity
                 updateLoadingText(getString(R.string.loading_complete))
                 logInfo(getString(R.string.log_all_tasks_complete))
                 
-                // 延迟一小段时间，让用户看到"加载完成"的消息
+                // Delay a bit to let user see "loading complete" message
                 withContext(Dispatchers.Main) {
                     Handler(Looper.getMainLooper()).postDelayed({
                         startMainActivity()
-                    }, 800) // 延迟800毫秒
+                    }, 800) // Delay 800ms
                 }
             } catch (e: Exception) {
-                Log.e("SplashActivity", "初始化过程中出错", e)
+                Log.e("SplashActivity", "Error during initialization process", e)
                 logInfo(getString(R.string.log_error, e.message))
-                // 即使出错也尝试启动主Activity
+                // Try to start MainActivity even if error occurs
                 withContext(Dispatchers.Main) {
                     startMainActivity()
                 }
@@ -119,16 +123,15 @@ class SplashActivity : AppCompatActivity() {
     }
     
     /**
-     * 应用语言设置
-     * 如果用户已经设置了语言，则使用该语言
-     * 否则使用系统语言
+     * Apply language settings - use user-set language if available, otherwise use system language
+     * 应用语言设置 - 如果用户已经设置了语言，则使用该语言，否则使用系统语言
      */
     private fun applyLanguageSetting() {
         val savedLanguage = LocaleHelper.getLanguage(this)
         
         if (savedLanguage.isNotEmpty()) {
-            Log.d("SplashActivity", "应用用户设置的语言: $savedLanguage")
-            // 确保Locale设置正确
+            Log.d("SplashActivity", "Applying user-set language: $savedLanguage")
+            // Ensure Locale is set correctly
             val locale = when (savedLanguage) {
                 "en" -> Locale.ENGLISH
                 "zh" -> Locale.CHINESE
@@ -137,47 +140,55 @@ class SplashActivity : AppCompatActivity() {
                 else -> Locale(savedLanguage)
             }
             
-            // 设置默认Locale
+            // Set default Locale
             Locale.setDefault(locale)
-            Log.d("SplashActivity", "设置默认Locale: $locale")
+            Log.d("SplashActivity", "Set default Locale: $locale")
             
-            // 更新配置
+            // Update configuration
             val resources = resources
             val configuration = resources.configuration
             configuration.setLocale(locale)
-            Log.d("SplashActivity", "已更新资源配置")
+            Log.d("SplashActivity", "Updated resource configuration")
             
-            // 检查当前语言设置是否生效
+            // Check if current language setting is effective
             val currentLocale = configuration.locales.get(0)
-            Log.d("SplashActivity", "当前Locale: $currentLocale, 语言: ${currentLocale.language}")
+            Log.d("SplashActivity", "Current Locale: $currentLocale, language: ${currentLocale.language}")
             
-            // 应用语言设置
+            // Apply language setting
             val updatedContext = LocaleHelper.setLocale(this, savedLanguage)
             
-            // 验证更新后的上下文语言设置
+            // Verify updated context language setting
             val updatedLocale = updatedContext.resources.configuration.locales.get(0)
-            Log.d("SplashActivity", "更新后上下文的Locale: $updatedLocale, 语言: ${updatedLocale.language}")
+            Log.d("SplashActivity", "Updated context Locale: $updatedLocale, language: ${updatedLocale.language}")
             
-            // 确保字符串资源使用正确的语言
+            // Ensure string resources use correct language
             try {
                 val testString = getString(R.string.app_name)
-                Log.d("SplashActivity", "测试字符串 'app_name': $testString")
+                Log.d("SplashActivity", "Test string 'app_name': $testString")
             } catch (e: Exception) {
-                Log.e("SplashActivity", "获取字符串资源时出错", e)
+                Log.e("SplashActivity", "Error getting string resource", e)
             }
         } else {
             val systemLanguage = Locale.getDefault().language
-            Log.d("SplashActivity", "应用系统语言: $systemLanguage")
+            Log.d("SplashActivity", "Applying system language: $systemLanguage")
             LocaleHelper.setLocale(this, systemLanguage)
         }
     }
     
+    /**
+     * Update loading text on UI thread
+     * 在UI线程更新加载文本
+     */
     private suspend fun updateLoadingText(text: String) {
         withContext(Dispatchers.Main) {
             loadingText.text = text
         }
     }
     
+    /**
+     * Log info message and update UI
+     * 记录信息消息并更新UI
+     */
     private suspend fun logInfo(message: String) {
         Log.d("SplashActivity", message)
         logBuffer.append("• ").append(message).append("\n")
@@ -186,23 +197,27 @@ class SplashActivity : AppCompatActivity() {
         }
     }
     
+    /**
+     * Start MainActivity and finish splash
+     * 启动MainActivity并结束启动页
+     */
     private fun startMainActivity() {
         val intent = Intent(this@SplashActivity, MainActivity::class.java)
         startActivity(intent)
-        finish() // 关闭启动页面
+        finish() // Close splash activity
     }
     
     /**
-     * 清理过期的删除标记
-     * 在应用启动时运行，清理那些已不存在文件的删除标记
+     * Clean up expired deletion markers - runs on app startup to clean deletion markers for non-existent files
+     * 清理过期的删除标记 - 在应用启动时运行，清理那些已不存在文件的删除标记
      */
     private suspend fun cleanupExpiredDeletionMarkers() {
         try {
-            // 获取实际文件列表
+            // Get actual file list
             val filesDir = fileStorageManager.getCodeFilesDir()
             val actualFiles = filesDir.listFiles() ?: return
             
-            // 检查是否有元数据文件但没有对应的主文件
+            // Check if there are meta files without corresponding main files
             val mainFiles = actualFiles.filter { !it.name.endsWith(".meta") }.map { it.name }.toSet()
             val metaFiles = actualFiles.filter { it.name.endsWith(".meta") }
                 .map { it.name.removeSuffix(".meta") }.toSet()
@@ -220,33 +235,33 @@ class SplashActivity : AppCompatActivity() {
                 logInfo(getString(R.string.log_no_orphaned_meta))
             }
         } catch (e: Exception) {
-            Log.e("SplashActivity", "清理过期文件时出错", e)
+            Log.e("SplashActivity", "Error cleaning expired files", e)
             logInfo(getString(R.string.log_cleanup_error, e.message))
         }
     }
     
     /**
-     * 验证文件系统的完整性
-     * 确保所有文件都有对应的元数据文件
+     * Verify file system integrity - ensure all files have corresponding metadata files
+     * 验证文件系统的完整性 - 确保所有文件都有对应的元数据文件
      */
     private suspend fun verifyFileSystemIntegrity() {
         try {
-            // 获取实际文件列表
+            // Get actual file list
             val filesDir = fileStorageManager.getCodeFilesDir()
             val actualFiles = filesDir.listFiles() ?: return
             
-            // 获取主文件和元数据文件
+            // Get main files and meta files
             val mainFiles = actualFiles.filter { !it.name.endsWith(".meta") }
             
             logInfo(getString(R.string.log_found_code_files, mainFiles.size))
             
             var fixedCount = 0
             
-            // 检查每个主文件是否有对应的元数据文件
+            // Check if each main file has corresponding meta file
             for (file in mainFiles) {
                 val metaFile = java.io.File(filesDir, "${file.name}.meta")
                 
-                // 如果元数据文件不存在，创建一个默认的
+                // If meta file doesn't exist, create a default one
                 if (!metaFile.exists()) {
                     val language = when {
                         file.name.endsWith(".cpp") -> "cpp"
@@ -266,7 +281,7 @@ class SplashActivity : AppCompatActivity() {
                 logInfo(getString(R.string.log_all_meta_complete))
             }
         } catch (e: Exception) {
-            Log.e("SplashActivity", "验证文件系统完整性时出错", e)
+            Log.e("SplashActivity", "Error verifying file system integrity", e)
             logInfo(getString(R.string.log_verify_error, e.message))
         }
     }

@@ -10,7 +10,7 @@
 		"list.dropBackground": "#E8E8E8",
 		"list.highlightForeground": "#1976D2",
 		"button.background": "#1976D2",
-		"editor.background": "#fff6e6",
+		"editor.background": "#fef7ff",
 		"editor.foreground": "#212121",
 		"selection.background": "#B3D7FE88",
 		"editor.selectionHighlightBackground": "#B3D7FE44",

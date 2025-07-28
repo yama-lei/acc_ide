@@ -11,18 +11,18 @@ import androidx.fragment.app.DialogFragment
 import com.acc_ide.R
 
 /**
+ * File rename dialog
  * 文件重命名对话框
  */
 class RenameFileDialog : DialogFragment() {
-    
-    // 原始文件名
     private lateinit var originalFileName: String
-    
-    // 重命名回调
     private var onRenameConfirmed: ((String, String) -> Unit)? = null
     
     /**
-     * 设置原始文件名和回调
+     * Set up original file name and rename callback
+     * 设置原始文件名和重命名回调
+     * @param fileName Original file name 原始文件名
+     * @param callback Rename callback 重命名回调
      */
     fun setUp(fileName: String, callback: (originalName: String, newName: String) -> Unit): RenameFileDialog {
         this.originalFileName = fileName
@@ -33,14 +33,14 @@ class RenameFileDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = AlertDialog.Builder(requireContext())
         
-        // 创建对话框视图
+        // Create dialog view
         val inflater = LayoutInflater.from(requireContext())
         val view = inflater.inflate(R.layout.dialog_rename_file, null)
         
-        // 获取输入框
+        // Get input field
         val inputField = view.findViewById<EditText>(R.id.rename_input)
         
-        // 设置默认值为当前文件名(不含扩展名)
+        // Set default value to current file name (without extension)
         val extension = originalFileName.substringAfterLast(".", "")
         val nameWithoutExtension = if (extension.isNotEmpty()) {
             originalFileName.substringBeforeLast(".")
@@ -50,27 +50,24 @@ class RenameFileDialog : DialogFragment() {
         inputField.setText(nameWithoutExtension)
         inputField.setSelection(0, nameWithoutExtension.length)
 
-        // 配置对话框
         builder.setView(view)
             .setTitle(R.string.rename_file)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                // 获取新名称
                 val newName = inputField.text.toString().trim()
-                
-                // 验证新名称
+            
                 if (newName.isEmpty()) {
                     Toast.makeText(requireContext(), R.string.file_name_empty, Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 
-                // 添加原始扩展名
+                // Add original extension
                 val newFileName = if (extension.isNotEmpty()) {
                     "$newName.$extension"
                 } else {
                     newName
                 }
                 
-                // 调用回调
+                // Call callback
                 onRenameConfirmed?.invoke(originalFileName, newFileName)
             }
             .setNegativeButton(android.R.string.cancel) { dialog, _ ->

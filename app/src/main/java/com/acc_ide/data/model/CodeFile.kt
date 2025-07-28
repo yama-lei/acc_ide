@@ -3,6 +3,7 @@ package com.acc_ide.data.model
 import android.net.Uri
 
 /**
+ * A data class representing a code file
  * 表示一个代码文件的数据类
  *
  * @property name 文件名
@@ -18,5 +19,5 @@ data class CodeFile(
     val language: String,
     val lastModified: Long = System.currentTimeMillis(),
     val isExternallySaved: Boolean = false,
-    val externalUri: String = "" // 存储为字符串以便于保存到元数据文件
+    val externalUri: String = "" // Store as a string for easy saving to the metadata file
 ) 

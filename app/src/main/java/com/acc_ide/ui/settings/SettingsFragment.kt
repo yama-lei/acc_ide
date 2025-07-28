@@ -42,6 +42,10 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * Settings fragment for app configuration and preferences
+ * 设置Fragment - 用于应用配置和偏好设置
+ */
 class SettingsFragment : Fragment() {
     private lateinit var themeSwitch: SwitchCompat
     private lateinit var themeLabel: TextView
@@ -58,13 +62,13 @@ class SettingsFragment : Fragment() {
     private lateinit var testGithubButton: Button
     private lateinit var githubStatusText: TextView
     
-    // 当前应用语言
+    // Current app language
     private var currentLanguage: String = ""
     
-    // 防止设置页面重新创建时再次触发语言切换
+    // Prevent language switching from being triggered again when settings page is recreated
     private var isInitialSelection = true
     
-    // 设置的键名
+    // Settings preference keys
     companion object {
         const val PREF_FONT_SIZE = "editor_font_size"
         const val DEFAULT_FONT_SIZE = 18f
@@ -88,7 +92,7 @@ class SettingsFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_settings, container, false)
 
-        // 初始化UI组件
+        // Initialize UI components
         themeSwitch = view.findViewById(R.id.theme_switch)
         themeLabel = view.findViewById(R.id.theme_label)
         languageSpinner = view.findViewById(R.id.language_spinner)
@@ -102,131 +106,131 @@ class SettingsFragment : Fragment() {
         testGithubButton = view.findViewById(R.id.test_github_button)
         githubStatusText = view.findViewById(R.id.github_status_text)
 
-        // 初始化SharedPreferences
+        // Initialize SharedPreferences
         prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
 
-        // 设置主题标签文本
+        // Set theme label text
         updateThemeLabel()
         
-        // 设置主题开关
+        // Set theme switch
         val nightMode = prefs.getInt("app_night_mode", AppCompatDelegate.MODE_NIGHT_YES)
         
-        // 设置开关状态 - 开启表示深色模式，关闭表示浅色模式
+        // Set switch state - on for dark mode, off for light mode
         themeSwitch.isChecked = nightMode == AppCompatDelegate.MODE_NIGHT_YES
         
-        // 根据当前主题设置开关颜色
+        // Set switch colors based on current theme
         updateSwitchColors()
 
-        // 设置主题开关监听
+        // Set theme switch listener
         themeSwitch.setOnCheckedChangeListener { _, isChecked ->
             val selectedMode = if (isChecked) {
-                AppCompatDelegate.MODE_NIGHT_YES  // 深色模式
+                AppCompatDelegate.MODE_NIGHT_YES  // Dark mode
             } else {
-                AppCompatDelegate.MODE_NIGHT_NO   // 浅色模式
+                AppCompatDelegate.MODE_NIGHT_NO   // Light mode
                 }
             
                 if (selectedMode != nightMode) {
-                    // 保存设置
+                    // Save settings
                     prefs.edit().putInt("app_night_mode", selectedMode).apply()
                     
-                    // 更新TextMate主题 - 根据是否是深色或浅色模式
+                    // Update TextMate theme based on dark or light mode
                         val textMateTheme = if (isChecked) "dark.json" else "light.json"
                     TextMateManager.setTheme(textMateTheme)
                     
-                    // 切换主题
+                    // Switch theme
                     AppCompatDelegate.setDefaultNightMode(selectedMode)
-                    // 重启 Activity 以应用主题
+                    // Restart Activity to apply theme
                     activity?.recreate()
                 }
         }
 
-        // 设置语言下拉框
+        // Set language spinner
         val languages = arrayOf("English", "中文")
         val languageAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, languages)
         languageSpinner.adapter = languageAdapter
         
-        // 获取当前语言设置
+        // Get current language setting
         currentLanguage = LocaleHelper.getLanguage(requireContext())
         
-        // 根据当前语言设置选择语言下拉框的初始值
+        // Set initial language spinner selection based on current language
         val languagePosition = when(currentLanguage) {
-            "zh" -> 1 // 中文
-            else -> 0 // 默认英文
+            "zh" -> 1 // Chinese
+            else -> 0 // Default English
         }
         languageSpinner.setSelection(languagePosition)
         
-        // 设置语言选择监听器
+        // Set language selection listener
         languageSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val selectedLanguage = when(position) {
-                    0 -> "en" // 英文
-                    1 -> "zh" // 中文
-                    else -> "en" // 默认英文
+                    0 -> "en" // English
+                    1 -> "zh" // Chinese
+                    else -> "en" // Default English
                 }
                 
-                // 如果选择了不同的语言，且不是初始化阶段，则应用新语言
+                // If different language selected and not in initialization phase, apply new language
                 if (selectedLanguage != currentLanguage && !isInitialSelection) {
                     currentLanguage = selectedLanguage
                     applyLanguageChange(selectedLanguage)
                 }
                 
-                // 第一次选择后将isInitialSelection设为false
+                // Set isInitialSelection to false after first selection
                 isInitialSelection = false
             }
             
             override fun onNothingSelected(parent: AdapterView<*>?) {
-                // 不做任何事情
+                // Do nothing
             }
         }
 
-        // 从SharedPreferences加载字体大小设置
+        // Load font size setting from SharedPreferences
         val savedFontSize = prefs.getFloat(PREF_FONT_SIZE, DEFAULT_FONT_SIZE)
         
-        // 设置字体大小滑动条
+        // Set font size slider
         fontSizeSlider.value = savedFontSize
         fontSizeValue.text = savedFontSize.toInt().toString()
         
-        // 设置字体大小滑动条监听器
+        // Set font size slider listener
         fontSizeSlider.addOnChangeListener { _, value, fromUser ->
-            // 更新文本显示
+            // Update text display
             val fontSize = value.toInt()
             fontSizeValue.text = fontSize.toString()
             
-            // 保存字体大小设置
+            // Save font size setting
             if (fromUser) {
                 prefs.edit().putFloat(PREF_FONT_SIZE, value).apply()
                 
-                // 通知编辑器页面更新字体大小
+                // Notify editor page to update font size
                 (activity as? MainActivity)?.updateEditorFontSize(value)
             }
         }
 
-        // 从SharedPreferences加载光标宽度设置
+        // Load cursor width setting from SharedPreferences
         val savedCursorWidth = prefs.getFloat(PREF_CURSOR_WIDTH, DEFAULT_CURSOR_WIDTH)
         
-        // 设置光标宽度滑动条
+        // Set cursor width slider
         cursorWidthSlider.valueFrom = MIN_CURSOR_WIDTH
         cursorWidthSlider.valueTo = MAX_CURSOR_WIDTH
         cursorWidthSlider.stepSize = 1f
         cursorWidthSlider.value = savedCursorWidth
         cursorWidthValue.text = savedCursorWidth.toInt().toString()
         
-        // 设置光标宽度滑动条监听器
+        // Set cursor width slider listener
         cursorWidthSlider.addOnChangeListener { _, value, fromUser ->
-            // 更新文本显示
+            // Update text display
             val cursorWidth = value.toInt()
             cursorWidthValue.text = cursorWidth.toString()
             
-            // 保存光标宽度设置
+            // Save cursor width setting
             if (fromUser) {
                 prefs.edit().putFloat(PREF_CURSOR_WIDTH, value).apply()
                 
-                // 通知编辑器页面更新光标宽度
+                // Notify editor page to update cursor width
                 (activity as? MainActivity)?.updateEditorCursorWidth(value)
             }
         }
 
-        // 设置符号面板开关
+        // Set symbol panel switch
         val symbolPanelEnabled = prefs.getBoolean(PREF_ENABLE_SYMBOL_PANEL, true)
         switchSymbolPanel.isChecked = symbolPanelEnabled
         setSwitchColor(switchSymbolPanel)
@@ -234,14 +238,14 @@ class SettingsFragment : Fragment() {
             prefs.edit().putBoolean(PREF_ENABLE_SYMBOL_PANEL, isChecked).apply()
         }
         
-        // 设置自动补全开关
+        // Set auto completion switch
         switchAutoCompletion = view.findViewById(R.id.switch_auto_completion)
         val autoCompletionEnabled = prefs.getBoolean(PREF_ENABLE_AUTO_COMPLETION, true)
         switchAutoCompletion.isChecked = autoCompletionEnabled
         setSwitchColor(switchAutoCompletion)
         switchAutoCompletion.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean(PREF_ENABLE_AUTO_COMPLETION, isChecked).apply()
-            // 通知所有打开的编辑器更新自动补全状态
+            // Notify all open editors to update auto completion state
             (activity as? MainActivity)?.updateAutoCompletionState(isChecked)
         }
 
@@ -254,9 +258,12 @@ class SettingsFragment : Fragment() {
         return view
     }
     
-    // 更新主题标签文本
+    /**
+     * Update theme label text based on current language
+     * 根据当前语言更新主题标签文本
+     */
     private fun updateThemeLabel() {
-        // 根据当前语言设置主题标签文本
+        // Set theme label text based on current language
         val currentLocale = Locale.getDefault().language
         themeLabel.text = if (currentLocale == "zh") {
             "深色模式"
@@ -265,25 +272,29 @@ class SettingsFragment : Fragment() {
         }
     }
     
-    // 根据当前主题更新开关颜色
+    /**
+     * Update switch colors based on current theme mode
+     * 根据当前主题更新开关颜色
+     */
     private fun updateSwitchColors() {
         val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == 
                 Configuration.UI_MODE_NIGHT_YES
         
         if (isDarkMode) {
-            // 深色模式下使用紫色 #674fa4
             val purpleColor = Color.parseColor("#674fa4")
             themeSwitch.thumbTintList = ColorStateList.valueOf(purpleColor)
             themeSwitch.trackTintList = ColorStateList.valueOf(adjustAlpha(purpleColor))
         } else {
-            // 浅色模式下使用灰黑色
             val grayColor = Color.parseColor("#333333")
             themeSwitch.thumbTintList = ColorStateList.valueOf(grayColor)
             themeSwitch.trackTintList = ColorStateList.valueOf(adjustAlpha(grayColor))
         }
     }
     
-    // 辅助函数：调整颜色的透明度（固定为50%）
+    /**
+     * Helper function to adjust color alpha (fixed at 50%)
+     * 辅助函数：调整颜色的透明度（固定为50%）
+     */
     private fun adjustAlpha(color: Int): Int {
         val alpha = (Color.alpha(color) * 0.5f).toInt()
         val red = Color.red(color)
@@ -295,72 +306,83 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        // 配置ActionBar和导航抽屉
+        // Configure ActionBar and navigation drawer
         setupActionBar()
         
-        // 处理系统返回按钮
+        // Handle system back button
         setupBackNavigation()
         
-        // 设置延迟检查，确保返回按钮显示
+        // Set delayed check to ensure back button is displayed
         Handler(Looper.getMainLooper()).postDelayed({
             (activity as? MainActivity)?.forceShowBackButton()
-            Log.d("SettingsFragment", "延迟检查：确保返回按钮显示")
+            Log.d("SettingsFragment", "Delayed check: ensure back button is displayed")
         }, 200)
         
-        Log.d("SettingsFragment", "onViewCreated: 设置页面视图创建完成")
+        Log.d("SettingsFragment", "onViewCreated: Settings page view creation completed")
     }
     
+    /**
+     * Setup ActionBar configuration for settings
+     * 设置ActionBar配置
+     */
     private fun setupActionBar() {
-        // 获取MainActivity
+        // Get MainActivity
         val mainActivity = activity as? MainActivity
         if (mainActivity != null) {
-            // 锁定抽屉并禁用抽屉图标
+            // Lock drawer and disable drawer icon
             mainActivity.disableDrawerToggle()
             
-            // 设置标题
+            // Set title
             mainActivity.supportActionBar?.title = getString(R.string.settings)
             
-            // 强制显示返回按钮
+            // Force show back button
             mainActivity.forceShowBackButton()
             
-            Log.d("SettingsFragment", "设置页面ActionBar配置完成，返回按钮已设置")
+            Log.d("SettingsFragment", "Settings page ActionBar configuration completed, back button set")
         }
     }
     
     override fun onResume() {
         super.onResume()
         
-        // 在onResume中再次强制显示返回按钮
+        // Force show back button again in onResume
         (activity as? MainActivity)?.forceShowBackButton()
         
-        // 更新主题标签文本
+        // Update theme label text
         updateThemeLabel()
         
-        Log.d("SettingsFragment", "onResume: 再次确认返回按钮设置")
+        Log.d("SettingsFragment", "onResume: Confirmed back button setting again")
     }
     
+    /**
+     * Setup back navigation handling
+     * 设置返回导航处理
+     */
     private fun setupBackNavigation() {
-        // 处理系统返回按钮
+        // Handle system back button
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                Log.d("SettingsFragment", "系统返回按钮点击")
+                Log.d("SettingsFragment", "System back button clicked")
                 navigateBack(this)
             }
         }
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, callback)
     }
     
+    /**
+     * Navigate back from settings
+     * 从设置页面导航返回
+     */
     private fun navigateBack(callback: OnBackPressedCallback? = null) {
-        Log.d("SettingsFragment", "执行返回操作，当前回退栈数量: ${parentFragmentManager.backStackEntryCount}")
+        Log.d("SettingsFragment", "Executing back operation, current back stack count: ${parentFragmentManager.backStackEntryCount}")
         
-        // 弹出回退栈以返回前一个Fragment，如果没有回退栈，直接调用onBackPressed
+        // Pop back stack to return to previous fragment, if no back stack, directly call onBackPressed
         if (parentFragmentManager.backStackEntryCount > 0) {
             parentFragmentManager.popBackStack()
         } else {
-            // 重要：禁用回调以避免递归调用
+            // Important: disable callback to avoid recursive calls
             callback?.remove()
             
-            // 如果Activity存在，直接结束当前Fragment
             activity?.let { mainActivity ->
                 if (mainActivity is MainActivity) {
                     mainActivity.onFragmentBackPressed()
@@ -372,28 +394,32 @@ class SettingsFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         
-        // 重置MainActivity的ActionBar和导航抽屉状态
+        // Reset MainActivity's ActionBar and navigation drawer state
         val mainActivity = activity as? MainActivity
         mainActivity?.resetNavigationDrawer()
         
-        Log.d("SettingsFragment", "onDestroyView: 设置页面视图销毁")
+        Log.d("SettingsFragment", "onDestroyView: Settings page view destroyed")
     }
     
     /**
+     * Apply language change and notify MainActivity
      * 应用语言变化
      */
     private fun applyLanguageChange(languageCode: String) {
         try {
-            // 通知MainActivity切换语言
+            // Notify MainActivity to change language
             val mainActivity = activity as? MainActivity
             mainActivity?.changeLanguage(languageCode)
         } catch (e: Exception) {
-            // 处理异常
+            // Handle exception
             Toast.makeText(requireContext(), getString(R.string.language_change_failed, e.message), Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 设置SwitchCompat颜色，开为#674fa4，关为#BDBDBD，track开为#674fa4，关为淡灰色，dark/light统一
+    /**
+     * Set SwitchCompat color scheme - on: #674fa4, off: #BDBDBD, track on: #674fa4, off: light gray, unified for dark/light
+     * 设置SwitchCompat颜色方案
+     */
     private fun setSwitchColor(switch: SwitchCompat) {
         val thumbStates = arrayOf(
             intArrayOf(android.R.attr.state_checked),
@@ -408,13 +434,17 @@ class SettingsFragment : Fragment() {
             intArrayOf(-android.R.attr.state_checked)
         )
         val trackColors = intArrayOf(
-            ContextCompat.getColor(requireContext(), R.color.switch_thumb_on), // checked时track也为紫色
-            Color.parseColor("#FFE0E0E0") // 未选中为淡灰色
+            ContextCompat.getColor(requireContext(), R.color.switch_thumb_on), // Track also purple when checked
+            Color.parseColor("#FFE0E0E0") // Light gray when unchecked
         )
         switch.thumbTintList = ColorStateList(thumbStates, thumbColors)
         switch.trackTintList = ColorStateList(trackStates, trackColors)
     }
 
+    /**
+     * Load saved GitHub settings from preferences
+     * 从偏好设置加载保存的GitHub设置
+     */
     private fun loadGitHubSettings() {
         val repoUrl = prefs.getString(PREF_GITHUB_REPO_URL, "")
         val pat = prefs.getString(PREF_GITHUB_PAT, "")
@@ -422,6 +452,10 @@ class SettingsFragment : Fragment() {
         githubPatEditText.setText(pat)
     }
 
+    /**
+     * Setup GitHub button listeners
+     * 设置GitHub按钮监听器
+     */
     private fun setupGitHubListeners() {
         testGithubButton.setOnClickListener {
             val repoUrl = githubRepoEditText.text.toString().trim()
@@ -430,6 +464,10 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    /**
+     * Test GitHub connection with provided repository URL and PAT
+     * 使用提供的仓库URL和PAT测试GitHub连接
+     */
     private fun testGitHubConnection(repoUrl: String, pat: String) {
         if (repoUrl.isEmpty() || pat.isEmpty()) {
             githubStatusText.text = getString(R.string.github_repo_pat_empty)
