@@ -12,17 +12,18 @@ import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import android.content.res.Configuration
 
 /**
- * TextMate语法高亮管理器
+ * TextMate syntax highlighting manager for code editor theme and language support
+ * TextMate语法高亮管理器 - 用于代码编辑器主题和语言支持
  */
 object TextMateManager {
     private var isInitialized = false
     private const val THEME_PATH = "textmate/themes/"
-    private const val THEME_DARK = "dark.json"  // 自定义暗色主题
-    private const val THEME_LIGHT = "light.json"  // 自定义亮色主题
+    private const val THEME_DARK = "dark.json" 
+    private const val THEME_LIGHT = "light.json"  
     
     /**
-     * Initialize TextMate support
-     * This should be called once when the application starts
+     * Initialize TextMate support - should be called once when application starts
+     * 初始化TextMate支持 - 应该在应用程序启动时调用一次
      */
     fun initialize(context: Context) {
         if (isInitialized) return
@@ -33,18 +34,18 @@ object TextMateManager {
         )
         loadThemes()
         
-        // 检查当前系统主题，自动选择对应的主题
+        // Check current system theme, automatically select corresponding theme
         val currentNightMode = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         val defaultThemeFile = if (currentNightMode == Configuration.UI_MODE_NIGHT_YES) {
-            THEME_DARK // 深色模式使用自定义的Material Dark主题
+            THEME_DARK 
         } else {
-            THEME_LIGHT // 浅色模式使用自定义的Material Light主题
+            THEME_LIGHT 
         }
         
-        // 设置默认主题ID (不带.json扩展名)
+        // Set default theme ID (without .json extension)
         val themeId = defaultThemeFile.substringBeforeLast(".json")
         ThemeRegistry.getInstance().setTheme(themeId)
-        android.util.Log.d("TextMateManager", "初始化时设置默认主题: $defaultThemeFile (ID: $themeId)")
+        android.util.Log.d("TextMateManager", "Set default theme during initialization: $defaultThemeFile (ID: $themeId)")
         
         loadLanguages()
         
@@ -53,31 +54,32 @@ object TextMateManager {
     
     /**
      * Load all available TextMate themes from assets
+     * 从assets加载所有可用的TextMate主题
      */
     private fun loadThemes() {
         val themeRegistry = ThemeRegistry.getInstance()
         
         // List of themes to load with their filenames and dark mode flag
         val themes = listOf(
-            THEME_DARK to true,   // 自定义暗色主题
-            THEME_LIGHT to false  // 自定义亮色主题
+            THEME_DARK to true,  
+            THEME_LIGHT to false 
         )
         
         // Load each theme
         themes.forEach { (themeFile, isDark) ->
             try {
-                // 获取输入流
+                // Get input stream
                 val inputStream = FileProviderRegistry.getInstance().tryGetInputStream(THEME_PATH + themeFile)
                 if (inputStream != null) {
                     val themeSource = IThemeSource.fromInputStream(inputStream, themeFile, null)
-                    // 加载主题
+                    // Load theme
                     themeRegistry.loadTheme(themeSource, isDark)
                     
-                    // 记录加载成功的主题
-                    android.util.Log.d("TextMateManager", "主题加载成功: $themeFile")
+                    // Log successfully loaded theme
+                    android.util.Log.d("TextMateManager", "Theme loaded successfully: $themeFile")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("TextMateManager", "主题加载失败: $themeFile - ${e.message}")
+                android.util.Log.e("TextMateManager", "Theme loading failed: $themeFile - ${e.message}")
                 e.printStackTrace()
             }
         }
@@ -85,6 +87,7 @@ object TextMateManager {
     
     /**
      * Load TextMate language definitions from language.json file in assets
+     * 从assets中的language.json文件加载TextMate语言定义
      */
     private fun loadLanguages() {
         GrammarRegistry.getInstance().loadGrammars("textmate/languages/language.json")
@@ -92,18 +95,20 @@ object TextMateManager {
     
 
     /**
-     * Set the active TextMate theme
+     * Set active TextMate theme for editor
+     * 设置编辑器的活动TextMate主题
      * @param themeName The name of the theme to use 
      */
     fun setTheme(themeName: String) {
         val themeId = themeName.substringBeforeLast(".json")
         ThemeRegistry.getInstance().setTheme(themeId)
         
-        android.util.Log.d("TextMateManager", "已应用主题: $themeName (ID: $themeId)")
+        android.util.Log.d("TextMateManager", "Applied theme: $themeName (ID: $themeId)")
     }
     
     /**
-     * Get the file extension to language scope name mapping
+     * Get file extension to language scope name mapping for syntax highlighting
+     * 获取文件扩展名到语言作用域名称的映射用于语法高亮
      * @return Map of file extensions to scope names
      */
     fun getLanguageMapping(): Map<String, String> {

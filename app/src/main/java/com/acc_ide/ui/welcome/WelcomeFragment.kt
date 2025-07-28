@@ -11,19 +11,23 @@ import com.acc_ide.dialog.NewFileDialogFragment
 import com.acc_ide.ui.main.MainActivity
 import com.google.android.material.button.MaterialButton
 
+/**
+ * Welcome fragment for app startup and new file creation
+ * 欢迎Fragment - 用于应用启动和新文件创建
+ */
 class WelcomeFragment : Fragment() {
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Inflate the layout for this fragment
+        // Inflate layout for welcome fragment
         val view = inflater.inflate(R.layout.fragment_welcome, container, false)
 
-        // 获取新建文件按钮
+        // Get new file button
         val newFileButton = view.findViewById<MaterialButton>(R.id.start_coding_button)
 
-        // 设置按钮点击事件
+        // Set button click event to show new file dialog
         newFileButton.setOnClickListener {
             showNewFileDialog()
         }
@@ -31,6 +35,10 @@ class WelcomeFragment : Fragment() {
         return view
     }
 
+    /**
+     * Show new file dialog for file creation
+     * 显示新文件对话框用于文件创建
+     */
     private fun showNewFileDialog() {
         NewFileDialogFragment().show(parentFragmentManager, "new_file_dialog")
     }

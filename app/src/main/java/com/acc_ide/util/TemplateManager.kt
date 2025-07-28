@@ -7,18 +7,19 @@ import java.io.IOException
 import android.os.Environment
 
 /**
- * 模板管理器，用于处理代码模板的加载与使用
+ * Template manager for handling code template loading and usage
+ * 模板管理器 - 用于处理代码模板的加载与使用
  */
 class TemplateManager(private val context: Context) {
     
     private val TAG = "TemplateManager"
     
-    // 模板文件名
+    // Template file names
     private val CPP_TEMPLATE = "template.cpp"
     private val JAVA_TEMPLATE = "template.java"
     private val PYTHON_TEMPLATE = "template.py"
     
-    // 默认C++模板
+    // Default C++ template
     private val DEFAULT_CPP_TEMPLATE = """
         #include <iostream>
         #include <vector>
@@ -51,7 +52,7 @@ class TemplateManager(private val context: Context) {
         }
     """.trimIndent()
     
-    // 默认Java模板
+    // Default Java template
     private val DEFAULT_JAVA_TEMPLATE = """
         import java.util.*;
         import java.io.*;
@@ -100,7 +101,7 @@ class TemplateManager(private val context: Context) {
         }
     """.trimIndent()
     
-    // 默认Python模板
+    // Default Python template
     private val DEFAULT_PYTHON_TEMPLATE = """
         import sys
         from collections import defaultdict, Counter, deque
@@ -113,7 +114,7 @@ class TemplateManager(private val context: Context) {
         def int_input(): return int(input())
         
         def main():
-            # 快读
+            # Fast input
             
             
             
@@ -122,50 +123,51 @@ class TemplateManager(private val context: Context) {
             main()
     """.trimIndent()
 
-    // 文件存储管理器实例
+    // File storage manager instance
     private val fileStorageManager = FileStorageManager(context)
     
     /**
+     * Get template directory path
      * 获取模板目录
      */
     private fun getTemplateDir(): File {
         try {
-            // 获取包名，即com.acc_ide
+            // Get package name, i.e. com.acc_ide
             val packageName = context.packageName
             
-            // 获取外部存储根目录
+            // Get external storage root directory
             val externalDir = Environment.getExternalStorageDirectory()
             
-            // 创建template目录：/storage/emulated/0/com.acc_ide/template/
+            // Create template directory: /storage/emulated/0/com.acc_ide/template/
             val templateDir = File(externalDir, "$packageName/template")
             
-            // 确保目录存在
+            // Ensure directory exists
             if (!templateDir.exists()) {
-                // 确保父目录也存在
+                // Ensure parent directory also exists
                 val parentDir = templateDir.parentFile
                 if (parentDir != null && !parentDir.exists()) {
                     val parentSuccess = parentDir.mkdirs()
-                    Log.d(TAG, "创建父目录: ${parentDir.absolutePath}, 成功: $parentSuccess")
+                    Log.d(TAG, "Create parent directory: ${parentDir.absolutePath}, success: $parentSuccess")
                 }
                 
                 val success = templateDir.mkdirs()
-                Log.d(TAG, "创建模板目录: ${templateDir.absolutePath}, 成功: $success")
+                Log.d(TAG, "Create template directory: ${templateDir.absolutePath}, success: $success")
                 
-                // 如果创建失败，尝试备用路径
+                // If creation fails, try backup path
                 if (!success) {
-                    throw IOException("无法创建模板目录: ${templateDir.absolutePath}")
+                    throw IOException("Cannot create template directory: ${templateDir.absolutePath}")
                 }
             }
             
             return templateDir
         } catch (e: Exception) {
-            Log.e(TAG, "获取模板目录失败，使用备用路径", e)
+            Log.e(TAG, "Failed to get template directory, using backup path", e)
             
-            // 备用路径：直接在应用文件目录下创建template子目录
+            // Backup path: create template subdirectory directly under app files directory
             val backupTemplateDir = File(fileStorageManager.getCodeFilesDir(), "template")
             if (!backupTemplateDir.exists()) {
                 backupTemplateDir.mkdirs()
-                Log.d(TAG, "创建备用模板目录: ${backupTemplateDir.absolutePath}")
+                Log.d(TAG, "Create backup template directory: ${backupTemplateDir.absolutePath}")
             }
             
             return backupTemplateDir
@@ -173,41 +175,41 @@ class TemplateManager(private val context: Context) {
     }
     
     /**
-     * 初始化模板文件
-     * 如果模板文件不存在，创建默认模板
+     * Initialize template files - create default templates if template files don't exist
+     * 初始化模板文件 - 如果模板文件不存在，创建默认模板
      */
     fun initializeTemplates() {
         try {
             val templateDir = getTemplateDir()
             
-            // 确保目录存在且可写
+            // Ensure directory exists and is writable
             if (!templateDir.exists() && !templateDir.mkdirs()) {
-                Log.e(TAG, "无法创建模板目录: ${templateDir.absolutePath}")
-                // 如果无法创建目录，直接返回，避免后续操作
+                Log.e(TAG, "Cannot create template directory: ${templateDir.absolutePath}")
+                // If unable to create directory, return directly to avoid subsequent operations
                 return
             }
             
             if (!templateDir.canWrite()) {
-                Log.e(TAG, "模板目录不可写: ${templateDir.absolutePath}")
+                Log.e(TAG, "Template directory is not writable: ${templateDir.absolutePath}")
                 return
             }
             
-            // 使用安全的文件写入方法
+            // Use safe file writing method
             safeWriteTemplateFile(templateDir, CPP_TEMPLATE, DEFAULT_CPP_TEMPLATE)
             safeWriteTemplateFile(templateDir, JAVA_TEMPLATE, DEFAULT_JAVA_TEMPLATE)
             safeWriteTemplateFile(templateDir, PYTHON_TEMPLATE, DEFAULT_PYTHON_TEMPLATE)
             
-            Log.d(TAG, "模板初始化完成")
+            Log.d(TAG, "Template initialization completed")
         } catch (e: Exception) {
-            Log.e(TAG, "初始化模板失败", e)
+            Log.e(TAG, "Failed to initialize templates", e)
         }
     }
     
     /**
+     * Get template content for specified language
      * 获取指定语言的模板内容
-     * 
-     * @param language 编程语言
-     * @return 模板内容
+     * @param language Programming language
+     * @return Template content
      */
     fun getTemplateContent(language: String): String {
         try {
@@ -218,12 +220,12 @@ class TemplateManager(private val context: Context) {
                 else -> return ""
             }
             
-            // 如果模板文件存在，读取其内容
+            // If template file exists, read its content
             if (templateFile.exists()) {
                 return templateFile.readText()
             }
             
-            // 如果模板文件不存在，返回默认模板
+            // If template file doesn't exist, return default template
             return when (language) {
                 "cpp" -> DEFAULT_CPP_TEMPLATE
                 "java" -> DEFAULT_JAVA_TEMPLATE
@@ -231,9 +233,9 @@ class TemplateManager(private val context: Context) {
                 else -> ""
             }
         } catch (e: Exception) {
-            Log.e(TAG, "获取模板内容失败: $language", e)
+            Log.e(TAG, "Failed to get template content: $language", e)
             
-            // 发生错误时返回默认模板
+            // Return default template when error occurs
             return when (language) {
                 "cpp" -> DEFAULT_CPP_TEMPLATE
                 "java" -> DEFAULT_JAVA_TEMPLATE
@@ -244,37 +246,38 @@ class TemplateManager(private val context: Context) {
     }
 
     /**
+     * Safely write template file with error handling
      * 安全地写入模板文件，包含错误处理
      */
     private fun safeWriteTemplateFile(dir: File, fileName: String, content: String) {
         try {
             val file = File(dir, fileName)
             if (!file.exists()) {
-                // 使用临时文件写入，成功后再重命名，避免部分写入导致的文件损坏
+                // Use temporary file for writing, then rename after success to avoid file corruption from partial writes
                 val tempFile = File(dir, "$fileName.tmp")
                 tempFile.writeText(content)
                 val success = tempFile.renameTo(file)
                 
                 if (success) {
-                    Log.d(TAG, "创建默认${fileName}模板成功")
+                    Log.d(TAG, "Successfully created default $fileName template")
                 } else {
-                    // 如果重命名失败，直接写入原文件
+                    // If rename fails, write directly to original file
                     file.writeText(content)
-                    Log.d(TAG, "通过直接写入创建默认${fileName}模板")
+                    Log.d(TAG, "Created default $fileName template by direct writing")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "创建${fileName}模板失败", e)
-            // 尝试使用备用方法
+            Log.e(TAG, "Failed to create $fileName template", e)
+            // Try backup method
             try {
                 val file = File(dir, fileName)
                 file.outputStream().use { output ->
                     output.write(content.toByteArray())
                     output.flush()
                 }
-                Log.d(TAG, "使用备用方法创建${fileName}模板成功")
+                Log.d(TAG, "Successfully created $fileName template using backup method")
             } catch (e2: Exception) {
-                Log.e(TAG, "使用备用方法创建${fileName}模板也失败", e2)
+                Log.e(TAG, "Backup method for creating $fileName template also failed", e2)
             }
         }
     }

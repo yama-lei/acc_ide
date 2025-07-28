@@ -37,19 +37,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
+/**
+ * Code editor fragment - provides code editing functionality with syntax highlighting
+ * 代码编辑器Fragment - 提供代码编辑功能和语法高亮
+ */
 class EditorFragment : Fragment() {
     lateinit var editor: CodeEditor
     private lateinit var language: String
-    lateinit var fileName: String  // 修改为public属性
+    lateinit var fileName: String
 
-    // 添加一个变量来跟踪当前设置的语言作用域
+    // Track current language scope name
     private var currentLanguageScopeName: String? = null
     private var isIOPanelOpen = false
     private var runMenuItem: MenuItem? = null
     private var undoMenuItem: MenuItem? = null
     private var redoMenuItem: MenuItem? = null
     private var hasUnsavedChanges = false
-    private var isUpdatingFontSize = false // 防止缩放监听器和设置更新相互触发
+    private var isUpdatingFontSize = false // Prevent zoom listener and settings update from triggering each other
 
     // Symbol panel components
     private lateinit var symbolPanel: SymbolPanelView
@@ -57,7 +61,7 @@ class EditorFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // We'll set up the menu in onViewCreated instead of here
+        // We've set up the menu in onViewCreated instead of here
     }
 
     override fun onCreateView(
@@ -68,80 +72,58 @@ class EditorFragment : Fragment() {
         editor = view.findViewById(R.id.editor_view)
         symbolPanel = view.findViewById(R.id.symbol_panel)
 
-        // 获取参数
+        // Get arguments
         arguments?.let {
             language = it.getString(ARG_LANGUAGE, "text")
             fileName = it.getString(ARG_FILENAME, "")
         }
 
-        // 配置编辑器基本设置
+        // Configure basic editor settings
         configureEditor()
 
-        // 使用协程异步设置内容和语言支持
-        CoroutineScope(Dispatchers.Main).launch {
+        // Use coroutines to set content and language support asynchronously
+        CoroutineScope(Dispatchers.IO).launch {
             try {
-                // 获取文件内容
                 val mainActivity = activity as MainActivity
                 val fileContent = mainActivity.files[fileName] ?: ""
 
-                // 预加载语言支持 - 在后台线程进行
-                withContext(Dispatchers.IO) {
-                    val fileExtension = when (language) {
-                        "java" -> "java"
-                        "cpp" -> "cpp"
-                        "python" -> "py"
-                        else -> "txt"
-                    }
-
-                    val languageMapping = com.acc_ide.util.TextMateManager.getLanguageMapping()
-                    val scopeName = languageMapping[fileExtension] ?: "text.plain"
-
-                    // 预先创建语言实例，放入缓存
-                    EditorFragment.getOrCreateLanguage(scopeName)
-                    android.util.Log.d("EditorFragment", "预加载语言: $scopeName")
+                // Preload language support in background thread
+                val fileExtension = when (language) {
+                    "java" -> "java"
+                    "cpp" -> "cpp"
+                    "python" -> "py"
+                    else -> "txt"
                 }
 
-                // 在主线程设置文本内容
-                withContext(Dispatchers.Main) {
-                    // 设置内容前先应用语言支持（预设语言，不处理内容）
-                    setupLanguageSupport()
+                val languageMapping = com.acc_ide.util.TextMateManager.getLanguageMapping()
+                val scopeName = languageMapping[fileExtension] ?: "text.plain"
 
-                    // 设置内容
+                // Pre-create language instance and put into cache
+                EditorFragment.getOrCreateLanguage(scopeName)
+                android.util.Log.d("EditorFragment", "Preloaded language: $scopeName")
+
+                // Switch to main thread only for UI operations
+                withContext(Dispatchers.Main) {
+                    // Set content first (fast operation)
                     editor.setText(fileContent)
 
-                    // 内容设置后再次触发语法高亮刷新
-                    editor.post {
-                        // 强制编辑器重新计算布局和渲染
-                        editor.invalidate()
+                    // Setup language support (uses cached language)
+                    setupLanguageSupport()
 
-                        // 尝试触发语法高亮的应用
-                        val tempText = editor.text.toString()
-                        if (tempText.isNotEmpty()) {
-                            try {
-                                // 在文本开头插入和删除一个空格，而不是末尾
-                                editor.text.insert(0, 0, " ")
-                                editor.text.delete(0, 1)
-                            } catch (e: Exception) {
-                                android.util.Log.e(
-                                    "EditorFragment",
-                                    "触发语法高亮渲染失败: ${e.message}"
-                                )
-                            }
-                        }
-                    }
-
-                    // 设置文本变化监听器
+                    // Setup other components
                     setupContentChangeListener()
-
-                    // 初始化符号面板
                     initSymbolPanel()
+
+                    // Force refresh in next frame
+                    editor.post {
+                        editor.invalidate()
+                        editor.postInvalidate()
+                    }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "加载内容时出错: ${e.message}")
+                android.util.Log.e("EditorFragment", "Error loading content: ${e.message}")
             }
         }
-
-        // 使用TextMate主题提供的默认样式
 
         return view
     }
@@ -149,10 +131,14 @@ class EditorFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // 设置菜单提供者 - 在视图创建后设置，确保可以安全访问 viewLifecycleOwner
+        // Set title
+        val mainActivity = activity as MainActivity
+        mainActivity.supportActionBar?.title = fileName
+
+        // Set menu provider - after view is created to ensure safe access to viewLifecycleOwner
         activity?.addMenuProvider(object : MenuProvider {
             override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
-                menu.clear() // 清除旧菜单
+                menu.clear() // Clear old menu
                 menuInflater.inflate(R.menu.editor_menu, menu)
                 runMenuItem = menu.findItem(R.id.action_run)
                 undoMenuItem = menu.findItem(R.id.action_undo)
@@ -166,7 +152,7 @@ class EditorFragment : Fragment() {
                         if (isIOPanelOpen) {
                             closeIOPanel()
                         } else {
-                            // 运行代码前先保存
+                            // Save before running code
                             saveContent()
                             openIOPanel()
                         }
@@ -188,79 +174,62 @@ class EditorFragment : Fragment() {
             }
         }, viewLifecycleOwner)
 
-        // 初始化界面视图
+        // Initialize interface views
         initViews()
 
-        // 配置语言支持
+        // Configure language support
         configureLanguage()
 
-        // 应用编辑器设置
+        // Apply editor settings
         applySettingsFromPreferences()
 
-        // 注册主题变更监听器
+        // Register theme change listener
         registerThemeChangeListener()
 
-        // 配置自动补全组件的颜色
+        // Configure auto completion component colors
         configureAutoCompletionColors()
 
-        // 设置自动补全组件的启用状态
+        // Set auto completion component enabled state
         val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
         val autoCompletionEnabled =
             prefs.getBoolean(SettingsFragment.PREF_ENABLE_AUTO_COMPLETION, true)
         setAutoCompletionEnabled(autoCompletionEnabled)
 
-        // 确保设置正确应用
-        applySettingsFromPreferences()
-
-        // 延迟设置光标宽度，确保在编辑器完全初始化后应用
-        editor.post {
-            val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-            val cursorWidth = prefs.getFloat(
-                SettingsFragment.PREF_CURSOR_WIDTH,
-                SettingsFragment.DEFAULT_CURSOR_WIDTH
-            )
-            setCursorWidth(cursorWidth)
-        }
+        // Set cursor width immediately without delay to prevent post-frame lag
+        val cursorWidth = prefs.getFloat(
+            SettingsFragment.PREF_CURSOR_WIDTH,
+            SettingsFragment.DEFAULT_CURSOR_WIDTH
+        )
+        setCursorWidth(cursorWidth)
     }
 
     override fun onResume() {
         super.onResume()
 
-        // 确保标题栏显示当前文件名
+        // Ensure title bar shows current file name
         (activity as? MainActivity)?.let { mainActivity ->
             mainActivity.supportActionBar?.title = fileName
         }
 
-        // 应用设置
+        // Apply settings only once
         applySettingsFromPreferences()
 
-        // 强制刷新主题和语法高亮
-        refreshEditorTheme()
-
-        // 延迟一段时间后再次刷新，确保主题和语法高亮正确应用
-        Handler(Looper.getMainLooper()).postDelayed({
-            // 重新应用语言支持
-            setupLanguageSupport()
-
-            // 刷新编辑器主题
-            refreshEditorTheme()
-
-            android.util.Log.d("EditorFragment", "onResume中延迟刷新语法高亮完成")
-        }, 200)
+        android.util.Log.d("EditorFragment", "onResume completed")
     }
 
     /**
+     * Read settings from SharedPreferences and apply them to editor and symbol panel
      * 从SharedPreferences读取设置并应用到编辑器和符号面板
      */
     private fun applySettingsFromPreferences() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
         val symbolPanelEnabled = prefs.getBoolean(SettingsFragment.PREF_ENABLE_SYMBOL_PANEL, true)
 
-        // 应用到符号面板
+        // Apply to symbol panel
         setSymbolPanelVisibility(symbolPanelEnabled)
         isSymbolPanelVisible = symbolPanelEnabled
 
-        // 应用光标宽度设置
+        // Apply cursor width settings
         val cursorWidth = prefs.getFloat(
             SettingsFragment.PREF_CURSOR_WIDTH,
             SettingsFragment.DEFAULT_CURSOR_WIDTH
@@ -269,22 +238,24 @@ class EditorFragment : Fragment() {
     }
 
     /**
+     * Initialize symbol panel
      * 初始化符号面板
      */
     private fun initSymbolPanel() {
         try {
-            // 设置编辑器实例给符号面板
+            // Set editor instance to symbol panel
             symbolPanel.setEditor(editor)
 
-            // 设置初始可见性
+            // Set initial visibility
             setSymbolPanelVisibility(isSymbolPanelVisible)
 
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "初始化符号面板失败: ${e.message}")
+            android.util.Log.e("EditorFragment", "Failed to initialize symbol panel: ${e.message}")
         }
     }
 
     /**
+     * Set symbol panel visibility
      * 设置符号面板的可见性
      */
     private fun setSymbolPanelVisibility(visible: Boolean) {
@@ -292,105 +263,62 @@ class EditorFragment : Fragment() {
     }
 
     /**
+     * Initialize interface views
      * 初始化界面视图
-     * 此方法在Fragment视图创建后被调用，用于设置视图相关组件
      */
     private fun initViews() {
         try {
-            // 初始化编辑器视图的其他UI元素（如工具栏、按钮等）
-            // 在此处添加编辑器相关的视图初始化代码
+            // Initialize other UI elements of editor view (like toolbar, buttons, etc.)
+            // Add editor-related view initialization code here
 
             editor.setOnLongClickListener {
-                // 显示上下文菜单或者执行其他操作
+                // Show context menu or perform other operations
                 true
             }
 
-            android.util.Log.d("EditorFragment", "视图初始化完成")
+            android.util.Log.d("EditorFragment", "View initialization completed")
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "初始化视图时出错: ${e.message}")
+            android.util.Log.e("EditorFragment", "Error initializing views: ${e.message}")
         }
     }
 
     /**
-     * 配置语言支持
-     * 此方法用于根据文件类型配置编辑器的语言支持
+     * Configure language support based on file type
+     * 根据文件类型配置语言支持
      */
     private fun configureLanguage() {
         try {
-            // 确保editor已经初始化
+            // Ensure editor is initialized
             if (::editor.isInitialized) {
-                // 如果文件类型没有变化，无需重新配置
+                // Skip reconfiguration if file type hasn't changed
                 val fileExtension = when (language) {
                     "java" -> "java"
-                    "cpp" -> "cpp"
+                    "kotlin" -> "kt"
                     "python" -> "py"
+                    "cpp" -> "cpp"
                     else -> "txt"
                 }
-
                 val languageMapping = com.acc_ide.util.TextMateManager.getLanguageMapping()
                 val scopeName = languageMapping[fileExtension] ?: "text.plain"
 
-                // 如果语言没有变化，则跳过重复的语言设置
+                // Skip duplicate language setup if language hasn't changed
                 if (currentLanguageScopeName == scopeName) {
-                    android.util.Log.d("EditorFragment", "语言未变化，跳过重新配置：$scopeName")
+                    android.util.Log.d("EditorFragment", "Language unchanged, skipping reconfiguration: $scopeName")
                     return
                 }
 
-                // 设置语言
+                // Set language
                 setupLanguageSupport()
 
-                // 设置语言特定的编辑器选项
-                when (language) {
-                    "java", "kotlin" -> {
-                        // Java/Kotlin特定设置
-                        try {
-                            // 使用反射设置自动缩进，因为不同版本的编辑器可能有不同的API
-                            val method = CodeEditor::class.java.getDeclaredMethod(
-                                "setAutoIndentEnabled",
-                                Boolean::class.java
-                            )
-                            method.invoke(editor, true)
-                        } catch (e: Exception) {
-                            android.util.Log.w("EditorFragment", "无法设置自动缩进: ${e.message}")
-                        }
-                    }
-
-                    "python" -> {
-                        // Python特定设置
-                        try {
-                            val method = CodeEditor::class.java.getDeclaredMethod(
-                                "setAutoIndentEnabled",
-                                Boolean::class.java
-                            )
-                            method.invoke(editor, true)
-                        } catch (e: Exception) {
-                            android.util.Log.w("EditorFragment", "无法设置自动缩进: ${e.message}")
-                        }
-                    }
-
-                    else -> {
-                        // 默认设置
-                        try {
-                            val method = CodeEditor::class.java.getDeclaredMethod(
-                                "setAutoIndentEnabled",
-                                Boolean::class.java
-                            )
-                            method.invoke(editor, false)
-                        } catch (e: Exception) {
-                            android.util.Log.w("EditorFragment", "无法设置自动缩进: ${e.message}")
-                        }
-                    }
-                }
-
-                android.util.Log.d("EditorFragment", "已为${language}语言配置编辑器")
+                android.util.Log.d("EditorFragment", "Editor configured for $language language")
             }
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "配置语言支持时出错: ${e.message}")
+            android.util.Log.e("EditorFragment", "Error configuring language support: ${e.message}")
         }
     }
 
     private fun setupContentChangeListener() {
-        // 监听文本变化以标记未保存状态
+        // Listen for text changes to mark unsaved state
         try {
             editor.subscribeEvent(ContentChangeEvent::class.java) { _, _ ->
                 hasUnsavedChanges = true
@@ -404,28 +332,28 @@ class EditorFragment : Fragment() {
         val content = editor.text.toString()
         val mainActivity = activity as? MainActivity
         mainActivity?.let {
-            // 更新内存中的文件内容
+            // Update file content in memory
             it.files[fileName] = content
 
-            // 同时更新存储
+            // Also update storage
             it.updateFileContent(fileName, content)
 
-            // 重置未保存状态
+            // Reset unsaved state
             hasUnsavedChanges = false
         }
     }
 
     private fun openIOPanel() {
-        // 检查是否已经有IO面板打开
+        // Check if IO panel is already open
         val existingPanel = parentFragmentManager.findFragmentByTag("io_panel")
         if (existingPanel != null) {
-            // 如果已经有面板打开，先移除它
+            // If panel is already open, remove it first
             parentFragmentManager.beginTransaction()
                 .remove(existingPanel)
                 .commit()
         }
 
-        // 创建并显示IO面板
+        // Create and show IO panel
         val ioPanel = IOPanelFragment.newInstance(fileName, language)
 
         parentFragmentManager.beginTransaction()
@@ -439,16 +367,16 @@ class EditorFragment : Fragment() {
             .addToBackStack("io_panel")
             .commit()
 
-        // 更新状态和图标
+        // Update state and icon
         isIOPanelOpen = true
         updateRunMenuIcon()
     }
 
     private fun closeIOPanel() {
-        // 查找IO面板
+        // Find IO panel
         val ioPanel = parentFragmentManager.findFragmentByTag("io_panel")
         if (ioPanel != null) {
-            // 移除IO面板
+            // Remove IO panel
             parentFragmentManager.beginTransaction()
                 .setCustomAnimations(
                     R.anim.slide_in_left,
@@ -457,20 +385,20 @@ class EditorFragment : Fragment() {
                 .remove(ioPanel)
                 .commit()
 
-            // 弹出回退栈
+            // Pop back stack
             parentFragmentManager.popBackStack()
 
-            // 确保Activity恢复正确的导航栏状态
+            // Ensure Activity restores correct navigation bar state
             (activity as? MainActivity)?.let { mainActivity ->
-                // 延迟执行，确保Fragment转换完成
+                // Delay execution to ensure Fragment transition is complete
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    // 直接调用MainActivity的导航栏更新方法
+                    // Directly call MainActivity's navigation bar update method
                     mainActivity.updateNavigationIcon()
                 }, 100)
             }
         }
 
-        // 更新状态和图标
+        // Update state and icon
         isIOPanelOpen = false
         updateRunMenuIcon()
     }
@@ -489,131 +417,204 @@ class EditorFragment : Fragment() {
 
     override fun onPause() {
         super.onPause()
-        // 当Fragment暂停时，只有在有未保存更改时才保存内容
+        // Save content only when there are unsaved changes
         if (hasUnsavedChanges) {
             saveContent()
         }
     }
 
     /**
-     * 配置编辑器属性
-     * 设置编辑器的外观、行为和功能
+     * Configure editor properties - set editor appearance, behavior and functionality
+     * 配置编辑器属性 - 设置编辑器的外观、行为和功能
      */
     private fun configureEditor() {
-        // 设置编辑器属性
+        // Set editor properties
         editor.apply {
-            // 基本设置
-            isWordwrap = true  // 启用自动换行
+            isWordwrap = true  // Enable word wrap
+            tabWidth = 4  // Set tab width to 4 spaces
+            isLineNumberEnabled = true  // Show line numbers
 
-            // 缩进设置
-            tabWidth = 4  // 设置制表符宽度为4个空格
-
-            // UI设置
-            isLineNumberEnabled = true  // 显示行号
-
-            // 设置自定义字体
+            // Set custom font
             try {
                 val fontPath = "fonts/AgaveNerdFontMono-Regular.ttf"
                 val typeface = android.graphics.Typeface.createFromAsset(context.assets, fontPath)
                 setTypefaceText(typeface)
-                android.util.Log.d("EditorFragment", "已应用自定义字体: $fontPath")
+                android.util.Log.d("EditorFragment", "Applied custom font: $fontPath")
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "设置自定义字体失败: ${e.message}")
+                android.util.Log.e("EditorFragment", "Failed to set custom font: ${e.message}")
                 e.printStackTrace()
             }
-
-            // 撤销/重做
-            isUndoEnabled = true  // 启用撤销/重做功能
-
-            // 设置内容变化监听器
+            setupLanguageSupport()// Enable syntax highlighting
+            isUndoEnabled = true  // Enable undo/redo functionality
             subscribeEvent(ContentChangeEvent::class.java) { _, _ ->
-                // 标记有未保存的更改
+                // Mark unsaved changes
                 hasUnsavedChanges = true
-
-                // 更新撤销/重做按钮状态
+                // Update undo/redo button state
                 updateUndoRedoMenuState()
             }
 
-            // 启用语法高亮
-            setupLanguageSupport()
-
-            // 从应用偏好设置获取保存的字体大小
+            // Get saved font size from app preferences
             val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
             val fontSize = sharedPrefs.getFloat(
                 SettingsFragment.PREF_FONT_SIZE,
                 SettingsFragment.DEFAULT_FONT_SIZE
             )
 
-            // 设置编辑器字体大小
+            // Set editor font size
             setTextSize(fontSize)
 
-            // 设置光标宽度 - 从设置中读取
+            // Set cursor width - read from settings
             val cursorWidth = sharedPrefs.getFloat(
                 SettingsFragment.PREF_CURSOR_WIDTH,
                 SettingsFragment.DEFAULT_CURSOR_WIDTH
             )
             setCursorWidth(cursorWidth)
 
-            // 启用缩放功能，允许用户通过手势调整字体大小
+            // Enable scaling functionality, allow users to adjust font size through gestures
             isScalable = true
 
-            // 设置美化选项：显示空白字符
+            // Set beautification options: show whitespace characters
             nonPrintablePaintingFlags = CodeEditor.FLAG_DRAW_WHITESPACE_LEADING or
                     CodeEditor.FLAG_DRAW_WHITESPACE_IN_SELECTION
 
-            // 启用代码块指示线 - 视觉上区分代码块
+            // Enable block line indicators - visually distinguish code blocks
             isBlockLineEnabled = true
 
-            // 自动完成面板样式由TextMateManager处理
+            // Auto-completion panel style is handled by TextMateManager
+        }
+        
+        // Configure custom scrollbar style
+        configureScrollbars()
+    }
+
+    /**
+     * Configure custom scrollbar style and appearance
+     * 配置自定义滚动条样式和外观
+     */
+    private fun configureScrollbars() {
+        try {
+            // Enable both vertical and horizontal scrollbars
+            editor.isVerticalScrollBarEnabled = true
+            editor.isHorizontalScrollBarEnabled = true
+            
+            // Check if dark theme is active
+            val isDarkTheme = (resources.configuration.uiMode and 
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            
+            if (isDarkTheme) {
+                // Apply dark theme scrollbar drawables
+                val thumbDrawable = androidx.core.content.ContextCompat.getDrawable(
+                    requireContext(), 
+                    R.drawable.scrollbar_thumb_selector_dark
+                )
+                val trackDrawable = androidx.core.content.ContextCompat.getDrawable(
+                    requireContext(), 
+                    R.drawable.scrollbar_track_dark
+                )
+                
+                // Set vertical scrollbar style
+                editor.setVerticalScrollbarThumbDrawable(thumbDrawable)
+                editor.setVerticalScrollbarTrackDrawable(trackDrawable)
+                
+                // Set horizontal scrollbar style  
+                editor.setHorizontalScrollbarThumbDrawable(thumbDrawable)
+                editor.setHorizontalScrollbarTrackDrawable(trackDrawable)
+                
+                android.util.Log.d("EditorFragment", "Applied dark theme scrollbar style")
+            } else {
+                // Apply light theme scrollbar drawables
+                val thumbDrawable = androidx.core.content.ContextCompat.getDrawable(
+                    requireContext(), 
+                    R.drawable.scrollbar_thumb_selector_light
+                )
+                val trackDrawable = androidx.core.content.ContextCompat.getDrawable(
+                    requireContext(), 
+                    R.drawable.scrollbar_track_light
+                )
+                
+                // Set vertical scrollbar style
+                editor.setVerticalScrollbarThumbDrawable(thumbDrawable)
+                editor.setVerticalScrollbarTrackDrawable(trackDrawable)
+                
+                // Set horizontal scrollbar style  
+                editor.setHorizontalScrollbarThumbDrawable(thumbDrawable)
+                editor.setHorizontalScrollbarTrackDrawable(trackDrawable)
+                
+                android.util.Log.d("EditorFragment", "Applied light theme scrollbar style")
+            }
+            
+            // Configure scrollbar colors through ColorScheme
+            val colorScheme = editor.colorScheme
+            if (colorScheme != null) {
+                if (isDarkTheme) {
+                    // Set scrollbar colors for dark theme
+                    colorScheme.setColor(io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SCROLL_BAR_THUMB, 0x66FFFFFF.toInt())
+                    colorScheme.setColor(io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SCROLL_BAR_THUMB_PRESSED, 0x99FFFFFF.toInt())
+                    colorScheme.setColor(io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SCROLL_BAR_TRACK, 0x1A000000.toInt())
+                } else {
+                    // Set scrollbar colors for light theme
+                    colorScheme.setColor(io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SCROLL_BAR_THUMB, 0x66000000.toInt())
+                    colorScheme.setColor(io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SCROLL_BAR_THUMB_PRESSED, 0x99000000.toInt())
+                    colorScheme.setColor(io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SCROLL_BAR_TRACK, 0x1AFFFFFF.toInt())
+                }
+            }
+            
+        } catch (e: Exception) {
+            android.util.Log.e("EditorFragment", "Failed to configure scrollbars: ${e.message}")
         }
     }
 
     /**
+     * Register theme change listener to reapply auto-completion panel style when theme changes
      * 注册主题变更监听器，在主题变更时重新应用自动完成面板样式
      */
     private fun registerThemeChangeListener() {
         try {
-            // 获取当前Activity的Configuration对象
+            // Get current Activity's Configuration object
             val activity = requireActivity()
 
-            // 创建Configuration监听器
+            // Create Configuration listener
             val callback = object : android.content.ComponentCallbacks {
                 override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
                     try {
-                        // 检查是否是UI模式变化（深色/浅色模式切换）
+                        // Check if it's UI mode change (dark/light mode switch)
                         if (newConfig.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK !=
                             resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
                         ) {
 
-                            // 应用TextMate配色方案
+                            // Apply TextMate color scheme
                             editor.colorScheme =
                                 io.github.rosemoe.sora.langs.textmate.TextMateColorScheme.create(
                                     io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry.getInstance()
                                 )
 
-                            // 配置自动补全组件的颜色
+                            // Configure auto-completion component colors
                             configureAutoCompletionColors()
+                            
+                            // Reconfigure scrollbars for theme change
+                            configureScrollbars()
 
-                            // 强制刷新编辑器
+                            // Force refresh editor
                             editor.invalidate()
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("EditorFragment", "处理主题变更失败: ${e.message}")
+                        android.util.Log.e("EditorFragment", "Failed to handle theme change: ${e.message}")
                     }
                 }
 
                 override fun onLowMemory() {
-                    // 不需要处理
+                    // No need to handle
                 }
             }
 
-            // 注册监听器
+            // Register listener
             activity.registerComponentCallbacks(callback)
 
-            // 在Fragment销毁时取消注册
+            // Unregister when Fragment is destroyed
             view?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
                 override fun onViewAttachedToWindow(v: View) {
-                    // 不需要处理
+                    // No need to handle
                 }
 
                 override fun onViewDetachedFromWindow(v: View) {
@@ -621,18 +622,16 @@ class EditorFragment : Fragment() {
                 }
             })
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "注册主题变更监听器失败: ${e.message}")
+            android.util.Log.e("EditorFragment", "Failed to register theme change listener: ${e.message}")
         }
     }
 
     /**
-     * 设置语言支持
-     * 此方法用于配置TextMate语言支持和语法高亮
+     * Setup language support with TextMate syntax highlighting
+     * 设置语言支持 - 配置TextMate语言支持和语法高亮
      */
-    fun setupLanguageSupport(specifiedLanguage: String? = null) {
+    internal fun setupLanguageSupport(specifiedLanguage: String? = null) {
         try {
-            // 使用TextMate语法高亮
-            val activity = requireActivity()
             val fileExtension = when (specifiedLanguage ?: language) {
                 "java" -> "java"
                 "cpp" -> "cpp"
@@ -640,106 +639,73 @@ class EditorFragment : Fragment() {
                 else -> "txt"
             }
 
-            // 获取文件扩展名对应的语言作用域
             val languageMapping = com.acc_ide.util.TextMateManager.getLanguageMapping()
             val scopeName = languageMapping[fileExtension] ?: "text.plain"
 
-            // 如果语言没有变化且未指定特定语言，跳过配置
+            // Skip configuration if language hasn't changed and no specific language is specified
             if (currentLanguageScopeName == scopeName && specifiedLanguage == null) {
-                android.util.Log.d("EditorFragment", "跳过重复的语言设置: $scopeName")
+                android.util.Log.d("EditorFragment", "Skip duplicate language setup: $scopeName")
                 return
             }
 
-            // 更新当前语言作用域
+            // Update current language scope
             currentLanguageScopeName = scopeName
 
-            // 使用缓存获取TextMateLanguage实例
-            val language = EditorFragment.getOrCreateLanguage(scopeName)
+            // Use cache to get TextMateLanguage instance (this should be fast due to preloading)
+            val textMateLanguage = EditorFragment.getOrCreateLanguage(scopeName)
 
-            // 应用TextMate配色方案
-            editor.colorScheme = io.github.rosemoe.sora.langs.textmate.TextMateColorScheme.create(
-                io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry.getInstance()
-            )
+            // Apply TextMate color scheme only if needed
+            if (editor.colorScheme !is io.github.rosemoe.sora.langs.textmate.TextMateColorScheme) {
+                editor.colorScheme = getOrCreateColorScheme()
+            }
 
-            // 设置语言
-            editor.setEditorLanguage(language)
+            // Set language
+            editor.setEditorLanguage(textMateLanguage)
 
-            // 配置自动补全组件的颜色
+            // Configure auto-completion component colors
             configureAutoCompletionColors()
 
-            // 强制刷新编辑器以确保语法高亮立即应用
+            // Force refresh editor to ensure syntax highlighting is applied immediately
             editor.postInvalidate()
-
-            // 通过微小改变和撤销来触发语法高亮渲染
-            editor.post {
-                try {
-                    // 获取当前文本
-                    val text = editor.text.toString()
-
-                    // 如果文本不为空，尝试通过小的编辑操作触发重新渲染
-                    if (text.isNotEmpty()) {
-                        // 记住当前光标位置
-                        val cursorPos = editor.cursor.left
-
-                        // 安全地在文本开头插入和删除一个空格
-                        editor.text.insert(0, 0, " ")
-                        editor.text.delete(0, 1)
-
-                        // 尝试恢复原来的光标位置
-                        try {
-                            if (cursorPos >= 0 && cursorPos < editor.text.length) {
-                                editor.setSelection(cursorPos, cursorPos)
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.w("EditorFragment", "恢复光标位置失败: ${e.message}")
-                        }
-
-                        // 强制重绘
-                        editor.invalidate()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("EditorFragment", "触发语法高亮重新渲染失败: ${e.message}")
-                }
-            }
 
             android.util.Log.d(
                 "EditorFragment",
-                "已设置${specifiedLanguage ?: this.language}语言支持(TextMate: $scopeName)"
+                "Set up ${specifiedLanguage ?: this.language} language support (TextMate: $scopeName)"
             )
         } catch (e: Exception) {
             e.printStackTrace()
-            // 发生错误时退回到空语言解析器，确保编辑器仍可用
+            // Fall back to empty language parser when error occurs to ensure editor remains usable
             editor.setEditorLanguage(io.github.rosemoe.sora.lang.EmptyLanguage())
             android.util.Log.e(
                 "EditorFragment",
-                "设置语言支持时出错: ${e.message}，已退回到空语言解析器"
+                "Error setting up language support: ${e.message}, fell back to empty language parser"
             )
         }
     }
 
     /**
+     * Update editor font size
      * 更新编辑器字体大小
-     *
-     * @param fontSize 要设置的字体大小
+     * @param fontSize Font size to set
      */
     fun updateFontSize(fontSize: Float) {
         if (::editor.isInitialized && !isUpdatingFontSize) {
             isUpdatingFontSize = true
 
             try {
-                // 设置编辑器字体大小
+                // Set editor font size
                 editor.setTextSize(fontSize)
 
-                // 通知MainActivity保存设置
+                // Notify MainActivity to save settings
                 (activity as? MainActivity)?.let { mainActivity ->
                     val prefs = PreferenceManager.getDefaultSharedPreferences(mainActivity)
                     prefs.edit().putFloat(SettingsFragment.PREF_FONT_SIZE, fontSize).apply()
                 }
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "更新字体大小失败: ${e.message}")
+                android.util.Log.e("EditorFragment", "Failed to update font size: ${e.message}")
             }
 
-            // 防止无限循环
+            // Prevent infinite loop
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 isUpdatingFontSize = false
             }, 100)
@@ -747,23 +713,23 @@ class EditorFragment : Fragment() {
     }
 
     /**
+     * Set cursor width using effective method
      * 设置光标宽度
-     * 使用有效方法设置光标宽度
-     * @param widthInDp 光标宽度（单位：dp）
+     * @param widthInDp Cursor width in dp
      */
     private fun setCursorWidth(widthInDp: Float) {
         try {
-            android.util.Log.d("EditorFragment", "尝试设置光标宽度为 $widthInDp dp")
+            android.util.Log.d("EditorFragment", "Attempting to set cursor width to $widthInDp dp")
 
-            // 尝试使用setCursorWidth方法
+            // Try using setCursorWidth method
             try {
                 val setCursorWidthMethod =
                     CodeEditor::class.java.getDeclaredMethod("setCursorWidth", Float::class.java)
                 setCursorWidthMethod.isAccessible = true
                 setCursorWidthMethod.invoke(editor, widthInDp)
-                android.util.Log.d("EditorFragment", "方法2：通过方法设置光标宽度成功")
+                android.util.Log.d("EditorFragment", "Method 2: Successfully set cursor width via method")
             } catch (e: Exception) {
-                // 如果方法2失败，尝试方法6
+                // If method 2 fails, try method 6
                 try {
                     val methods = CodeEditor::class.java.declaredMethods
                     for (method in methods) {
@@ -773,7 +739,6 @@ class EditorFragment : Fragment() {
                             (method.parameterTypes[0] == Float::class.java ||
                                     method.parameterTypes[0] == Int::class.java)
                         ) {
-
                             method.isAccessible = true
                             val widthParam = if (method.parameterTypes[0] == Float::class.java) {
                                 widthInDp
@@ -783,69 +748,71 @@ class EditorFragment : Fragment() {
                             method.invoke(editor, widthParam)
                             android.util.Log.d(
                                 "EditorFragment",
-                                "方法6：通过方法 ${method.name} 设置光标宽度成功"
+                                "Method 6: Successfully set cursor width via method ${method.name}"
                             )
                         }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.w("EditorFragment", "设置光标宽度失败: ${e.message}")
+                    android.util.Log.w("EditorFragment", "Failed to set cursor width: ${e.message}")
                 }
             }
 
-            // 强制刷新编辑器，确保更改生效
+            // Force refresh editor to ensure changes take effect
             editor.postInvalidate()
 
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "设置光标宽度失败: ${e.message}")
+            android.util.Log.e("EditorFragment", "Failed to set cursor width: ${e.message}")
         }
     }
 
     /**
+     * Update editor cursor width
      * 更新编辑器光标宽度
-     *
-     * @param widthInDp 要设置的光标宽度（单位：dp）
+     * @param widthInDp Cursor width to set (in dp)
      */
     fun updateCursorWidth(widthInDp: Float) {
         if (::editor.isInitialized) {
             try {
-                // 设置光标宽度
+                // Set cursor width
                 setCursorWidth(widthInDp)
 
-                // 保存设置到SharedPreferences
+                // Save settings to SharedPreferences
                 (activity as? MainActivity)?.let { mainActivity ->
                     val prefs = PreferenceManager.getDefaultSharedPreferences(mainActivity)
                     prefs.edit().putFloat(SettingsFragment.PREF_CURSOR_WIDTH, widthInDp).apply()
                 }
 
-                android.util.Log.d("EditorFragment", "光标宽度已更新为 $widthInDp dp")
+                android.util.Log.d("EditorFragment", "Cursor width updated to $widthInDp dp")
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "更新光标宽度失败: ${e.message}")
+                android.util.Log.e("EditorFragment", "Failed to update cursor width: ${e.message}")
             }
         }
     }
 
     /**
+     * Set auto-completion component enabled state
      * 设置自动补全组件的启用状态
-     * @param enabled 是否启用自动补全组件
+     * @param enabled Whether to enable auto-completion component
      */
     fun setAutoCompletionEnabled(enabled: Boolean) {
         if (::editor.isInitialized) {
             try {
-                // 获取自动补全组件
+                // Get auto-completion component
                 val autoCompletion =
                     editor.getComponent(io.github.rosemoe.sora.widget.component.EditorAutoCompletion::class.java)
 
-                // 设置组件是否启用
+                // Set component enabled state
                 autoCompletion.isEnabled = enabled
 
-                android.util.Log.d("EditorFragment", "自动补全组件状态已设置: $enabled")
+                android.util.Log.d("EditorFragment", "Auto-completion component state set: $enabled")
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "设置自动补全组件状态失败: ${e.message}")
+                android.util.Log.e("EditorFragment", "Failed to set auto-completion component state: ${e.message}")
             }
         }
     }
 
     /**
+     * Perform undo operation
      * 执行撤销操作
      */
     private fun performUndo() {
@@ -854,15 +821,16 @@ class EditorFragment : Fragment() {
                 editor.undo()
                 updateUndoRedoMenuState()
             } else {
-                Toast.makeText(context, "无法撤销", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Cannot undo", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "撤销操作失败: ${e.message}")
-            Toast.makeText(context, "撤销操作失败", Toast.LENGTH_SHORT).show()
+            android.util.Log.e("EditorFragment", "Undo operation failed: ${e.message}")
+            Toast.makeText(context, "Undo operation failed", Toast.LENGTH_SHORT).show()
         }
     }
 
     /**
+     * Perform redo operation
      * 执行重做操作
      */
     private fun performRedo() {
@@ -871,30 +839,32 @@ class EditorFragment : Fragment() {
                 editor.redo()
                 updateUndoRedoMenuState()
             } else {
-                Toast.makeText(context, "无法重做", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Cannot redo", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "重做操作失败: ${e.message}")
-            Toast.makeText(context, "重做操作失败", Toast.LENGTH_SHORT).show()
+            android.util.Log.e("EditorFragment", "Redo operation failed: ${e.message}")
+            Toast.makeText(context, "Redo operation failed", Toast.LENGTH_SHORT).show()
         }
     }
 
     /**
+     * Update undo/redo menu item state
      * 更新撤销/重做菜单项状态
      */
     private fun updateUndoRedoMenuState() {
         undoMenuItem?.isEnabled = editor.canUndo()
         redoMenuItem?.isEnabled = editor.canRedo()
 
-        // 可选：根据启用状态调整图标的透明度
+        // Optional: adjust icon transparency based on enabled state
         undoMenuItem?.icon?.alpha = if (editor.canUndo()) 255 else 128
         redoMenuItem?.icon?.alpha = if (editor.canRedo()) 255 else 128
     }
 
     /**
+     * Get appropriate language type based on file name
      * 根据文件名获取适合的语言类型
-     * @param fileName 文件名
-     * @return 对应的语言类型（java、cpp、python或text）
+     * @param fileName File name
+     * @return Corresponding language type (java, cpp, python or text)
      */
     fun getLanguageForFile(fileName: String): String {
         return when {
@@ -909,94 +879,79 @@ class EditorFragment : Fragment() {
     }
 
     /**
+     * Ensure language configuration is correctly applied
      * 确保语言配置被正确应用
-     * 当从设置页面返回或语言配置可能丢失时使用
      */
     fun ensureLanguageApplied() {
         if (::editor.isInitialized) {
             try {
-                // 检查当前是否有应用语言
+                // Check if language is currently applied
                 val hasLanguageSet = editor.editorLanguage !is io.github.rosemoe.sora.lang.EmptyLanguage
 
-                // 如果未设置语言或使用的是EmptyLanguage，重新应用语言支持
+                // If no language is set or using EmptyLanguage, re-apply language support
                 if (!hasLanguageSet) {
-                    android.util.Log.d("EditorFragment", "检测到编辑器未应用语言支持，正在重新应用")
+                    android.util.Log.d("EditorFragment", "Detected editor has no language support, re-applying")
                     setupLanguageSupport()
                 } else {
-                    android.util.Log.d("EditorFragment", "编辑器已应用语言支持，无需重新应用")
+                    android.util.Log.d("EditorFragment", "Editor already has language support, no need to re-apply")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "确保语言应用时出错: ${e.message}")
-                // 发生错误时尝试重新应用语言
+                android.util.Log.e("EditorFragment", "Error ensuring language application: ${e.message}")
+                // Try to re-apply language when error occurs
                 setupLanguageSupport()
             }
         }
     }
 
     /**
+     * Force refresh editor theme and syntax highlighting
      * 强制刷新编辑器主题和语法高亮
-     * 当主题发生变化时调用此方法以确保编辑器立即更新
      */
     fun refreshEditorTheme() {
         if (::editor.isInitialized) {
             try {
-                // 确保语言配置被正确应用
+                // Clear color scheme cache when theme changes
+                clearColorSchemeCache()
+
+                // Ensure language configuration is correctly applied
                 ensureLanguageApplied()
 
-                // 更新颜色方案
-                editor.colorScheme =
-                    io.github.rosemoe.sora.langs.textmate.TextMateColorScheme.create(
-                        io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry.getInstance()
-                    )
+                // Update color scheme with cached version
+                editor.colorScheme = getOrCreateColorScheme()
 
-                // 配置自动补全组件的颜色
+                // Configure auto-completion component colors
                 configureAutoCompletionColors()
+                
+                // Reconfigure scrollbars for theme refresh
+                configureScrollbars()
 
-                // 强制重绘编辑器
+                // Force redraw editor
                 editor.invalidate()
                 editor.postInvalidate()
 
-                // 尝试通过微小编辑操作触发完全刷新
-                val text = editor.text.toString()
-                if (text.isNotEmpty()) {
-                    val cursorPos = editor.cursor.left
-
-                    // 在文本开头插入和删除一个空格以触发重新渲染
-                    editor.text.insert(0, 0, " ")
-                    editor.text.delete(0, 1)
-
-                    // 恢复光标位置
-                    if (cursorPos >= 0 && cursorPos < editor.text.length) {
-                        editor.setSelection(cursorPos, cursorPos)
-                    }
-
-                    // 再次强制重绘
-                    editor.invalidate()
-                }
-
-                android.util.Log.d("EditorFragment", "编辑器主题刷新完成")
+                android.util.Log.d("EditorFragment", "Editor theme refresh completed")
             } catch (e: Exception) {
-                android.util.Log.e("EditorFragment", "刷新编辑器主题失败: ${e.message}")
+                android.util.Log.e("EditorFragment", "Failed to refresh editor theme: ${e.message}")
             }
         }
     }
 
     /**
-     * 配置自动补全组件的颜色
-     * 根据当前主题模式（深色/浅色）设置不同的颜色
+     * Configure auto-completion component colors based on current theme mode
+     * 根据当前主题模式配置自动补全组件的颜色
      */
     private fun configureAutoCompletionColors() {
         try {
-            // 检测当前主题模式
+            // Detect current theme mode
             val isDarkMode = resources.configuration.uiMode and
                     android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
                     android.content.res.Configuration.UI_MODE_NIGHT_YES
 
-            // 获取编辑器的颜色方案
+            // Get editor color scheme
             val scheme = editor.colorScheme
 
             if (isDarkMode) {
-                // 深色模式颜色
+                // Dark mode colors
                 scheme.setColor(
                     io.github.rosemoe.sora.widget.schemes.EditorColorScheme.COMPLETION_WND_BACKGROUND,
                     0xFF2C2C2C.toInt()
@@ -1018,7 +973,7 @@ class EditorFragment : Fragment() {
                     0xFF3A3D41.toInt()
                 )
             } else {
-                // 浅色模式颜色
+                // Light mode colors
                 scheme.setColor(
                     io.github.rosemoe.sora.widget.schemes.EditorColorScheme.COMPLETION_WND_BACKGROUND,
                     0xFFFEF7FF.toInt()
@@ -1041,9 +996,9 @@ class EditorFragment : Fragment() {
                 )
             }
 
-            android.util.Log.d("EditorFragment", "已配置自动补全组件颜色，深色模式: $isDarkMode")
+            android.util.Log.d("EditorFragment", "Configured auto-completion component colors, dark mode: $isDarkMode")
         } catch (e: Exception) {
-            android.util.Log.e("EditorFragment", "配置自动补全组件颜色失败: ${e.message}")
+            android.util.Log.e("EditorFragment", "Failed to configure auto-completion component colors: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -1052,14 +1007,33 @@ class EditorFragment : Fragment() {
         private const val ARG_LANGUAGE = "language"
         private const val ARG_FILENAME = "filename"
 
-        // 缓存各语言的TextMateLanguage实例
-        private val languageCache =
-            mutableMapOf<String, io.github.rosemoe.sora.langs.textmate.TextMateLanguage>()
+        // Cache for TextMateLanguage instances to improve performance
+        private val languageCache = mutableMapOf<String, io.github.rosemoe.sora.langs.textmate.TextMateLanguage>()
+        
+        // Cache for TextMateColorScheme to avoid recreating it
+        private var cachedColorScheme: io.github.rosemoe.sora.langs.textmate.TextMateColorScheme? = null
 
-        // 获取或创建语言实例
+        // Get or create color scheme instance
+        private fun getOrCreateColorScheme(): io.github.rosemoe.sora.langs.textmate.TextMateColorScheme {
+            if (cachedColorScheme == null) {
+                cachedColorScheme = io.github.rosemoe.sora.langs.textmate.TextMateColorScheme.create(
+                    io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry.getInstance()
+                )
+                android.util.Log.d("EditorFragment", "Created new TextMateColorScheme instance")
+            }
+            return cachedColorScheme!!
+        }
+
+        // Clear color scheme cache when theme changes
+        fun clearColorSchemeCache() {
+            cachedColorScheme = null
+            android.util.Log.d("EditorFragment", "Cleared TextMateColorScheme cache")
+        }
+
+        // Get or create language instance
         fun getOrCreateLanguage(scopeName: String): io.github.rosemoe.sora.langs.textmate.TextMateLanguage {
             return languageCache.getOrPut(scopeName) {
-                android.util.Log.d("EditorFragment", "创建新TextMateLanguage实例: $scopeName")
+                android.util.Log.d("EditorFragment", "Creating new TextMateLanguage instance: $scopeName")
                 io.github.rosemoe.sora.langs.textmate.TextMateLanguage.create(scopeName, true)
             }
         }

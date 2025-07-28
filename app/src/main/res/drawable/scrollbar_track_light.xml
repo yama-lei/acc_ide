@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    
+    <!-- Track width: 6dp -->
+    <size android:width="6dp" />
+    
+    <!-- 3dp rounded corners -->
+    <corners android:radius="3dp" />
+    
+    <!-- Semi-transparent light track -->
+    <solid android:color="#1AFFFFFF" />
+    
+    <!-- 2dp padding -->
+    <padding
+        android:left="2dp"
+        android:top="2dp"
+        android:right="2dp"
+        android:bottom="2dp" />
+</shape> 

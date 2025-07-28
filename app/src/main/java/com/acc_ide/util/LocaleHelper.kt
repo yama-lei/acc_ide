@@ -9,7 +9,8 @@ import androidx.preference.PreferenceManager
 import java.util.Locale
 
 /**
- * Helper class to change the app language dynamically
+ * Helper class for changing app language dynamically
+ * 语言助手类 - 用于动态更改应用程序语言
  */
 class LocaleHelper {
     companion object {
@@ -17,6 +18,7 @@ class LocaleHelper {
         private const val TAG = "LocaleHelper"
 
         /**
+         * Set locale for app with specified language
          * 更新应用程序的语言
          */
         fun setLocale(context: Context, language: String): Context {
@@ -27,36 +29,39 @@ class LocaleHelper {
                 language
             }
             
-            Log.d(TAG, "设置语言: $languageToApply")
+            Log.d(TAG, "Setting language: $languageToApply")
             return updateResources(context, languageToApply)
         }
 
         /**
+         * Get saved language code from preferences
          * 获取保存的语言代码
          */
         fun getLanguage(context: Context): String {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val language = prefs.getString(SELECTED_LANGUAGE, "") ?: ""
-            Log.d(TAG, "获取保存的语言: $language")
+            Log.d(TAG, "Retrieved saved language: $language")
             return language
         }
 
         /**
-         * 保存语言设置到 SharedPreferences
+         * Save language setting to SharedPreferences
+         * 保存语言设置到SharedPreferences
          */
         private fun saveLanguage(context: Context, language: String) {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val editor = prefs.edit()
             editor.putString(SELECTED_LANGUAGE, language)
             editor.apply()
-            Log.d(TAG, "保存语言设置: $language")
+            Log.d(TAG, "Saved language setting: $language")
         }
 
         /**
+         * Update resource configuration to apply new language
          * 更新资源配置以应用新语言
          */
         private fun updateResources(context: Context, language: String): Context {
-            Log.d(TAG, "更新资源配置，语言: $language")
+            Log.d(TAG, "Updating resource configuration, language: $language")
             
             val locale = when (language) {
                 "en" -> Locale.ENGLISH
@@ -71,16 +76,16 @@ class LocaleHelper {
             val resources = context.resources
             val configuration = Configuration(resources.configuration)
             
-            // 设置区域
+            // Set locale
             configuration.setLocale(locale)
-            Log.d(TAG, "已设置Locale: $locale")
+            Log.d(TAG, "Locale set: $locale")
             
-            // 在API 17+上使用createConfigurationContext
+            // Use createConfigurationContext on API 17+
             val updatedContext = context.createConfigurationContext(configuration)
             
-            // 再次检查配置是否已正确应用
+            // Check again if configuration has been applied correctly
             val updatedLocale = updatedContext.resources.configuration.locales.get(0)
-            Log.d(TAG, "更新后的Locale: $updatedLocale, 语言: ${updatedLocale.language}, 国家: ${updatedLocale.country}")
+            Log.d(TAG, "Updated Locale: $updatedLocale, language: ${updatedLocale.language}, country: ${updatedLocale.country}")
             
             return updatedContext
         }

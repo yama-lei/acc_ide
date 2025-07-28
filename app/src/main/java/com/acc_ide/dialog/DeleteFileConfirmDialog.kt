@@ -7,18 +7,17 @@ import androidx.fragment.app.DialogFragment
 import com.acc_ide.R
 
 /**
+ * Delete file confirmation dialog
  * 删除文件确认对话框
  */
 class DeleteFileConfirmDialog : DialogFragment() {
     
-    // 文件名
     private lateinit var fileName: String
-    
-    // 删除回调
     private var onDeleteConfirmed: ((String) -> Unit)? = null
     
     /**
-     * 设置文件名和回调
+     * Set up file name and delete callback
+     * 设置文件名和删除回调
      */
     fun setUp(fileName: String, callback: (String) -> Unit): DeleteFileConfirmDialog {
         this.fileName = fileName
@@ -29,11 +28,9 @@ class DeleteFileConfirmDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = AlertDialog.Builder(requireContext())
         
-        // 配置对话框
         builder.setTitle(R.string.delete_file)
             .setMessage(getString(R.string.delete_file_confirm, fileName))
             .setPositiveButton(R.string.delete) { _, _ ->
-                // 调用删除回调
                 onDeleteConfirmed?.invoke(fileName)
             }
             .setNegativeButton(android.R.string.cancel) { dialog, _ ->

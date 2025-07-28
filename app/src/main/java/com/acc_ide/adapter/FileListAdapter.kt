@@ -13,7 +13,7 @@ import androidx.appcompat.widget.PopupMenu
 import android.view.Gravity
 
 /**
- * 文件列表适配器
+ * File List Adapter
  */
 class FileListAdapter(
     private var fileList: List<String> = emptyList(),
@@ -22,13 +22,11 @@ class FileListAdapter(
     private val onDeleteClickListener: (String) -> Unit,
     private val onCloseClickListener: (String) -> Unit,
     private val onSaveClickListener: (String) -> Unit,
-    private val onSaveAsClickListener: (String) -> Unit, // 新增另存为回调
-    private var externalSavedFilesMap: Map<String, Boolean> = emptyMap() // 文件名到是否外部保存的映射
+    private val onSaveAsClickListener: (String) -> Unit, 
+    private var externalSavedFilesMap: Map<String, Boolean> = emptyMap() // check mapping of filenames to whether to save externally
 ) : RecyclerView.Adapter<FileListAdapter.FileViewHolder>() {
 
-    // 当前选中的文件位置
     private var selectedPosition = RecyclerView.NO_POSITION
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.file_list_item, parent, false)
         return FileViewHolder(view)
@@ -37,17 +35,17 @@ class FileListAdapter(
     override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
         val fileName = fileList[position]
         
-        // 检查文件是否已保存到外部
+        // Check if the file has been saved externally
         val isExternallySaved = externalSavedFilesMap[fileName] ?: false
         
-        // 设置文件名，添加星号标记仅保存在临时目录的文件
+        // Set the file name, add an asterisk to mark the file saved only in the temporary directory
         if (isExternallySaved) {
-            holder.fileName.text = fileName // 已保存到外部，不显示星号
+            holder.fileName.text = fileName // Already saved externally, no asterisk is displayed
         } else {
             holder.fileName.text = holder.itemView.context.getString(R.string.file_name_unsaved, fileName) // 添加星号表示仅保存在临时目录
         }
         
-        // 设置文件图标（根据文件类型可以设置不同图标）
+        // Set the file icon (different icons can be set according to the file type)
         when {
             fileName.endsWith(".cpp") -> holder.fileIcon.setImageResource(R.drawable.file_cpp_icon)
             fileName.endsWith(".py") -> holder.fileIcon.setImageResource(R.drawable.file_python_icon)
@@ -55,16 +53,14 @@ class FileListAdapter(
             else -> holder.fileIcon.setImageResource(R.drawable.file_text_icon)
         }
         
-        // 设置选中状态
+        // Set the selected state
         val isSelected = position == selectedPosition
         holder.fileItemContainer.isChecked = isSelected
         
-        // 设置点击事件
+        // Set up click event
         holder.fileItemContainer.setOnClickListener {
             val previousSelected = selectedPosition
             selectedPosition = holder.adapterPosition
-            
-            // 刷新先前选中和新选中的项
             if (previousSelected != RecyclerView.NO_POSITION) {
                 notifyItemChanged(previousSelected)
             }
@@ -73,13 +69,13 @@ class FileListAdapter(
             onFileClickListener(fileName)
         }
         
-        // 设置长按事件
+        // Set up long press event
         holder.fileItemContainer.setOnLongClickListener {
             showFileOptionsMenu(it, fileName, isExternallySaved)
             true
         }
         
-        // 设置关闭按钮点击事件
+        // Set the close button click event
         holder.closeButton.setOnClickListener {
             onCloseClickListener(fileName)
         }
@@ -88,29 +84,29 @@ class FileListAdapter(
     override fun getItemCount(): Int = fileList.size
     
     /**
-     * 显示文件操作菜单
+     * Display the file operations menu
      */
     private fun showFileOptionsMenu(view: View, fileName: String, isExternallySaved: Boolean) {
         val popupMenu = PopupMenu(view.context, view, Gravity.END)
         popupMenu.inflate(R.menu.file_options_menu)
         
-        // 根据文件保存状态设置菜单项文本和可见性
+        // Set the menu item text and visibility based on the file save status
         val saveMenuItem = popupMenu.menu.findItem(R.id.action_save_file)
         val saveAsMenuItem = popupMenu.menu.findItem(R.id.action_save_as_file)
         
         if (isExternallySaved) {
-            // 已保存到外部，显示"保存"选项（覆盖保存）
+            // Already saved externally, display the "Save" option (overwrite save)
             saveMenuItem.isVisible = true
             saveMenuItem.setTitle(R.string.save)
             
-            // 显示"另存为"选项
+            // Display the "Save As" option
             saveAsMenuItem.isVisible = true
         } else {
-            // 仅保存在临时目录，只显示"保存"选项
+            // Only save in the temporary directory and only show the "Save" option
             saveMenuItem.isVisible = true
             saveMenuItem.setTitle(R.string.save)
             
-            // 隐藏"另存为"选项
+            // Hide the "Save As" option
             saveAsMenuItem.isVisible = false
         }
         
@@ -140,7 +136,7 @@ class FileListAdapter(
     }
     
     /**
-     * 更新文件列表数据
+     * Update file list data
      */
     fun updateFileList(
         newFileList: List<String>,
@@ -149,14 +145,13 @@ class FileListAdapter(
     ) {
         fileList = newFileList
         
-        // 更新外部保存状态映射
+        // Update external save state map
         val updatedMap = mutableMapOf<String, Boolean>()
         updatedMap.putAll(newExternalSavedMap)
         
-        // 保存外部保存状态映射
         externalSavedFilesMap = updatedMap
         
-        // 如果有当前文件名，更新选中位置
+        // If there is a current file name, update the selected position
         if (currentFileName != null) {
             selectedPosition = fileList.indexOf(currentFileName)
         }
@@ -165,7 +160,7 @@ class FileListAdapter(
     }
     
     /**
-     * 设置当前选中的文件
+     * Set the currently selected file
      */
     fun setSelectedFile(fileName: String) {
         val newPosition = fileList.indexOf(fileName)
@@ -181,7 +176,7 @@ class FileListAdapter(
     }
 
     /**
-     * 文件视图持有者
+     * File View Holder
      */
     class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val fileItemContainer: MaterialCardView = itemView.findViewById(R.id.file_item_container)
