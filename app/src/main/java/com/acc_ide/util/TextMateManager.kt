@@ -90,26 +90,7 @@ object TextMateManager {
         GrammarRegistry.getInstance().loadGrammars("textmate/languages/language.json")
     }
     
-    /**
-     * Apply TextMate support to a code editor
-     * @param editor The editor to apply TextMate to
-     * @param languageScopeName The scope name for the language (e.g. "source.java")
-     * @param enableCompletion Whether to enable auto-completion
-     */
-    fun applyTextMate(editor: CodeEditor, languageScopeName: String, enableCompletion: Boolean = true) {
-        // Ensure TextMate is initialized
-        if (!isInitialized) {
-            throw IllegalStateException("TextMateManager must be initialized before applying to an editor")
-        }
-        
-        // Set color scheme
-        editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
-        
-        // Set language
-        val language = TextMateLanguage.create(languageScopeName, enableCompletion)
-        editor.setEditorLanguage(language)
-    }
-    
+
     /**
      * Set the active TextMate theme
      * @param themeName The name of the theme to use 
@@ -120,18 +101,6 @@ object TextMateManager {
         
         android.util.Log.d("TextMateManager", "已应用主题: $themeName (ID: $themeId)")
     }
-    
-    /**
-     * 配置自动完成窗口样式
-     * 注意：此功能已暂时禁用，因为无法可靠地访问自动完成窗口
-     * @param editor 要配置的编辑器实例
-     */
-    fun configureCompletionWindowColors(editor: CodeEditor) {
-        // 此功能暂时搁置
-        // TODO: 在future版本中，如果有可靠的API来设置自动完成窗口的样式，再重新启用此功能
-    }
-    
-
     
     /**
      * Get the file extension to language scope name mapping
@@ -156,14 +125,5 @@ object TextMateManager {
         )
     }
 
-    fun getThemeNames(): List<String> {
-        return listOf(
-            "Material Dark",  // 自定义暗色主题显示名称
-            "Material Light"  // 自定义亮色主题显示名称
-        )
-    }
 
-    fun getDefaultTheme(): String {
-        return "Material Dark"  // 将默认主题改为自定义暗色主题
-    }
 }

@@ -159,5 +159,7 @@
     <string name="error_keyword">Error</string>
     <string name="compile_error_keyword">Compilation error</string>
     
-    <!-- Missing strings -->
+    <!-- File list and execution status -->
+    <string name="file_name_unsaved">%1$s*</string>
+    <string name="execution_status_with_time">%1$s   %2$d ms</string>
 </resources>

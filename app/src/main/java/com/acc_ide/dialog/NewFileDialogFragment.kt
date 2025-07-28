@@ -1,4 +1,4 @@
-package com.acc_ide
+package com.acc_ide.dialog
 
 import android.app.Dialog
 import android.os.Bundle
@@ -8,14 +8,16 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import com.acc_ide.R
+import com.acc_ide.ui.main.MainActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class NewFileDialogFragment : DialogFragment() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = MaterialAlertDialogBuilder(requireContext())
-        builder.setTitle(com.acc_ide.R.string.new_file)
-            .setItems(arrayOf(getString(com.acc_ide.R.string.cpp), getString(com.acc_ide.R.string.python), getString(com.acc_ide.R.string.java))) { _, which ->
+        builder.setTitle(R.string.new_file)
+            .setItems(arrayOf(getString(R.string.cpp), getString(R.string.python), getString(R.string.java))) { _, which ->
                 val language = when(which) {
                     0 -> "cpp"
                     1 -> "python"

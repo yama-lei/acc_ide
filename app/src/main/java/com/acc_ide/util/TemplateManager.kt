@@ -11,116 +11,117 @@ import android.os.Environment
  */
 class TemplateManager(private val context: Context) {
     
-    companion object {
-        private const val TAG = "TemplateManager"
+    private val TAG = "TemplateManager"
+    
+    // 模板文件名
+    private val CPP_TEMPLATE = "template.cpp"
+    private val JAVA_TEMPLATE = "template.java"
+    private val PYTHON_TEMPLATE = "template.py"
+    
+    // 默认C++模板
+    private val DEFAULT_CPP_TEMPLATE = """
+        #include <iostream>
+        #include <vector>
+        #include <queue>
+        #include <algorithm>
+        #include <functional>
+        #include <set>
+        #include <map>
+        #include <string>
+        using namespace std;
+        #define ll long long
+        #define ull unsigned long long
+        #define endl '\n'
         
-        // 模板文件名
-        private const val CPP_TEMPLATE = "template.cpp"
-        private const val JAVA_TEMPLATE = "template.java"
-        private const val PYTHON_TEMPLATE = "template.py"
+        int main()
+        {
+        	ios::sync_with_stdio(false);
+        	cin.tie(0);
+        	cout.tie(0);
         
-        // 默认C++模板
-        private val DEFAULT_CPP_TEMPLATE = """
-            #include <iostream>
-            #include <vector>
-            #include <queue>
-            #include <algorithm>
-            #include <functional>
-            #include <set>
-            #include <map>
-            #include <string>
-            using namespace std;
-            #define ll long long
-            #define ull unsigned long long
-            #define endl '\n'
-            
-            int main()
-            {
-            	ios::sync_with_stdio(false);
-            	cin.tie(0);
-            	cout.tie(0);
-            
-            
-            
-            
-            
-            
-            	return 0;
-            }
-        """.trimIndent()
+
         
-        // 默认Java模板
-        private val DEFAULT_JAVA_TEMPLATE = """
-            import java.util.*;
-            import java.io.*;
-            
-            public class Main {
-                static class FastReader {
-                    BufferedReader br;
-                    StringTokenizer st;
-                    
-                    public FastReader() {
-                        br = new BufferedReader(new InputStreamReader(System.in));
-                    }
-                    
-                    String next() {
-                        while (st == null || !st.hasMoreElements()) {
-                            try {
-                                st = new StringTokenizer(br.readLine());
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        return st.nextToken();
-                    }
-                    
-                    int nextInt() { return Integer.parseInt(next()); }
-                    long nextLong() { return Long.parseLong(next()); }
-                    double nextDouble() { return Double.parseDouble(next()); }
-                    
-                    String nextLine() {
-                        String str = "";
+
+        
+
+        
+
+        
+        	return 0;
+        }
+    """.trimIndent()
+    
+    // 默认Java模板
+    private val DEFAULT_JAVA_TEMPLATE = """
+        import java.util.*;
+        import java.io.*;
+        
+        public class Main {
+            static class FastReader {
+                BufferedReader br;
+                StringTokenizer st;
+                
+                public FastReader() {
+                    br = new BufferedReader(new InputStreamReader(System.in));
+                }
+                
+                String next() {
+                    while (st == null || !st.hasMoreElements()) {
                         try {
-                            str = br.readLine();
+                            st = new StringTokenizer(br.readLine());
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
-                        return str;
                     }
+                    return st.nextToken();
                 }
                 
-                public static void main(String[] args) {
-                    FastReader in = new FastReader();
-                    
-                    
-                    
+                int nextInt() { return Integer.parseInt(next()); }
+                long nextLong() { return Long.parseLong(next()); }
+                double nextDouble() { return Double.parseDouble(next()); }
+                
+                String nextLine() {
+                    String str = "";
+                    try {
+                        str = br.readLine();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    return str;
                 }
             }
-        """.trimIndent()
-        
-        // 默认Python模板
-        private val DEFAULT_PYTHON_TEMPLATE = """
-            import sys
-            from collections import defaultdict, Counter, deque
-            from heapq import heapify, heappush, heappop
-            from bisect import bisect_left, bisect_right
-            from math import gcd, sqrt, inf
-
-            def input(): return sys.stdin.readline().strip()
-            def list_input(): return list(map(int, input().split()))
-            def int_input(): return int(input())
             
-            def main():
-                # 快读
+            public static void main(String[] args) {
+                FastReader in = new FastReader();
                 
                 
                 
-                
-            if __name__ == "__main__":
-                main()
-        """.trimIndent()
-    }
+            }
+        }
+    """.trimIndent()
     
+    // 默认Python模板
+    private val DEFAULT_PYTHON_TEMPLATE = """
+        import sys
+        from collections import defaultdict, Counter, deque
+        from heapq import heapify, heappush, heappop
+        from bisect import bisect_left, bisect_right
+        from math import gcd, sqrt, inf
+
+        def input(): return sys.stdin.readline().strip()
+        def list_input(): return list(map(int, input().split()))
+        def int_input(): return int(input())
+        
+        def main():
+            # 快读
+            
+            
+            
+            
+        if __name__ == "__main__":
+            main()
+    """.trimIndent()
+
     // 文件存储管理器实例
     private val fileStorageManager = FileStorageManager(context)
     

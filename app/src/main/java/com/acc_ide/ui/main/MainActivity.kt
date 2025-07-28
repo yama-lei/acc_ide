@@ -1,4 +1,4 @@
-package com.acc_ide
+package com.acc_ide.ui.main
 
 import android.Manifest
 import android.content.Context
@@ -29,13 +29,20 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.acc_ide.R
 import com.acc_ide.adapter.FileListAdapter
+import com.acc_ide.data.model.CodeFile
 import com.acc_ide.dialog.DeleteFileConfirmDialog
+import com.acc_ide.dialog.NewFileDialogFragment
 import com.acc_ide.dialog.RenameFileDialog
-import com.acc_ide.model.CodeFile
+import com.acc_ide.ui.editor.EditorFragment
+import com.acc_ide.ui.iopanel.IOPanelFragment
+import com.acc_ide.ui.settings.SettingsFragment
+import com.acc_ide.ui.welcome.WelcomeFragment
 import com.acc_ide.util.FileStorageManager
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TemplateManager
+import com.acc_ide.util.TextMateManager
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -46,7 +53,6 @@ import android.net.Uri
 import android.app.Activity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
-import com.acc_ide.util.TextMateManager
 
 /**
  * 主活动类
@@ -74,26 +80,7 @@ class MainActivity : AppCompatActivity() {
     // 用于存储当前打开的文件列表 (只存文件名)
     private val openedFiles = mutableSetOf<String>()
 
-    // 存储权限请求
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        var allGranted = true
-        permissions.entries.forEach {
-            if (!it.value) {
-                allGranted = false
-                return@forEach
-            }
-        }
 
-        if (allGranted) {
-            // 权限已授予，初始化存储和加载文件
-            initializeFileSystem()
-        } else {
-            // 权限被拒绝，显示提示
-            showPermissionExplanationDialog()
-        }
-    }
 
     // 打开文件的ActivityResult处理
     private val openFileLauncher = registerForActivityResult(
@@ -340,198 +327,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 清理过期的删除标记
-     * 在应用启动时运行，清理那些已不存在文件的删除标记
-     * 注意：我们现在使用数字前缀命名文件，不再需要删除标记
-     */
-    private fun cleanupExpiredDeletionMarkers() {
-        try {
-            Log.d("MainActivity", "开始清理过期的文件...")
-
-            // 获取实际文件列表
-            val filesDir = fileStorageManager.getCodeFilesDir()
-            val actualFiles = filesDir.listFiles() ?: return
-
-            // 检查是否有元数据文件但没有对应的主文件
-            val mainFiles =
-                actualFiles.filter { !it.name.endsWith(".meta") }.map { it.name }.toSet()
-            val metaFiles = actualFiles.filter { it.name.endsWith(".meta") }
-                .map { it.name.removeSuffix(".meta") }.toSet()
-
-            // 找出孤立的元数据文件（没有对应主文件的元数据文件）
-            val orphanedMetaFiles = metaFiles.filter { !mainFiles.contains(it) }
-
-            // 删除孤立的元数据文件
-            if (orphanedMetaFiles.isNotEmpty()) {
-                Log.d(
-                    "MainActivity",
-                    "发现 ${orphanedMetaFiles.size} 个孤立的元数据文件，正在清理..."
-                )
-
-                for (fileName in orphanedMetaFiles) {
-                    val metaFile = File(filesDir, "$fileName.meta")
-                    if (metaFile.exists() && metaFile.delete()) {
-                        Log.d("MainActivity", "已删除孤立的元数据文件: $fileName.meta")
-                    } else {
-                        Log.e("MainActivity", "无法删除孤立的元数据文件: $fileName.meta")
-                    }
-                }
-            }
-
-            // 清空旧的删除记录，因为我们不再使用它
-            val prefs = getSharedPreferences("acc_ide_prefs", Context.MODE_PRIVATE)
-            if (prefs.contains("deleted_files")) {
-                prefs.edit().remove("deleted_files").apply()
-                Log.d("MainActivity", "已清空旧的删除记录")
-            }
-
-        } catch (e: Exception) {
-            Log.e("MainActivity", "清理过期文件时出错", e)
-        }
-    }
-
-    /**
-     * 验证文件系统完整性，清理可能存在的问题
-     */
-    private fun verifyFileSystemIntegrity() {
-        try {
-            Log.d("MainActivity", "正在验证文件系统完整性...")
-
-            // 清空内存中的文件列表，确保从干净状态开始
-            files.clear()
-
-            // 加载文件前，先进行一次刷新以确保文件系统信息是最新的
-            fileStorageManager.refreshFileSystem()
-
-            // 检查被删除文件的记录
-            val prefs = getSharedPreferences("acc_ide_prefs", Context.MODE_PRIVATE)
-            val deletedFiles = prefs.getStringSet("deleted_files", emptySet()) ?: emptySet()
-
-            // 清理可能已经不存在的文件的删除记录
-            val filesDir = fileStorageManager.getCodeFilesDir()
-            val actualFileNames = filesDir.listFiles()
-                ?.filter { !it.name.endsWith(".meta") }
-                ?.map { it.name }
-                ?.toSet() ?: emptySet()
-
-            // 找出需要从已删除列表中移除的文件（因为它们已经不存在了）
-            val toRemoveFromDeleted = deletedFiles.filter { !actualFileNames.contains(it) }.toSet()
-
-            // 如果有需要清理的记录，更新SharedPreferences
-            if (toRemoveFromDeleted.isNotEmpty()) {
-                val newDeletedFiles = HashSet(deletedFiles)
-                newDeletedFiles.removeAll(toRemoveFromDeleted)
-
-                prefs.edit()
-                    .putStringSet("deleted_files", newDeletedFiles)
-                    .apply()
-
-                Log.d("MainActivity", "已清理 ${toRemoveFromDeleted.size} 个不存在文件的删除记录")
-            }
-
-            // 从存储加载所有文件，这个过程会自动清理孤立文件
-            val storedFiles = fileStorageManager.getAllFiles()
-            Log.d("MainActivity", "文件系统验证完成，找到 ${storedFiles.size} 个有效文件")
-
-            // 记录未删除的文件总数，用于验证
-            var validFileCount = 0
-
-            // 将文件加载到内存 - 只加载未被删除的文件
-            for (file in storedFiles) {
-                // 只加载未被标记为删除的文件
-                if (!deletedFiles.contains(file.name)) {
-                    files[file.name] = file.content
-                    validFileCount++
-                } else {
-                    Log.d("MainActivity", "跳过已删除的文件: ${file.name}")
-                }
-            }
-
-            Log.d(
-                "MainActivity",
-                "加载了 $validFileCount 个有效文件，跳过 ${storedFiles.size - validFileCount} 个已删除文件"
-            )
-        } catch (e: Exception) {
-            Log.e("MainActivity", "文件系统验证失败", e)
-        }
-    }
-
-    /**
-     * 检查是否有存储权限
-     *
-     * @return 是否有必要的存储权限
-     */
-    private fun hasStoragePermissions(): Boolean {
-        return when {
-            // Android 13+ (API 33+) 使用新的权限模型
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                // 检查图片、视频、音频媒体权限（替代存储权限）
-                val imagePermission =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
-                val videoPermission =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO)
-                val audioPermission =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
-
-                imagePermission == PackageManager.PERMISSION_GRANTED &&
-                        videoPermission == PackageManager.PERMISSION_GRANTED &&
-                        audioPermission == PackageManager.PERMISSION_GRANTED
-            }
-
-            // Android 10 (API 29) - 12 (API 32) 使用分区存储
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
-                // 对应用专用目录的访问不需要特殊权限
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
-            }
-
-            // Android 9 (API 28) 及以下使用传统存储权限
-            else -> {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
-            }
-        }
-    }
-
-    /**
-     * 检查并请求存储权限
-     */
-    private fun checkStoragePermissions() {
-        if (!hasStoragePermissions()) {
-            requestStoragePermission()
-        } else {
-            // 已有权限，初始化文件系统
-            initializeFileSystem()
-        }
-    }
-
-    /**
      * 请求存储权限
      */
     private fun requestStoragePermission() {
         val permissionCheck = when {
-            // Android 13+ (API 33+) 使用新的权限模型
+            // Android 13+ (API 33+) - 应用专用目录不需要权限
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                // 检查图片、视频、音频媒体权限（替代存储权限）
-                val imagePermission =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
-                val videoPermission =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO)
-                val audioPermission =
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
-
-                imagePermission == PackageManager.PERMISSION_GRANTED &&
-                        videoPermission == PackageManager.PERMISSION_GRANTED &&
-                        audioPermission == PackageManager.PERMISSION_GRANTED
+                true // 访问应用专用目录不需要权限
             }
 
             // Android 10 (API 29) - 12 (API 32) 使用分区存储
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
-                // 对应用专用目录的访问不需要特殊权限
+                // 对应用专用目录的访问不需要特殊权限，但保留检查以防万一
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.READ_EXTERNAL_STORAGE
@@ -540,10 +347,9 @@ class MainActivity : AppCompatActivity() {
 
             // Android 9 (API 28) 及以下使用传统存储权限
             else -> {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
+                // 由于已移除WRITE_EXTERNAL_STORAGE权限，直接返回true
+                // 应用专用目录在所有Android版本都可以访问
+                true
             }
         }
 
@@ -555,27 +361,18 @@ class MainActivity : AppCompatActivity() {
             alertBuilder.setMessage(R.string.storage_permission_message)
             alertBuilder.setPositiveButton("OK") { _, _ ->
                 // 请求相应权限
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    // Android 13+: 请求媒体权限
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && 
+                    Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                    // Android 10-12: 请求READ_EXTERNAL_STORAGE权限
                     ActivityCompat.requestPermissions(
                         this,
-                        arrayOf(
-                            Manifest.permission.READ_MEDIA_IMAGES,
-                            Manifest.permission.READ_MEDIA_VIDEO,
-                            Manifest.permission.READ_MEDIA_AUDIO
-                        ),
+                        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
                         REQUEST_STORAGE_PERMISSION
                     )
                 } else {
-                    // Android 12-: 请求存储权限
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(
-                            Manifest.permission.READ_EXTERNAL_STORAGE,
-                            Manifest.permission.WRITE_EXTERNAL_STORAGE
-                        ),
-                        REQUEST_STORAGE_PERMISSION
-                    )
+                    // Android 13+或Android 9-: 不需要权限或权限已废弃
+                    initializeFileSystem()
+                    initializeTemplateSystem()
                 }
             }
             alertBuilder.show()
@@ -588,22 +385,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 显示权限解释对话框
-     */
-    private fun showPermissionExplanationDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.storage_permission_title)
-            .setMessage(R.string.storage_permission_message)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                requestStoragePermission()
-            }
-            .setNegativeButton(android.R.string.cancel) { _, _ ->
-                Toast.makeText(this, R.string.storage_permission_denied, Toast.LENGTH_LONG).show()
-            }
-            .create()
-            .show()
-    }
+
 
     /**
      * 初始化文件系统
@@ -631,122 +413,6 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "模板系统初始化完成")
         } catch (e: Exception) {
             Log.e("MainActivity", "模板系统初始化失败", e)
-        }
-    }
-
-    /**
-     * 从存储加载文件
-     */
-    private fun loadFilesFromStorage() {
-        try {
-            Log.d("MainActivity", "开始从存储加载文件...")
-
-            // 清空内存中的文件列表
-            files.clear()
-
-            // 先强制刷新文件系统
-            try {
-                fileStorageManager.refreshFileSystem()
-            } catch (e: Exception) {
-                Log.e("MainActivity", "刷新文件系统时出错", e)
-            }
-
-            // 加载上次打开的文件列表
-            loadOpenedFilesList()
-
-            // 获取文件系统中实际存在的文件
-            val filesDir = fileStorageManager.getCodeFilesDir()
-            val actualFileNames = filesDir.listFiles()
-                ?.filter { !it.name.endsWith(".meta") }
-                ?.map { it.name }
-                ?.toSet() ?: emptySet()
-
-            Log.d("MainActivity", "文件系统中实际存在的文件: ${actualFileNames.joinToString()}")
-
-            // 清理openedFiles中不存在的文件
-            val notExistFiles = openedFiles.filter { !actualFileNames.contains(it) }.toSet()
-            if (notExistFiles.isNotEmpty()) {
-                openedFiles.removeAll(notExistFiles)
-                saveOpenedFilesList()
-                Log.d(
-                    "MainActivity",
-                    "从已打开文件列表中清理了 ${notExistFiles.size} 个不存在的文件: ${notExistFiles.joinToString()}"
-                )
-            }
-
-            // 从存储加载当前打开的文件
-            val storedFiles = fileStorageManager.getAllFiles()
-            Log.d("MainActivity", "存储中找到 ${storedFiles.size} 个文件")
-
-            // 如果没有已打开的文件，但有存储的文件，则将所有有效文件添加到已打开文件列表
-            // 这样可以确保文件树中显示所有可用的文件
-            if (openedFiles.isEmpty() && storedFiles.isNotEmpty()) {
-                // 找出所有有效文件（存在于文件系统中的文件）
-                val validFiles = storedFiles.filter {
-                    actualFileNames.contains(it.name) && it.name.isNotBlank()
-                }
-
-                if (validFiles.isNotEmpty()) {
-                    // 将所有有效文件添加到已打开文件列表
-                    validFiles.forEach { file ->
-                        openedFiles.add(file.name)
-                    }
-                    saveOpenedFilesList()
-                    Log.d(
-                        "MainActivity",
-                        "没有已打开的文件，添加了 ${validFiles.size} 个文件到文件树: ${
-                            validFiles.map { it.name }.joinToString()
-                        }"
-                    )
-                }
-            }
-
-            // 计数器，用于记录有效文件数
-            var validFileCount = 0
-
-            // 将已打开的文件加载到内存
-            for (fileName in openedFiles.toList()) {
-                // 跳过不存在于文件系统中的文件
-                if (!actualFileNames.contains(fileName)) {
-                    openedFiles.remove(fileName)
-                    Log.d("MainActivity", "跳过不存在的文件: $fileName")
-                    continue
-                }
-
-                // 查找对应的文件内容
-                val fileContent = storedFiles.find { it.name == fileName }?.content ?: ""
-
-                // 确保文件内容已加载
-                if (fileContent.isNotEmpty()) {
-                    files[fileName] = fileContent
-                    validFileCount++
-                    Log.d("MainActivity", "已加载文件: $fileName, 内容长度: ${fileContent.length}")
-                } else {
-                    // 文件可能已被删除或损坏，从打开列表中移除
-                    openedFiles.remove(fileName)
-                    Log.w("MainActivity", "文件内容为空，从打开列表移除: $fileName")
-                }
-            }
-
-            // 保存更新后的已打开文件列表
-            saveOpenedFilesList()
-
-            Log.d(
-                "MainActivity",
-                "从存储加载了 ${openedFiles.size} 个已打开的文件，有效文件: $validFileCount 个"
-            )
-
-            // 更新文件列表UI (只有在适配器已初始化的情况下)
-            if (::fileListAdapter.isInitialized) {
-                updateFileList()
-            } else {
-                Log.d("MainActivity", "fileListAdapter尚未初始化，跳过更新UI")
-            }
-
-            // 输出当前文件列表状态
-            Log.d("MainActivity", "当前文件列表: ${files.keys.joinToString(", ")}")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "加载文件时出错", e)
         }
     }
 
@@ -1044,78 +710,6 @@ class MainActivity : AppCompatActivity() {
             Log.d("MainActivity", "文件列表已更新，共 ${openedFiles.size} 个文件")
         } catch (e: Exception) {
             Log.e("MainActivity", "更新文件列表出错", e)
-        }
-    }
-
-    /**
-     * 确保内存中的文件与已打开文件列表同步
-     */
-    private fun synchronizeFilesWithOpenedList() {
-        try {
-            // 获取已打开文件列表和内存中的文件列表
-            val currentOpenedFiles = HashSet(openedFiles)
-            val currentLoadedFiles = HashSet(files.keys)
-
-            // 检查文件系统中的文件
-            val storedFiles = fileStorageManager.getAllFiles()
-            val storedFileMap = storedFiles.associateBy { it.name }
-
-            // 检查已删除文件的记录
-            val prefs = getSharedPreferences("acc_ide_prefs", Context.MODE_PRIVATE)
-            val deletedFiles = prefs.getStringSet("deleted_files", emptySet()) ?: emptySet()
-
-            // 找出已打开但未加载到内存的文件
-            for (fileName in currentOpenedFiles) {
-                // 跳过已删除的文件
-                if (deletedFiles.contains(fileName)) {
-                    openedFiles.remove(fileName)
-                    Log.d("MainActivity", "从已打开列表移除已删除的文件: $fileName")
-                    continue
-                }
-
-                // 如果文件在已打开列表中但不在内存中，尝试加载
-                if (!currentLoadedFiles.contains(fileName)) {
-                    val fileContent = storedFileMap[fileName]?.content
-                    if (fileContent != null) {
-                        files[fileName] = fileContent
-                        Log.d("MainActivity", "将缺失的已打开文件加载到内存: $fileName")
-                    } else {
-                        // 如果文件不存在，从已打开列表中移除
-                        openedFiles.remove(fileName)
-                        Log.d("MainActivity", "从已打开列表移除不存在的文件: $fileName")
-                    }
-                }
-            }
-
-            // 找出已加载但不在已打开列表中的文件
-            val filesToRemove = currentLoadedFiles - currentOpenedFiles
-            for (fileName in filesToRemove) {
-                files.remove(fileName)
-                Log.d("MainActivity", "从内存中移除不再打开的文件: $fileName")
-            }
-
-            // 如果当前文件名不在已打开列表中，需要重置当前文件名
-            if (currentFileName.isNotEmpty() && !openedFiles.contains(currentFileName)) {
-                if (openedFiles.isEmpty()) {
-                    // 如果没有已打开的文件，显示欢迎页面
-                    currentFileName = ""
-                    supportFragmentManager.beginTransaction()
-                        .replace(R.id.content_frame, WelcomeFragment())
-                        .commit()
-                    Log.d("MainActivity", "没有已打开的文件，显示欢迎页面")
-                    supportActionBar?.title = getString(R.string.welcome)
-                } else {
-                    // 否则打开第一个可用文件
-                    currentFileName = openedFiles.first()
-                    showEditorWithFile(currentFileName, getFileLanguage(currentFileName))
-                    Log.d("MainActivity", "当前文件已关闭，切换到: $currentFileName")
-                }
-            }
-
-            // 保存更新后的已打开文件列表
-            saveOpenedFilesList()
-        } catch (e: Exception) {
-            Log.e("MainActivity", "同步文件列表时出错", e)
         }
     }
 
@@ -1551,22 +1145,16 @@ class MainActivity : AppCompatActivity() {
         if (nightModeFlags == Configuration.UI_MODE_NIGHT_YES) {
             // 处理深色模式特定逻辑
             Log.d("MainActivity", "应用切换到深色模式")
-            // 刷新当前Fragment
-            if (currentFragment != null) {
-                supportFragmentManager.beginTransaction()
-                    .detach(currentFragment)
-                    .attach(currentFragment)
-                    .commit()
+            // 如果是编辑器Fragment，直接刷新主题
+            if (currentFragment is EditorFragment) {
+                currentFragment.refreshEditorTheme()
             }
         } else {
             // 处理浅色模式特定逻辑
             Log.d("MainActivity", "应用切换到浅色模式")
-            // 刷新当前Fragment
-            if (currentFragment != null) {
-                supportFragmentManager.beginTransaction()
-                    .detach(currentFragment)
-                    .attach(currentFragment)
-                    .commit()
+            // 如果是编辑器Fragment，直接刷新主题
+            if (currentFragment is EditorFragment) {
+                currentFragment.refreshEditorTheme()
             }
         }
 
@@ -1606,13 +1194,7 @@ class MainActivity : AppCompatActivity() {
         updateNavigationIcon()
     }
 
-    // 专门用于IO面板关闭后重置导航栏
-    private fun resetNavigationDrawerAfterIOPanel() {
-        // 延迟执行，确保Fragment状态已更新
-        Handler(Looper.getMainLooper()).postDelayed({
-            updateNavigationIcon()
-        }, 100) // 延迟100毫秒执行，确保Fragment转换完成
-    }
+
 
     /**
      * 更新导航栏状态
@@ -1669,95 +1251,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 从磁盘刷新文件列表
-     * 用于手动刷新文件列表，特别是在文件删除后
-     */
-    private fun refreshFileListFromDisk() {
-        try {
-            Log.d("MainActivity", "开始从磁盘刷新文件列表...")
 
-            // 强制刷新文件系统
-            fileStorageManager.refreshFileSystem()
-
-            // 重新加载所有文件
-            loadFilesFromStorage()
-
-            // 更新UI
-            updateFileList()
-
-            // 显示刷新结果
-            Toast.makeText(this, "文件列表已刷新，发现 ${files.size} 个文件", Toast.LENGTH_SHORT)
-                .show()
-            Log.d(
-                "MainActivity",
-                "文件列表刷新完成，当前文件数: ${files.size}, 文件列表: ${files.keys}"
-            )
-        } catch (e: Exception) {
-            Log.e("MainActivity", "刷新文件列表失败", e)
-            Toast.makeText(this, "刷新文件列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
-    }
-
-    /**
-     * 显示清除所有文件的确认对话框
-     */
-    private fun showClearAllFilesDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.clear_all_files_title))
-            .setMessage(getString(R.string.clear_all_files_message))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                // 删除所有文件
-                val success = fileStorageManager.deleteAllFiles()
-                if (success) {
-                    // 清空内存中的文件列表
-                    files.clear()
-
-                    // 显示欢迎界面
-                    currentFileName = ""
-                    supportFragmentManager.beginTransaction()
-                        .replace(R.id.content_frame, WelcomeFragment())
-                        .commit()
-
-                    // 更新标题
-                    supportActionBar?.title = getString(R.string.app_name)
-
-                    // 更新文件列表
-                    updateFileList()
-
-                    Toast.makeText(
-                        this,
-                        getString(R.string.clear_all_files_success),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        this,
-                        getString(R.string.clear_all_files_failure),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    /**
-     * 显示存储路径信息
-     */
-    private fun showStoragePath() {
-        val filesPath = fileStorageManager.getCodeFilesDir().absolutePath
-
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.storage_path_title))
-            .setMessage(getString(R.string.storage_path_message, filesPath))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
     }
 
     /**
@@ -1833,27 +1331,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * 保存指定文件
-     */
-    private fun saveSpecificFile(fileName: String) {
-        if (files.containsKey(fileName)) {
-            val content = files[fileName] ?: ""
-            val language = getFileLanguage(fileName)
-
-            // 创建代码文件对象
-            val codeFile = CodeFile(
-                name = fileName,
-                content = content,
-                language = language
-            )
-
-            // 保存到存储
-            fileStorageManager.saveFile(codeFile)
-
-            Log.d("MainActivity", "已保存文件: $fileName")
-        }
-    }
 
     /**
      * 关闭文件（从显示列表中移除）并根据保存状态进行处理
@@ -2385,12 +1862,14 @@ class MainActivity : AppCompatActivity() {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // 权限被授予，初始化文件系统
                 initializeFileSystem()
-
-                // 权限获取后初始化模板系统
                 initializeTemplateSystem()
             } else {
-                // 权限被拒绝，提示用户文件将只保存在内存中
+                // 权限被拒绝，但应用专用目录仍然可以使用
                 Toast.makeText(this, R.string.storage_permission_denied, Toast.LENGTH_LONG).show()
+                
+                // 即使权限被拒绝，也初始化应用专用目录的文件系统
+                initializeFileSystem()
+                initializeTemplateSystem()
             }
         }
     }

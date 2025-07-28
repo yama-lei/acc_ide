@@ -86,6 +86,8 @@
     <string name="log_all_meta_complete">所有文件的元数据完整</string>
     <string name="log_verify_error">验证文件系统完整性时出错: %1$s</string>
     <string name="log_error">错误: %1$s</string>
+    <string name="log_textmate_init_in_progress">正在初始化TextMate...</string>
+    <string name="log_preloading_common_languages">正在预加载常用语言...</string>
     
     <!-- 存储权限字符串 -->
     <string name="storage_permission_title">需要存储权限</string>
@@ -156,4 +158,8 @@
     <string name="java_compile_error">// 编译错误: 代码中没有输出语句</string>
     <string name="error_keyword">错误</string>
     <string name="compile_error_keyword">编译错误</string>
+    
+    <!-- 文件列表和执行状态 -->
+    <string name="file_name_unsaved">%1$s*</string>
+    <string name="execution_status_with_time">%1$s   %2$d ms</string>
 </resources> 

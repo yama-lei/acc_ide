@@ -2,13 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
@@ -26,7 +21,7 @@
         tools:targetApi="33">
         
         <activity
-            android:name="com.acc_ide.SplashActivity"
+            android:name="com.acc_ide.ui.splash.SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.AccIDE.NoActionBar">
             <intent-filter>
@@ -36,7 +31,7 @@
         </activity>
         
         <activity
-            android:name="com.acc_ide.MainActivity"
+            android:name="com.acc_ide.ui.main.MainActivity"
             android:configChanges="locale|layoutDirection|uiMode"
             android:exported="false">
         </activity>

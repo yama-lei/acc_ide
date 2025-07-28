@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.util.Log
-import com.acc_ide.model.CodeFile
+import com.acc_ide.data.model.CodeFile
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.*
@@ -60,10 +60,13 @@ class FileStorageManager(private val context: Context) {
             
             // 强制刷新文件系统缓存
             try {
-                // 尝试使用媒体扫描器刷新
-                val intent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-                intent.data = Uri.fromFile(filesDir)
-                context.sendBroadcast(intent)
+                // 使用MediaScannerConnection刷新文件目录
+                MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(filesDir.absolutePath),
+                    null,
+                    null
+                )
                 
                 // 等待一小段时间，让系统完成扫描
                 Thread.sleep(100)
@@ -620,155 +623,7 @@ class FileStorageManager(private val context: Context) {
         }
     }
     
-    /**
-     * 获取所有存储的文件
-     * 
-     * @return 代码文件列表
-     */
-    fun getAllFiles(): List<CodeFile> {
-        val result = mutableListOf<CodeFile>()
-        try {
-            val filesDir = getCodeFilesDir()
-            Log.d(TAG, "正在从目录读取文件: ${filesDir.absolutePath}")
-            
-            if (!filesDir.exists()) {
-                Log.d(TAG, "代码文件目录不存在，正在创建")
-                filesDir.mkdirs()
-                return emptyList()
-            }
-            
-            // 获取所有文件
-            val allFiles = filesDir.listFiles() ?: return emptyList()
-            Log.d(TAG, "发现 ${allFiles.size} 个文件")
-            
-            // 首先进行清理，删除没有配对的文件或元数据文件
-            cleanupOrphanedFiles(allFiles)
-            
-            // 获取清理后的文件列表
-            val updatedAllFiles = filesDir.listFiles() ?: return emptyList()
-            
-            // 过滤出非元数据文件
-            val codeFiles = updatedAllFiles.filter { !it.name.endsWith(".meta") }
-            Log.d(TAG, "其中 ${codeFiles.size} 个为代码文件")
-            
-            for (file in codeFiles) {
-                val fileName = file.name
-                Log.d(TAG, "处理文件: $fileName")
-                
-                // 确保对应的元数据文件存在
-                val metaFile = File(filesDir, "$fileName.meta")
-                if (!metaFile.exists()) {
-                    Log.w(TAG, "文件 $fileName 没有对应的元数据文件，跳过")
-                    continue
-                }
-                
-                try {
-                    // 验证文件完整性
-                    if (file.length() == 0L) {
-                        Log.w(TAG, "文件 $fileName 内容为空，跳过")
-                        continue
-                    }
-                    
-                    val codeFile = readFile(fileName)
-                    if (codeFile != null) {
-                        result.add(codeFile)
-                        Log.d(TAG, "已加载文件: $fileName")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "读取文件 $fileName 时出错", e)
-                }
-            }
-            
-            Log.d(TAG, "成功加载 ${result.size} 个文件")
-        } catch (e: Exception) {
-            Log.e(TAG, "获取所有文件失败", e)
-        }
-        
-        return result
-    }
-    
-    /**
-     * 清理孤立文件（没有配对的主文件或元数据文件）
-     */
-    private fun cleanupOrphanedFiles(files: Array<File>) {
-        try {
-            Log.d(TAG, "开始清理孤立文件...")
-            
-            // 将文件分为主文件和元数据文件
-            val mainFiles = files.filter { !it.name.endsWith(".meta") }.map { it.name }
-            val metaFiles = files.filter { it.name.endsWith(".meta") }
-                .map { it.name.removeSuffix(".meta") }
-            
-            // 查找孤立的主文件（没有对应元数据文件的主文件）
-            val orphanedMainFiles = mainFiles.filter { !metaFiles.contains(it) }
-            
-            // 查找孤立的元数据文件（没有对应主文件的元数据文件）
-            val orphanedMetaFiles = metaFiles.filter { !mainFiles.contains(it) }
-            
-            // 删除孤立的主文件
-            for (fileName in orphanedMainFiles) {
-                Log.w(TAG, "发现孤立的主文件: $fileName，尝试删除")
-                val file = File(getCodeFilesDir(), fileName)
-                if (file.delete()) {
-                    Log.d(TAG, "成功删除孤立的主文件: $fileName")
-                } else {
-                    Log.e(TAG, "无法删除孤立的主文件: $fileName")
-                }
-            }
-            
-            // 删除孤立的元数据文件
-            for (fileName in orphanedMetaFiles) {
-                Log.w(TAG, "发现孤立的元数据文件: $fileName.meta，尝试删除")
-                val file = File(getCodeFilesDir(), "$fileName.meta")
-                if (file.delete()) {
-                    Log.d(TAG, "成功删除孤立的元数据文件: $fileName.meta")
-                } else {
-                    Log.e(TAG, "无法删除孤立的元数据文件: $fileName.meta")
-                }
-            }
-            
-            Log.d(TAG, "清理完成。删除了 ${orphanedMainFiles.size} 个孤立主文件和 ${orphanedMetaFiles.size} 个孤立元数据文件")
-        } catch (e: Exception) {
-            Log.e(TAG, "清理孤立文件时出错", e)
-        }
-    }
-    
-    /**
-     * 清除所有文件
-     * 仅用于调试和重置应用状态
-     */
-    fun deleteAllFiles(): Boolean {
-        try {
-            val filesDir = getCodeFilesDir()
-            if (!filesDir.exists()) {
-                return true
-            }
-            
-            val allFiles = filesDir.listFiles() ?: return true
-            var success = true
-            
-            for (file in allFiles) {
-                if (!file.delete()) {
-                    Log.e(TAG, "无法删除文件: ${file.name}")
-                    success = false
-                }
-            }
-            
-            // 验证删除
-            val remainingFiles = filesDir.listFiles()
-            if (remainingFiles != null && remainingFiles.isNotEmpty()) {
-                Log.e(TAG, "删除所有文件后仍有 ${remainingFiles.size} 个文件")
-                success = false
-            } else {
-                Log.d(TAG, "成功删除所有文件")
-            }
-            
-            return success
-        } catch (e: Exception) {
-            Log.e(TAG, "删除所有文件失败", e)
-            return false
-        }
-    }
+
     
     /**
      * 清理文件名，确保安全
@@ -776,64 +631,6 @@ class FileStorageManager(private val context: Context) {
     fun sanitizeFileName(fileName: String): String {
         // 替换不安全的字符
         return fileName.replace("[\\\\/:*?\"<>|]".toRegex(), "_")
-    }
-    
-    /**
-     * 检查文件是否存在
-     *
-     * @param fileName 文件名
-     * @return 文件是否存在
-     */
-    fun fileExists(fileName: String): Boolean {
-        try {
-            val filesDir = getCodeFilesDir()
-            val file = File(filesDir, sanitizeFileName(fileName))
-            
-            // 刷新文件状态
-            file.setLastModified(System.currentTimeMillis())
-            
-            // 检查文件是否存在
-            val exists = file.exists() && file.isFile && file.length() > 0
-            
-            // 如果文件存在，再检查元数据文件
-            if (exists) {
-                val metaFile = File(filesDir, "${sanitizeFileName(fileName)}.meta")
-                val metaExists = metaFile.exists() && metaFile.isFile
-                
-                // 记录文件状态
-                Log.d(TAG, "检查文件: $fileName - 文件存在: $exists, 元数据存在: $metaExists")
-                
-                // 如果文件存在但元数据不存在，创建默认元数据
-                if (!metaExists) {
-                    try {
-                        // 使用与getFileLanguage相同的映射
-                        val defaultLanguage = when {
-                            fileName.endsWith(".java") -> "java"
-                            fileName.endsWith(".kt") -> "kotlin"
-                            fileName.endsWith(".py") -> "python"
-                            fileName.endsWith(".cpp") || fileName.endsWith(".c") -> "cpp"
-                            fileName.endsWith(".js") -> "javascript"
-                            fileName.endsWith(".html") -> "html"
-                            fileName.endsWith(".css") -> "css"
-                            fileName.endsWith(".xml") -> "xml"
-                            fileName.endsWith(".json") -> "json"
-                            fileName.endsWith(".md") -> "markdown"
-                            fileName.endsWith(".txt") -> "text"
-                            else -> "text"
-                        }
-                        metaFile.writeText("$defaultLanguage\n${System.currentTimeMillis()}\nfalse\n")
-                        Log.d(TAG, "为文件 $fileName 创建了默认元数据")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "创建默认元数据失败", e)
-                    }
-                }
-            }
-            
-            return exists
-        } catch (e: Exception) {
-            Log.e(TAG, "检查文件存在状态时出错: $fileName", e)
-            return false
-        }
     }
     
     /**

@@ -74,9 +74,6 @@ class LocaleHelper {
             // 设置区域
             configuration.setLocale(locale)
             Log.d(TAG, "已设置Locale: $locale")
-
-            // 在应用级别更新配置
-            context.resources.updateConfiguration(configuration, resources.displayMetrics)
             
             // 在API 17+上使用createConfigurationContext
             val updatedContext = context.createConfigurationContext(configuration)

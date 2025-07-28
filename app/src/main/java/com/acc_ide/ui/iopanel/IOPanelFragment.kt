@@ -1,4 +1,4 @@
-package com.acc_ide
+package com.acc_ide.ui.iopanel
 
 import android.os.Bundle
 import android.text.Spannable
@@ -13,6 +13,8 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceManager
+import com.acc_ide.R
+import com.acc_ide.ui.main.MainActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.CoroutineScope
@@ -43,7 +45,6 @@ class IOPanelFragment : Fragment() {
     private var fileName: String = ""
     private var language: String = ""
     private var isGitHubRunning = false
-    private var currentWorkflowRunId: Long = -1
     private var pollingJob: Job? = null
 
     // 用于存储IO实例的缓存
@@ -135,7 +136,7 @@ class IOPanelFragment : Fragment() {
                 // 显示状态和执行时间（如果有）
                 if (cachedInstance.executionTime > 0) {
                     // 设置状态文本
-                    runStatus.text = "${cachedInstance.status}   ${cachedInstance.executionTime} ms"
+                    runStatus.text = getString(R.string.execution_status_with_time, cachedInstance.status, cachedInstance.executionTime)
                     
                     // 为状态部分设置颜色
                     setStatusColor(cachedInstance.status)
@@ -244,8 +245,6 @@ class IOPanelFragment : Fragment() {
                 val runId = triggerGitHubWorkflow(owner, repo, pat, code, input, expected, mappedLanguage)
                 
                 if (runId > 0) {
-                    currentWorkflowRunId = runId
-                    
                     // 开始轮询工作流状态
                     pollWorkflowStatus(owner, repo, pat, runId)
                 } else {
@@ -534,7 +533,7 @@ class IOPanelFragment : Fragment() {
                             // 显示状态和执行时间
                             if (executionTime > 0 && status != "CE") {
                                 // 设置状态文本
-                                runStatus.text = "$status   $executionTime ms"
+                                runStatus.text = getString(R.string.execution_status_with_time, status, executionTime)
                                 
                                 // 为状态部分设置颜色
                                 setStatusColor(status)
@@ -609,85 +608,6 @@ class IOPanelFragment : Fragment() {
     private fun resetRunState() {
         runCodeButton.isEnabled = true
         isGitHubRunning = false
-        currentWorkflowRunId = -1
-    }
-    
-    private fun simulateCodeExecution() {
-        // 获取输入
-        val input = inputText.text.toString()
-        val expected = expectedOutputText.text.toString()
-        
-        // 模拟代码运行
-        val mainActivity = activity as MainActivity
-        val code = mainActivity.files[fileName] ?: ""
-        
-        // 这里只是模拟，实际应该调用编译器
-        val output = when (language) {
-            "cpp" -> simulateCppExecution(code, input)
-            "python" -> simulatePythonExecution(code, input)
-            "java" -> simulateJavaExecution(code, input)
-            else -> getString(R.string.unsupported_language, language)
-        }
-        
-        // 显示输出
-        actualOutputText.setText(output)
-        
-        // 设置运行状态
-        setRunStatus(output, expected)
-        
-        // 保存到缓存
-        saveToCache()
-    }
-    
-    private fun simulateCppExecution(code: String, input: String): String {
-        // 模拟C++代码执行
-        return if (code.contains("cout") || code.contains("printf")) {
-            getString(R.string.simulated_cpp_output) + "\n" + 
-                input.split("\n").joinToString("\n") { getString(R.string.processing_input, it) }
-        } else {
-            getString(R.string.cpp_compile_error)
-        }
-    }
-    
-    private fun simulatePythonExecution(code: String, input: String): String {
-        // 模拟Python代码执行
-        return if (code.contains("print")) {
-            getString(R.string.simulated_python_output) + "\n" + 
-                input.split("\n").joinToString("\n") { getString(R.string.processing_input, it) }
-        } else {
-            getString(R.string.python_error)
-        }
-    }
-    
-    private fun simulateJavaExecution(code: String, input: String): String {
-        // 模拟Java代码执行
-        return if (code.contains("System.out")) {
-            getString(R.string.simulated_java_output) + "\n" + 
-                input.split("\n").joinToString("\n") { getString(R.string.processing_input, it) }
-        } else {
-            getString(R.string.java_compile_error)
-        }
-    }
-    
-    private fun setRunStatus(output: String, expected: String) {
-        val status = if (output.contains(getString(R.string.error_keyword)) || 
-                         output.contains(getString(R.string.compile_error_keyword))) {
-            // 编译错误
-            "CE"
-        } else if (expected.isBlank()) {
-            // 没有预期输出，显示为运行成功
-            "RS"
-        } else if (normalizeOutput(output) == normalizeOutput(expected)) {
-            // 答案正确
-            "AC"
-        } else {
-            // 答案错误
-            "WA"
-        }
-        
-        // 本地模拟不显示执行时间
-        runStatus.text = status
-        setStatusColor(status)
     }
     
     private fun setStatusColor(status: String) {
@@ -700,14 +620,6 @@ class IOPanelFragment : Fragment() {
             "RE" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_purple))
             "RS" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_light))
         }
-    }
-    
-    private fun normalizeOutput(text: String): String {
-        // 简单处理输出，忽略前缀和空白
-        return text.lines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString("\n")
     }
     
     override fun onPause() {

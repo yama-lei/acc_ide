@@ -44,7 +44,7 @@ class FileListAdapter(
         if (isExternallySaved) {
             holder.fileName.text = fileName // 已保存到外部，不显示星号
         } else {
-            holder.fileName.text = "$fileName*" // 添加星号表示仅保存在临时目录
+            holder.fileName.text = holder.itemView.context.getString(R.string.file_name_unsaved, fileName) // 添加星号表示仅保存在临时目录
         }
         
         // 设置文件图标（根据文件类型可以设置不同图标）

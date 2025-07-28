@@ -1,4 +1,4 @@
-package com.acc_ide.model
+package com.acc_ide.data.model
 
 import android.net.Uri
 

@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.viewpager2.widget.ViewPager2
 import com.acc_ide.R
 import com.google.android.material.button.MaterialButton
@@ -76,7 +77,7 @@ class SymbolPanelView @JvmOverloads constructor(
                 layoutParams = LayoutParams(12, 12).apply {
                     setMargins(6, 0, 6, 0)
                 }
-                background = context.getDrawable(R.drawable.page_indicator)
+                background = AppCompatResources.getDrawable(context, R.drawable.page_indicator)
                 isSelected = i == currentPage
             }
             pageIndicator.addView(indicator)
@@ -195,12 +196,12 @@ class SymbolPanelView @JvmOverloads constructor(
                 
                 // 第二行符号
                 val row2Symbols = listOf(
-                    "Ctrl" to "CTRL",
+                    "@" to "@",
                     "!" to "!",
                     "'" to "'",
                     "\"" to "\"",
                     "_" to "_",
-                    "!" to "!",
+                    "#" to "#",
                     "$" to "$",
                     "%" to "%",
                     ":" to ":"
@@ -219,12 +220,6 @@ class SymbolPanelView @JvmOverloads constructor(
         }
     }
     
-    private fun dp2px(dp: Int): Int {
-        return TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics
-        ).toInt()
-    }
-    
     /**
      * 添加符号按钮
      */
@@ -233,20 +228,23 @@ class SymbolPanelView @JvmOverloads constructor(
             text = label
             setTextAppearance(R.style.SymbolTextStyle)
             gravity = Gravity.CENTER
-            minHeight = dp2px(36)
+            minHeight = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 36f, resources.displayMetrics
+            ).toInt()
             setPadding(0, 0, 0, 0)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                 setMargins(2, 2, 2, 2)
             }
             // 添加水波纹点击反馈
-            foreground = context.obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackground)).getDrawable(0)
+            val typedArray = context.obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackground))
+            foreground = typedArray.getDrawable(0)
+            typedArray.recycle()
             setOnClickListener {
                 when (value) {
                     "LEFT" -> moveCursor(-1, 0)
                     "RIGHT" -> moveCursor(1, 0)
                     "UP" -> moveCursor(0, -1)
                     "DOWN" -> moveCursor(0, 1)
-                    "CTRL" -> handleCtrlKey()
                     else -> insertText(value)
                 }
             }
@@ -254,13 +252,6 @@ class SymbolPanelView @JvmOverloads constructor(
         parent.addView(textView)
     }
     
-    /**
-     * 处理Ctrl键
-     */
-    private fun handleCtrlKey() {
-        // 可以在这里实现Ctrl键的功能
-        // 例如切换特殊模式等
-    }
     
     /**
      * 插入文本

@@ -1,4 +1,4 @@
-package com.acc_ide
+package com.acc_ide.ui.editor
 
 import android.os.Bundle
 import android.os.Handler
@@ -18,6 +18,11 @@ import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import androidx.core.view.MenuProvider
 import com.google.android.material.button.MaterialButton
+import com.acc_ide.R
+import com.acc_ide.ui.main.MainActivity
+import com.acc_ide.ui.iopanel.IOPanelFragment
+import com.acc_ide.ui.settings.SettingsFragment
+import com.acc_ide.util.TextMateManager
 import com.acc_ide.view.SymbolPanelView
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -36,7 +41,6 @@ class EditorFragment : Fragment() {
     lateinit var editor: CodeEditor
     private lateinit var language: String
     lateinit var fileName: String  // 修改为public属性
-    private var initialized = false
 
     // 添加一个变量来跟踪当前设置的语言作用域
     private var currentLanguageScopeName: String? = null
@@ -139,8 +143,6 @@ class EditorFragment : Fragment() {
 
         // 使用TextMate主题提供的默认样式
 
-        initialized = true
-
         return view
     }
 
@@ -165,7 +167,7 @@ class EditorFragment : Fragment() {
                             closeIOPanel()
                         } else {
                             // 运行代码前先保存
-                            saveContent(false)
+                            saveContent()
                             openIOPanel()
                         }
                         true
@@ -398,7 +400,7 @@ class EditorFragment : Fragment() {
         }
     }
 
-    private fun saveContent(showToast: Boolean) {
+    private fun saveContent() {
         val content = editor.text.toString()
         val mainActivity = activity as? MainActivity
         mainActivity?.let {
@@ -410,15 +412,6 @@ class EditorFragment : Fragment() {
 
             // 重置未保存状态
             hasUnsavedChanges = false
-
-            // 显示保存成功提示
-            if (showToast) {
-                Toast.makeText(
-                    context,
-                    getString(R.string.file_saved, fileName),
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
         }
     }
 
@@ -498,7 +491,7 @@ class EditorFragment : Fragment() {
         super.onPause()
         // 当Fragment暂停时，只有在有未保存更改时才保存内容
         if (hasUnsavedChanges) {
-            saveContent(false)
+            saveContent()
         }
     }
 
@@ -754,15 +747,6 @@ class EditorFragment : Fragment() {
     }
 
     /**
-     * 获取编辑器当前字体大小
-     *
-     * @return 当前字体大小（以sp为单位）
-     */
-    private fun getTextSize(): Float {
-        return SettingsFragment.DEFAULT_FONT_SIZE
-    }
-
-    /**
      * 设置光标宽度
      * 使用有效方法设置光标宽度
      * @param widthInDp 光标宽度（单位：dp）
@@ -932,8 +916,7 @@ class EditorFragment : Fragment() {
         if (::editor.isInitialized) {
             try {
                 // 检查当前是否有应用语言
-                val hasLanguageSet = editor.editorLanguage != null &&
-                        editor.editorLanguage !is io.github.rosemoe.sora.lang.EmptyLanguage
+                val hasLanguageSet = editor.editorLanguage !is io.github.rosemoe.sora.lang.EmptyLanguage
 
                 // 如果未设置语言或使用的是EmptyLanguage，重新应用语言支持
                 if (!hasLanguageSet) {

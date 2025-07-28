@@ -1,4 +1,4 @@
-package com.acc_ide
+package com.acc_ide.ui.splash
 
 import android.content.Context
 import android.content.Intent
@@ -8,7 +8,10 @@ import android.os.Looper
 import android.util.Log
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
+import com.acc_ide.R
+import com.acc_ide.ui.main.MainActivity
 import com.acc_ide.util.FileStorageManager
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TemplateManager
@@ -43,8 +46,8 @@ class SplashActivity : AppCompatActivity() {
         
         // 应用保存的主题设置
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val nightMode = prefs.getInt("app_night_mode", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES)
-        androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(nightMode)
+        val nightMode = prefs.getInt("app_night_mode", AppCompatDelegate.MODE_NIGHT_YES)
+        AppCompatDelegate.setDefaultNightMode(nightMode)
         
         // 应用语言设置
         applyLanguageSetting()
@@ -142,7 +145,6 @@ class SplashActivity : AppCompatActivity() {
             val resources = resources
             val configuration = resources.configuration
             configuration.setLocale(locale)
-            resources.updateConfiguration(configuration, resources.displayMetrics)
             Log.d("SplashActivity", "已更新资源配置")
             
             // 检查当前语言设置是否生效

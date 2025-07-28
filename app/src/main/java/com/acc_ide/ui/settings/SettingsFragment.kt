@@ -1,4 +1,4 @@
-package com.acc_ide
+package com.acc_ide.ui.settings
 
 import android.os.Bundle
 import android.os.Handler
@@ -16,6 +16,8 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import com.acc_ide.R
+import com.acc_ide.ui.main.MainActivity
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TextMateManager
 import com.google.android.material.slider.Slider
@@ -234,7 +236,7 @@ class SettingsFragment : Fragment() {
         
         // 设置自动补全开关
         switchAutoCompletion = view.findViewById(R.id.switch_auto_completion)
-        val autoCompletionEnabled = prefs.getBoolean(PREF_ENABLE_AUTO_COMPLETION, true) // 默认开启
+        val autoCompletionEnabled = prefs.getBoolean(PREF_ENABLE_AUTO_COMPLETION, true)
         switchAutoCompletion.isChecked = autoCompletionEnabled
         setSwitchColor(switchAutoCompletion)
         switchAutoCompletion.setOnCheckedChangeListener { _, isChecked ->
@@ -272,18 +274,18 @@ class SettingsFragment : Fragment() {
             // 深色模式下使用紫色 #674fa4
             val purpleColor = Color.parseColor("#674fa4")
             themeSwitch.thumbTintList = ColorStateList.valueOf(purpleColor)
-            themeSwitch.trackTintList = ColorStateList.valueOf(adjustAlpha(purpleColor, 0.5f))
+            themeSwitch.trackTintList = ColorStateList.valueOf(adjustAlpha(purpleColor))
         } else {
             // 浅色模式下使用灰黑色
             val grayColor = Color.parseColor("#333333")
             themeSwitch.thumbTintList = ColorStateList.valueOf(grayColor)
-            themeSwitch.trackTintList = ColorStateList.valueOf(adjustAlpha(grayColor, 0.5f))
+            themeSwitch.trackTintList = ColorStateList.valueOf(adjustAlpha(grayColor))
         }
     }
     
-    // 辅助函数：调整颜色的透明度
-    private fun adjustAlpha(color: Int, factor: Float): Int {
-        val alpha = (Color.alpha(color) * factor).toInt()
+    // 辅助函数：调整颜色的透明度（固定为50%）
+    private fun adjustAlpha(color: Int): Int {
+        val alpha = (Color.alpha(color) * 0.5f).toInt()
         val red = Color.red(color)
         val green = Color.green(color)
         val blue = Color.blue(color)
