@@ -10,18 +10,23 @@ import java.util.regex.Pattern
 
 /**
  * ACM-focused intelligent completion provider
- * Provides keyword completion and local symbol table management for competitive programming
+ * Enhanced with struct member completion, scope management, and smart sorting
  */
 class ACMCompletionProvider {
     
     companion object {
         // Priority levels for sorting
+        const val PRIORITY_EXACT_MATCH = 200
+        const val PRIORITY_RECENT_LOCAL = 150
         const val PRIORITY_KEYWORD = 100
+        const val PRIORITY_STL_COMMON = 95
         const val PRIORITY_STL_FUNCTION = 90
-        const val PRIORITY_COMMON_FUNCTION = 80
+        const val PRIORITY_STRUCT_MEMBER = 85
         const val PRIORITY_LOCAL_VARIABLE = 70
         const val PRIORITY_LOCAL_FUNCTION = 60
+        const val PRIORITY_GLOBAL_VARIABLE = 55
         const val PRIORITY_TYPE = 50
+        const val PRIORITY_STL_UNCOMMON = 40
         
         // C++ Keywords for ACM
         private val CPP_KEYWORDS = listOf(
@@ -41,13 +46,60 @@ class ACMCompletionProvider {
             "list", "multiset", "multimap"
         )
         
+        // STL container methods with priority (common first)
+        private val STL_VECTOR_METHODS = mapOf(
+            "push_back" to PRIORITY_STL_COMMON,
+            "size" to PRIORITY_STL_COMMON,
+            "empty" to PRIORITY_STL_COMMON,
+            "clear" to PRIORITY_STL_COMMON,
+            "begin" to PRIORITY_STL_COMMON,
+            "end" to PRIORITY_STL_COMMON,
+            "front" to PRIORITY_STL_FUNCTION,
+            "back" to PRIORITY_STL_FUNCTION,
+            "pop_back" to PRIORITY_STL_FUNCTION,
+            "insert" to PRIORITY_STL_FUNCTION,
+            "erase" to PRIORITY_STL_FUNCTION,
+            "resize" to PRIORITY_STL_UNCOMMON,
+            "reserve" to PRIORITY_STL_UNCOMMON,
+            "capacity" to PRIORITY_STL_UNCOMMON,
+            "shrink_to_fit" to PRIORITY_STL_UNCOMMON
+        )
+        
+        private val STL_STRING_METHODS = mapOf(
+            "size" to PRIORITY_STL_COMMON,
+            "length" to PRIORITY_STL_COMMON,
+            "empty" to PRIORITY_STL_COMMON,
+            "clear" to PRIORITY_STL_COMMON,
+            "substr" to PRIORITY_STL_COMMON,
+            "find" to PRIORITY_STL_COMMON,
+            "append" to PRIORITY_STL_FUNCTION,
+            "insert" to PRIORITY_STL_FUNCTION,
+            "erase" to PRIORITY_STL_FUNCTION,
+            "replace" to PRIORITY_STL_FUNCTION,
+            "c_str" to PRIORITY_STL_FUNCTION,
+            "compare" to PRIORITY_STL_UNCOMMON
+        )
+        
+        private val STL_MAP_METHODS = mapOf(
+            "find" to PRIORITY_STL_COMMON,
+            "insert" to PRIORITY_STL_COMMON,
+            "erase" to PRIORITY_STL_COMMON,
+            "size" to PRIORITY_STL_COMMON,
+            "empty" to PRIORITY_STL_COMMON,
+            "clear" to PRIORITY_STL_COMMON,
+            "begin" to PRIORITY_STL_FUNCTION,
+            "end" to PRIORITY_STL_FUNCTION,
+            "count" to PRIORITY_STL_FUNCTION,
+            "lower_bound" to PRIORITY_STL_FUNCTION,
+            "upper_bound" to PRIORITY_STL_FUNCTION
+        )
+        
         // STL algorithms commonly used in competitive programming
         private val STL_ALGORITHMS = listOf(
             "sort", "reverse", "find", "binary_search", "lower_bound", "upper_bound",
             "max", "min", "max_element", "min_element", "accumulate", "count",
             "unique", "next_permutation", "prev_permutation", "fill", "copy",
-            "swap", "make_pair", "push_back", "pop_back", "insert", "erase",
-            "clear", "size", "empty", "begin", "end", "front", "back"
+            "swap", "make_pair"
         )
         
         // Common competitive programming function templates
@@ -94,17 +146,44 @@ class ACMCompletionProvider {
     }
     
     private val localSymbols = mutableMapOf<String, SymbolInfo>()
+    private val structDefinitions = mutableMapOf<String, StructInfo>()
+    private val usageFrequency = mutableMapOf<String, Int>()
+    private val scopeStack = mutableListOf<ScopeInfo>()
     
     data class SymbolInfo(
         val name: String,
         val type: SymbolType,
+        val dataType: String,
         val line: Int,
         val priority: Int,
+        val scopeLevel: Int,
         val description: String = ""
     )
     
+    data class StructInfo(
+        val name: String,
+        val members: List<StructMember>,
+        val line: Int
+    )
+    
+    data class StructMember(
+        val name: String,
+        val type: String,
+        val line: Int
+    )
+    
+    data class ScopeInfo(
+        val level: Int,
+        val startLine: Int,
+        val type: ScopeType
+    )
+    
     enum class SymbolType {
-        VARIABLE, FUNCTION, CLASS, STRUCT, ENUM
+        VARIABLE, FUNCTION, CLASS, STRUCT, ENUM, PARAMETER
+    }
+    
+    enum class ScopeType {
+        FUNCTION, CLASS, BLOCK, NAMESPACE
     }
     
     /**
@@ -117,37 +196,181 @@ class ACMCompletionProvider {
         language: String,
         publisher: CompletionPublisher
     ) {
-        if (prefix.isEmpty()) return
-        
         val items = mutableListOf<CompletionItem>()
         
-        // Add language-specific completions
-        when (language.lowercase()) {
-            "cpp", "c++" -> {
-                items.addAll(getCppCompletions(prefix))
+        // Update local symbol table and struct definitions
+        updateLocalSymbols(contentRef)
+        
+        // Check if this is a member access (dot operator)
+        val (actualPrefix, contextVar) = extractMemberAccessContext(contentRef, position, prefix)
+        
+        if (contextVar != null) {
+            // Handle struct/class member completion
+            items.addAll(getMemberCompletions(contextVar, actualPrefix))
+        } else {
+            // Regular completion
+            // Add language-specific completions
+            when (language.lowercase()) {
+                "cpp", "c++" -> {
+                    items.addAll(getCppCompletions(actualPrefix))
+                }
+                "java" -> {
+                    items.addAll(getJavaCompletions(actualPrefix))
+                }
+                "python", "py" -> {
+                    items.addAll(getPythonCompletions(actualPrefix))
+                }
             }
-            "java" -> {
-                items.addAll(getJavaCompletions(prefix))
+            
+            // Add local symbols
+            items.addAll(getLocalSymbolCompletions(actualPrefix))
+        }
+        
+        // Update usage frequency for better future sorting
+        if (prefix.isNotEmpty()) {
+            usageFrequency[prefix] = (usageFrequency[prefix] ?: 0) + 1
+        }
+        
+        // Sort by priority, relevance, and usage frequency
+        val sortedItems = items.sortedWith(
+            compareByDescending<CompletionItem> { 
+                (it as? PriorityCompletionItem)?.priority ?: 0
+            }.thenBy { 
+                calculateRelevanceScore(it.label.toString(), actualPrefix) 
+            }.thenByDescending {
+                usageFrequency[it.label.toString()] ?: 0
+            }.thenBy { 
+                it.label.toString() 
             }
-            "python", "py" -> {
-                items.addAll(getPythonCompletions(prefix))
+        )
+        
+        publisher.addItems(sortedItems)
+    }
+    
+    /**
+     * Extract member access context (e.g., "obj." -> return ("", "obj"))
+     */
+    private fun extractMemberAccessContext(
+        contentRef: ContentReference, 
+        position: CharPosition, 
+        prefix: String
+    ): Pair<String, String?> {
+        try {
+            val content = contentRef.reference
+            val line = content.getLine(position.line).toString()
+            val beforeCursor = line.substring(0, position.column)
+            
+            // Look for patterns like "varName." or "varName->"
+            val dotPattern = Pattern.compile("""(\w+)\s*\.\s*(\w*)$""")
+            val arrowPattern = Pattern.compile("""(\w+)\s*->\s*(\w*)$""")
+            
+            val dotMatcher = dotPattern.matcher(beforeCursor)
+            val arrowMatcher = arrowPattern.matcher(beforeCursor)
+            
+            when {
+                dotMatcher.find() -> {
+                    val varName = dotMatcher.group(1) ?: return Pair(prefix, null)
+                    val memberPrefix = dotMatcher.group(2) ?: ""
+                    return Pair(memberPrefix, varName)
+                }
+                arrowMatcher.find() -> {
+                    val varName = arrowMatcher.group(1) ?: return Pair(prefix, null)
+                    val memberPrefix = arrowMatcher.group(2) ?: ""
+                    return Pair(memberPrefix, varName)
+                }
+                else -> return Pair(prefix, null)
+            }
+        } catch (e: Exception) {
+            return Pair(prefix, null)
+        }
+    }
+    
+    /**
+     * Get member completions for struct/class/STL container
+     */
+    private fun getMemberCompletions(varName: String, prefix: String): List<CompletionItem> {
+        val items = mutableListOf<CompletionItem>()
+        
+        // Check if it's a known local variable
+        val symbol = localSymbols[varName]
+        if (symbol != null) {
+            when (symbol.dataType.lowercase()) {
+                "vector" -> {
+                    items.addAll(getSTLMethodCompletions(prefix, STL_VECTOR_METHODS, "vector"))
+                }
+                "string" -> {
+                    items.addAll(getSTLMethodCompletions(prefix, STL_STRING_METHODS, "string"))
+                }
+                "map", "unordered_map" -> {
+                    items.addAll(getSTLMethodCompletions(prefix, STL_MAP_METHODS, "map"))
+                }
+                else -> {
+                    // Check if it's a struct
+                    val structInfo = structDefinitions[symbol.dataType]
+                    if (structInfo != null) {
+                        items.addAll(getStructMemberCompletions(structInfo, prefix))
+                    }
+                }
             }
         }
         
-        // Add local symbols
-        items.addAll(getLocalSymbolCompletions(prefix))
+        // If no specific type found, try common STL container methods
+        if (items.isEmpty()) {
+            items.addAll(getCommonSTLMethods(prefix))
+        }
         
-        // Update local symbol table
-        updateLocalSymbols(contentRef)
+        return items
+    }
+    
+    /**
+     * Get STL method completions
+     */
+    private fun getSTLMethodCompletions(
+        prefix: String, 
+        methods: Map<String, Int>, 
+        containerType: String
+    ): List<CompletionItem> {
+        return methods.entries
+            .filter { it.key.startsWith(prefix, ignoreCase = true) }
+            .map { (method, priority) ->
+                PriorityCompletionItem(
+                    method, "$containerType method", prefix.length, 
+                    if (method.endsWith("()")) method else "$method()",
+                    priority, CompletionItemKind.Method
+                )
+            }
+    }
+    
+    /**
+     * Get struct member completions
+     */
+    private fun getStructMemberCompletions(structInfo: StructInfo, prefix: String): List<CompletionItem> {
+        return structInfo.members
+            .filter { it.name.startsWith(prefix, ignoreCase = true) }
+            .map { member ->
+                PriorityCompletionItem(
+                    member.name, "${member.type} ${structInfo.name}.${member.name}",
+                    prefix.length, member.name, PRIORITY_STRUCT_MEMBER, CompletionItemKind.Field
+                )
+            }
+    }
+    
+    /**
+     * Get common STL methods when type is unknown
+     */
+    private fun getCommonSTLMethods(prefix: String): List<CompletionItem> {
+        val commonMethods = listOf(
+            "size", "empty", "clear", "begin", "end", "push_back", "pop_back", "insert", "erase"
+        )
         
-        // Sort by priority and relevance
-        val sortedItems = items.sortedWith(compareBy<CompletionItem> { 
-            -((it as? PriorityCompletionItem)?.priority ?: 0)
-        }.thenBy { 
-            calculateRelevanceScore(it.label.toString(), prefix) 
-        })
-        
-        publisher.addItems(sortedItems)
+        return commonMethods
+            .filter { it.startsWith(prefix, ignoreCase = true) }
+            .map { method ->
+                PriorityCompletionItem(
+                    method, "Common STL method", prefix.length, "$method()",
+                    PRIORITY_STL_FUNCTION, CompletionItemKind.Method
+                )
+            }
     }
     
     private fun getCppCompletions(prefix: String): List<CompletionItem> {
@@ -166,7 +389,7 @@ class ACMCompletionProvider {
         STL_CONTAINERS.filter { it.startsWith(lowerPrefix) }.forEach { container ->
             items.add(PriorityCompletionItem(
                 container, "STL Container", prefix.length, container,
-                PRIORITY_STL_FUNCTION, CompletionItemKind.Class
+                PRIORITY_STL_COMMON, CompletionItemKind.Class
             ))
         }
         
@@ -174,7 +397,7 @@ class ACMCompletionProvider {
         STL_ALGORITHMS.filter { it.startsWith(lowerPrefix) }.forEach { algorithm ->
             items.add(PriorityCompletionItem(
                 algorithm, "STL Algorithm", prefix.length, "$algorithm()",
-                PRIORITY_STL_FUNCTION, CompletionItemKind.Function
+                PRIORITY_STL_COMMON, CompletionItemKind.Function
             ))
         }
         
@@ -182,7 +405,7 @@ class ACMCompletionProvider {
         ACM_TEMPLATES.entries.filter { it.key.startsWith(lowerPrefix) }.forEach { (name, template) ->
             items.add(PriorityCompletionItem(
                 name, "ACM Template", prefix.length, template,
-                PRIORITY_COMMON_FUNCTION, CompletionItemKind.Snippet
+                PRIORITY_STL_FUNCTION, CompletionItemKind.Snippet
             ))
         }
         
@@ -205,7 +428,7 @@ class ACMCompletionProvider {
         JAVA_COLLECTIONS.filter { it.lowercase().startsWith(lowerPrefix) }.forEach { collection ->
             items.add(PriorityCompletionItem(
                 collection, "Java Collection", prefix.length, collection,
-                PRIORITY_STL_FUNCTION, CompletionItemKind.Class
+                PRIORITY_STL_COMMON, CompletionItemKind.Class
             ))
         }
         
@@ -228,7 +451,7 @@ class ACMCompletionProvider {
         PYTHON_BUILTINS.filter { it.startsWith(lowerPrefix) }.forEach { builtin ->
             items.add(PriorityCompletionItem(
                 builtin, "Python Built-in", prefix.length, "$builtin()",
-                PRIORITY_STL_FUNCTION, CompletionItemKind.Function
+                PRIORITY_STL_COMMON, CompletionItemKind.Function
             ))
         }
         
@@ -236,72 +459,185 @@ class ACMCompletionProvider {
     }
     
     private fun getLocalSymbolCompletions(prefix: String): List<CompletionItem> {
-        return localSymbols.values.filter { 
-            it.name.startsWith(prefix, ignoreCase = true) 
-        }.map { symbol ->
-            val kind = when (symbol.type) {
-                SymbolType.VARIABLE -> CompletionItemKind.Variable
-                SymbolType.FUNCTION -> CompletionItemKind.Function
-                SymbolType.CLASS -> CompletionItemKind.Class
-                SymbolType.STRUCT -> CompletionItemKind.Struct
-                SymbolType.ENUM -> CompletionItemKind.Enum
+        return localSymbols.values
+            .filter { it.name.startsWith(prefix, ignoreCase = true) }
+            .map { symbol ->
+                // Calculate priority based on scope and usage
+                val scopePriority = when {
+                    symbol.scopeLevel == scopeStack.size -> PRIORITY_RECENT_LOCAL // Current scope
+                    symbol.scopeLevel == 0 -> PRIORITY_GLOBAL_VARIABLE // Global scope
+                    else -> symbol.priority // Original priority
+                }
+                
+                val finalPriority = if (usageFrequency[symbol.name] ?: 0 > 2) {
+                    scopePriority + 10 // Boost frequently used symbols
+                } else {
+                    scopePriority
+                }
+                
+                val kind = when (symbol.type) {
+                    SymbolType.VARIABLE -> CompletionItemKind.Variable
+                    SymbolType.FUNCTION -> CompletionItemKind.Function
+                    SymbolType.CLASS -> CompletionItemKind.Class
+                    SymbolType.STRUCT -> CompletionItemKind.Struct
+                    SymbolType.ENUM -> CompletionItemKind.Enum
+                    SymbolType.PARAMETER -> CompletionItemKind.Variable
+                }
+                
+                PriorityCompletionItem(
+                    symbol.name, symbol.description, prefix.length, symbol.name,
+                    finalPriority, kind
+                )
             }
-            
-            PriorityCompletionItem(
-                symbol.name, symbol.description.ifEmpty { symbol.type.name.lowercase() },
-                prefix.length, symbol.name, symbol.priority, kind
-            )
-        }
     }
     
     private fun updateLocalSymbols(contentRef: ContentReference) {
         localSymbols.clear()
+        structDefinitions.clear()
+        scopeStack.clear()
         
         try {
             val content = contentRef.reference
             val lines = content.toString().lines()
             
             lines.forEachIndexed { lineIndex, line ->
+                updateScopeStack(line, lineIndex)
                 extractSymbolsFromLine(line, lineIndex)
+                extractStructDefinitions(line, lineIndex, lines)
             }
         } catch (e: Exception) {
             // Handle content access safely
         }
     }
     
-    private fun extractSymbolsFromLine(line: String, lineIndex: Int) {
-        // Variable declarations (int x, string name, etc.)
-        val variablePattern = Pattern.compile("""(?:int|long|double|float|char|string|bool)\s+(\w+)""")
-        val variableMatcher = variablePattern.matcher(line)
-        while (variableMatcher.find()) {
-            val varName = variableMatcher.group(1) ?: continue
-            localSymbols[varName] = SymbolInfo(
-                varName, SymbolType.VARIABLE, lineIndex, 
-                PRIORITY_LOCAL_VARIABLE, "Local variable"
-            )
+    private fun updateScopeStack(line: String, lineIndex: Int) {
+        val trimmedLine = line.trim()
+        
+        // Handle opening braces (new scope)
+        if (trimmedLine.endsWith("{") || trimmedLine.contains("{")) {
+            val scopeType = when {
+                trimmedLine.contains("struct") || trimmedLine.contains("class") -> ScopeType.CLASS
+                trimmedLine.contains("namespace") -> ScopeType.NAMESPACE
+                else -> ScopeType.BLOCK
+            }
+            scopeStack.add(ScopeInfo(scopeStack.size, lineIndex, scopeType))
         }
         
-        // Function definitions
-        val functionPattern = Pattern.compile("""(?:void|int|long|double|float|char|string|bool)\s+(\w+)\s*\(""")
+        // Handle closing braces (end scope)
+        if (trimmedLine.contains("}")) {
+            if (scopeStack.isNotEmpty()) {
+                scopeStack.removeLastOrNull()
+            }
+        }
+    }
+    
+    private fun extractSymbolsFromLine(line: String, lineIndex: Int) {
+        val currentScope = scopeStack.size
+        
+        // Enhanced variable declarations with type detection
+        val patterns = listOf(
+            // C++ STL containers: vector<int> v, map<string, int> m
+            Pattern.compile("""(vector|string|map|set|unordered_map|unordered_set|queue|stack|deque|pair|list)\s*<[^>]+>\s+(\w+)"""),
+            // Simple STL containers: vector v, string s
+            Pattern.compile("""(vector|string|map|set|unordered_map|unordered_set|queue|stack|deque|pair|list)\s+(\w+)"""),
+            // Basic types: int x, double y, etc.
+            Pattern.compile("""(int|long|long long|double|float|char|bool)\s+(\w+)"""),
+            // Custom types: Point p, MyStruct s
+            Pattern.compile("""([A-Z]\w*)\s+(\w+)"""),
+            // Auto keyword: auto x = 
+            Pattern.compile("""auto\s+(\w+)\s*=""")
+        )
+        
+        for (pattern in patterns) {
+            val matcher = pattern.matcher(line)
+            while (matcher.find()) {
+                val type = if (pattern.pattern().contains("auto")) "auto" else matcher.group(1) ?: "unknown"
+                val varName = if (pattern.pattern().contains("auto")) matcher.group(1) else matcher.group(2)
+                
+                if (varName != null && !isKeyword(varName)) {
+                    val priority = if (currentScope == 0) PRIORITY_GLOBAL_VARIABLE else PRIORITY_LOCAL_VARIABLE
+                    localSymbols[varName] = SymbolInfo(
+                        varName, SymbolType.VARIABLE, type, lineIndex, 
+                        priority, currentScope, "$type variable"
+                    )
+                }
+            }
+        }
+        
+        // Function definitions with return type
+        val functionPattern = Pattern.compile("""(void|int|long|double|float|char|string|bool|auto|[A-Z]\w*)\s+(\w+)\s*\([^)]*\)\s*\{?""")
         val functionMatcher = functionPattern.matcher(line)
         while (functionMatcher.find()) {
-            val funcName = functionMatcher.group(1) ?: continue
-            localSymbols[funcName] = SymbolInfo(
-                funcName, SymbolType.FUNCTION, lineIndex,
-                PRIORITY_LOCAL_FUNCTION, "Local function"
-            )
+            val returnType = functionMatcher.group(1) ?: "void"
+            val funcName = functionMatcher.group(2) ?: continue
+            
+            if (!isKeyword(funcName)) {
+                localSymbols[funcName] = SymbolInfo(
+                    funcName, SymbolType.FUNCTION, returnType, lineIndex,
+                    PRIORITY_LOCAL_FUNCTION, currentScope, "$returnType function"
+                )
+            }
         }
         
-        // Class/struct definitions
-        val classPattern = Pattern.compile("""(?:class|struct)\s+(\w+)""")
+        // Class/struct declarations
+        val classPattern = Pattern.compile("""(class|struct)\s+(\w+)""")
         val classMatcher = classPattern.matcher(line)
         while (classMatcher.find()) {
-            val className = classMatcher.group(1) ?: continue
+            val classType = classMatcher.group(1) ?: "class"
+            val className = classMatcher.group(2) ?: continue
+            
             localSymbols[className] = SymbolInfo(
-                className, SymbolType.CLASS, lineIndex,
-                PRIORITY_TYPE, "User-defined type"
+                className, if (classType == "struct") SymbolType.STRUCT else SymbolType.CLASS, 
+                classType, lineIndex, PRIORITY_TYPE, currentScope, "User-defined $classType"
             )
         }
+    }
+    
+    private fun extractStructDefinitions(line: String, lineIndex: Int, allLines: List<String>) {
+        val structPattern = Pattern.compile("""struct\s+(\w+)\s*\{""")
+        val structMatcher = structPattern.matcher(line)
+        
+        if (structMatcher.find()) {
+            val structName = structMatcher.group(1) ?: return
+            val members = mutableListOf<StructMember>()
+            
+            // Parse struct members from following lines
+            var currentLine = lineIndex + 1
+            var braceCount = 1
+            
+            while (currentLine < allLines.size && braceCount > 0) {
+                val memberLine = allLines[currentLine].trim()
+                
+                // Count braces to know when struct ends
+                braceCount += memberLine.count { it == '{' }
+                braceCount -= memberLine.count { it == '}' }
+                
+                if (braceCount > 0) {
+                    // Parse member declarations
+                    val memberPattern = Pattern.compile("""(int|long|double|float|char|string|bool|[A-Z]\w*)\s+(\w+)\s*;""")
+                    val memberMatcher = memberPattern.matcher(memberLine)
+                    
+                    while (memberMatcher.find()) {
+                        val memberType = memberMatcher.group(1) ?: continue
+                        val memberName = memberMatcher.group(2) ?: continue
+                        
+                        members.add(StructMember(memberName, memberType, currentLine))
+                    }
+                }
+                
+                currentLine++
+            }
+            
+            if (members.isNotEmpty()) {
+                structDefinitions[structName] = StructInfo(structName, members, lineIndex)
+            }
+        }
+    }
+    
+    private fun isKeyword(word: String): Boolean {
+        return CPP_KEYWORDS.contains(word.lowercase()) || 
+               JAVA_KEYWORDS.contains(word.lowercase()) ||
+               PYTHON_KEYWORDS.contains(word.lowercase())
     }
     
     private fun calculateRelevanceScore(suggestion: String, prefix: String): Int {
