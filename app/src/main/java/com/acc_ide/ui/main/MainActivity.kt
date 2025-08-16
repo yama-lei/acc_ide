@@ -640,6 +640,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun updateLanguageSupport() {
+        try {
+            supportFragmentManager.fragments.forEach { fragment ->
+                if (fragment is EditorFragment) {
+                    fragment.setupLanguageSupport()
+                }
+            }
+            Log.d("MainActivity", "Language support updated")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to update language support: ${e.message}")
+        }
+    }
+
     /**
      * Refresh editor syntax highlighting
      * 刷新编辑器的语法高亮
