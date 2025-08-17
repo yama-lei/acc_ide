@@ -15,18 +15,18 @@ import java.util.regex.Pattern
 class ACMCompletionProvider {
     
     companion object {
-        // Priority levels for sorting
-        const val PRIORITY_EXACT_MATCH = 200
-        const val PRIORITY_RECENT_LOCAL = 150
+        // Priority levels for sorting - reordered to put local symbols first
+        const val PRIORITY_EXACT_MATCH = 300
+        const val PRIORITY_RECENT_LOCAL = 250
+        const val PRIORITY_LOCAL_VARIABLE = 200
+        const val PRIORITY_LOCAL_FUNCTION = 190
+        const val PRIORITY_GLOBAL_VARIABLE = 180
+        const val PRIORITY_STRUCT_MEMBER = 170
+        const val PRIORITY_TYPE = 160
+        const val PRIORITY_STL_COMMON = 150
+        const val PRIORITY_STL_FUNCTION = 140
+        const val PRIORITY_STL_UNCOMMON = 130
         const val PRIORITY_KEYWORD = 100
-        const val PRIORITY_STL_COMMON = 95
-        const val PRIORITY_STL_FUNCTION = 90
-        const val PRIORITY_STRUCT_MEMBER = 85
-        const val PRIORITY_LOCAL_VARIABLE = 70
-        const val PRIORITY_LOCAL_FUNCTION = 60
-        const val PRIORITY_GLOBAL_VARIABLE = 55
-        const val PRIORITY_TYPE = 50
-        const val PRIORITY_STL_UNCOMMON = 40
         
         // C++ Keywords for ACM
         private val CPP_KEYWORDS = listOf(
@@ -145,8 +145,8 @@ class ACMCompletionProvider {
         )
     }
     
-    private val localSymbols = mutableMapOf<String, SymbolInfo>()
-    private val structDefinitions = mutableMapOf<String, StructInfo>()
+    internal val localSymbols = mutableMapOf<String, SymbolInfo>()
+    internal val structDefinitions = mutableMapOf<String, StructInfo>()
     private val usageFrequency = mutableMapOf<String, Int>()
     private val scopeStack = mutableListOf<ScopeInfo>()
     
@@ -491,7 +491,7 @@ class ACMCompletionProvider {
             }
     }
     
-    private fun updateLocalSymbols(contentRef: ContentReference) {
+    internal fun updateLocalSymbols(contentRef: ContentReference) {
         localSymbols.clear()
         structDefinitions.clear()
         scopeStack.clear()
@@ -534,16 +534,19 @@ class ACMCompletionProvider {
     private fun extractSymbolsFromLine(line: String, lineIndex: Int) {
         val currentScope = scopeStack.size
         
-        // Enhanced variable declarations with type detection
+        // Handle complex variable declarations with multiple variables
+        extractMultipleVariableDeclarations(line, lineIndex, currentScope)
+        
+        // Handle template types with initialization
+        extractTemplateDeclarations(line, lineIndex, currentScope)
+        
+        // Handle array declarations
+        extractArrayDeclarations(line, lineIndex, currentScope)
+        
+        // Handle simple declarations (backward compatibility)
         val patterns = listOf(
-            // C++ STL containers: vector<int> v, map<string, int> m
-            Pattern.compile("""(vector|string|map|set|unordered_map|unordered_set|queue|stack|deque|pair|list)\s*<[^>]+>\s+(\w+)"""),
             // Simple STL containers: vector v, string s
             Pattern.compile("""(vector|string|map|set|unordered_map|unordered_set|queue|stack|deque|pair|list)\s+(\w+)"""),
-            // Basic types: int x, double y, etc.
-            Pattern.compile("""(int|long|long long|double|float|char|bool)\s+(\w+)"""),
-            // Custom types: Point p, MyStruct s
-            Pattern.compile("""([A-Z]\w*)\s+(\w+)"""),
             // Auto keyword: auto x = 
             Pattern.compile("""auto\s+(\w+)\s*=""")
         )
@@ -590,6 +593,225 @@ class ACMCompletionProvider {
                 className, if (classType == "struct") SymbolType.STRUCT else SymbolType.CLASS, 
                 classType, lineIndex, PRIORITY_TYPE, currentScope, "User-defined $classType"
             )
+        }
+    }
+    
+    /**
+     * Extract variables from multiple variable declarations like "int x, *p, y;"
+     */
+    private fun extractMultipleVariableDeclarations(line: String, lineIndex: Int, currentScope: Int) {
+        // Enhanced pattern to match type declarations with multiple variables
+        // Handles: int x, *p, y; long long a, b, c; unsigned int u, v; const int c1, c2; etc.
+        val multiVarPattern = Pattern.compile(
+            """((?:const\s+)?(?:unsigned\s+)?(?:signed\s+)?(?:int|long\s+long|long|double|float|char|bool|string|short|[A-Z]\w*))\s+([^;{}]+);"""
+        )
+        
+        val matcher = multiVarPattern.matcher(line)
+        if (matcher.find()) {
+            val baseType = matcher.group(1)?.trim() ?: return
+            val variablesPart = matcher.group(2)?.trim() ?: return
+            
+            // Split by comma to get individual variable declarations, but be careful of nested commas in initialization
+            val variables = smartSplitVariableDeclarations(variablesPart)
+            
+            for (varDecl in variables) {
+                val trimmedDecl = varDecl.trim()
+                
+                // Extract variable name, handling pointers and arrays
+                val varName = extractVariableNameFromDeclaration(trimmedDecl)
+                
+                if (varName != null && !isKeyword(varName)) {
+                    val type = when {
+                        trimmedDecl.contains("**") -> "$baseType**"
+                        trimmedDecl.contains("*") -> "$baseType*"
+                        trimmedDecl.contains("[") -> "$baseType[]"
+                        else -> baseType
+                    }
+                    val priority = if (currentScope == 0) PRIORITY_GLOBAL_VARIABLE else PRIORITY_LOCAL_VARIABLE
+                    
+                    localSymbols[varName] = SymbolInfo(
+                        varName, SymbolType.VARIABLE, type, lineIndex,
+                        priority, currentScope, "$type variable"
+                    )
+                }
+            }
+        }
+    }
+    
+    /**
+     * Smart split for variable declarations, handling nested parentheses and brackets
+     */
+    private fun smartSplitVariableDeclarations(declarations: String): List<String> {
+        val result = mutableListOf<String>()
+        var current = StringBuilder()
+        var parenDepth = 0
+        var bracketDepth = 0
+        
+        for (char in declarations) {
+            when (char) {
+                '(' -> {
+                    parenDepth++
+                    current.append(char)
+                }
+                ')' -> {
+                    parenDepth--
+                    current.append(char)
+                }
+                '[' -> {
+                    bracketDepth++
+                    current.append(char)
+                }
+                ']' -> {
+                    bracketDepth--
+                    current.append(char)
+                }
+                ',' -> {
+                    if (parenDepth == 0 && bracketDepth == 0) {
+                        result.add(current.toString().trim())
+                        current = StringBuilder()
+                    } else {
+                        current.append(char)
+                    }
+                }
+                else -> current.append(char)
+            }
+        }
+        
+        if (current.isNotEmpty()) {
+            result.add(current.toString().trim())
+        }
+        
+        return result
+    }
+    
+    /**
+     * Extract variables from template declarations with initialization like "vector<int> arr(n);"
+     */
+    private fun extractTemplateDeclarations(line: String, lineIndex: Int, currentScope: Int) {
+        // Enhanced pattern to match template types with initialization
+        // Handles: vector<int> arr(n); map<string, int> m(10); vector<vector<int>> matrix(5, vector<int>(5));
+        // Also handles initialization with braces: vector<int> arr{1, 2, 3};
+        val templateWithInitPattern = Pattern.compile(
+            """(vector|string|map|set|unordered_map|unordered_set|queue|stack|deque|pair|list|priority_queue|array|bitset)\s*<[^<>]*(?:<[^<>]*>[^<>]*)*>\s+(\w+)(?:\s*\([^)]*\)|\s*\{[^}]*\})?"""
+        )
+        
+        val initMatcher = templateWithInitPattern.matcher(line)
+        while (initMatcher.find()) {
+            val containerType = initMatcher.group(1) ?: continue
+            val varName = initMatcher.group(2) ?: continue
+            
+            if (!isKeyword(varName)) {
+                val priority = if (currentScope == 0) PRIORITY_GLOBAL_VARIABLE else PRIORITY_LOCAL_VARIABLE
+                
+                localSymbols[varName] = SymbolInfo(
+                    varName, SymbolType.VARIABLE, containerType, lineIndex,
+                    priority, currentScope, "$containerType container"
+                )
+            }
+        }
+        
+        // Also handle basic template declarations without initialization
+        val basicTemplatePattern = Pattern.compile(
+            """(vector|string|map|set|unordered_map|unordered_set|queue|stack|deque|pair|list|priority_queue|array|bitset)\s*<[^<>]*(?:<[^<>]*>[^<>]*)*>\s+(\w+)\s*;"""
+        )
+        
+        val basicMatcher = basicTemplatePattern.matcher(line)
+        while (basicMatcher.find()) {
+            val containerType = basicMatcher.group(1) ?: continue
+            val varName = basicMatcher.group(2) ?: continue
+            
+            if (!isKeyword(varName) && !localSymbols.containsKey(varName)) {
+                val priority = if (currentScope == 0) PRIORITY_GLOBAL_VARIABLE else PRIORITY_LOCAL_VARIABLE
+                
+                localSymbols[varName] = SymbolInfo(
+                    varName, SymbolType.VARIABLE, containerType, lineIndex,
+                    priority, currentScope, "$containerType container"
+                )
+            }
+        }
+    }
+    
+    /**
+     * Extract variable name from declaration, handling pointers and arrays
+     * Examples: "x" -> "x", "*p" -> "p", "arr[10]" -> "arr", "*ptr[5]" -> "ptr"
+     * Also handles: "x = 5" -> "x", "ptr = nullptr" -> "ptr", "arr(n)" -> "arr"
+     */
+    private fun extractVariableNameFromDeclaration(declaration: String): String? {
+        val trimmed = declaration.trim()
+        
+        // Remove initialization part if present (e.g., "x = 5" -> "x", "arr(10)" -> "arr")
+        val withoutInit = trimmed.split(Regex("[=()]"))[0].trim()
+        
+        // Handle array declarations (e.g., "arr[10]" -> "arr")
+        val withoutArray = withoutInit.split("[")[0].trim()
+        
+        // Handle pointer declarations (e.g., "*p" -> "p", "**pp" -> "pp")
+        val withoutPointers = withoutArray.replace("*", "").trim()
+        
+        // Handle reference declarations (e.g., "&ref" -> "ref")
+        val withoutReference = withoutPointers.replace("&", "").trim()
+        
+        // Extract the identifier, handling whitespace
+        val identifierPattern = Pattern.compile("""(\w+)""")
+        val matcher = identifierPattern.matcher(withoutReference)
+        
+        return if (matcher.find()) {
+            matcher.group(1)
+        } else {
+            null
+        }
+    }
+    
+    /**
+     * Extract variables from array declarations like "int arr[10];"
+     */
+    private fun extractArrayDeclarations(line: String, lineIndex: Int, currentScope: Int) {
+        // Pattern to match array declarations including arrays of pointers
+        // Handles: int arr[10]; char str[256]; double matrix[10][10]; int *ptr_arr[10]; etc.
+        // First pattern: arrays of pointers like "int *ptr_arr[10];"
+        val pointerArrayPattern = Pattern.compile(
+            """((?:const\s+)?(?:unsigned\s+)?(?:int|long\s+long|long|double|float|char|bool|string|[A-Z]\w*))\s*(\*+)\s*(\w+)\s*\[[^\]]*\]"""
+        )
+        
+        val pointerArrayMatcher = pointerArrayPattern.matcher(line)
+        while (pointerArrayMatcher.find()) {
+            val baseType = pointerArrayMatcher.group(1) ?: continue
+            val pointerStars = pointerArrayMatcher.group(2) ?: continue
+            val varName = pointerArrayMatcher.group(3) ?: continue
+            
+            if (!isKeyword(varName)) {
+                val dataType = "$baseType$pointerStars[]"
+                val priority = if (currentScope == 0) PRIORITY_GLOBAL_VARIABLE else PRIORITY_LOCAL_VARIABLE
+                
+                localSymbols[varName] = SymbolInfo(
+                    varName, SymbolType.VARIABLE, dataType, lineIndex,
+                    priority, currentScope, "$dataType array"
+                )
+            }
+        }
+        
+        // Second pattern: regular arrays like "int arr[10];"
+        val arrayPattern = Pattern.compile(
+            """((?:const\s+)?(?:unsigned\s+)?(?:int|long\s+long|long|double|float|char|bool|string|[A-Z]\w*))\s+(\w+)\s*\[[^\]]*\]"""
+        )
+        
+        val arrayMatcher = arrayPattern.matcher(line)
+        while (arrayMatcher.find()) {
+            val baseType = arrayMatcher.group(1) ?: continue
+            val varName = arrayMatcher.group(2) ?: continue
+            
+            // Skip if this variable was already added as a pointer array
+            if (localSymbols.containsKey(varName)) continue
+            
+            if (!isKeyword(varName)) {
+                val dataType = "${baseType}[]"
+                val priority = if (currentScope == 0) PRIORITY_GLOBAL_VARIABLE else PRIORITY_LOCAL_VARIABLE
+                
+                localSymbols[varName] = SymbolInfo(
+                    varName, SymbolType.VARIABLE, dataType, lineIndex,
+                    priority, currentScope, "$dataType array"
+                )
+            }
         }
     }
     
