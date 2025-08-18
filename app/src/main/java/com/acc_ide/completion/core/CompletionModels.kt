@@ -15,7 +15,8 @@ data class SymbolInfo(
     val line: Int,
     val column: Int,
     val scopeLevel: Int,
-    val description: String = ""
+    val description: String = "",
+    val parentStruct: String = "" // struct成员所属的struct名称
 )
 
 /**
@@ -32,7 +33,7 @@ data class ScopeInfo(
  * 符号类型枚举
  */
 enum class SymbolType {
-    VARIABLE, FUNCTION, CLASS, STRUCT, ENUM, PARAMETER
+    VARIABLE, FUNCTION, CLASS, STRUCT, ENUM, PARAMETER, STRUCT_MEMBER
 }
 
 /**

@@ -147,21 +147,126 @@ class ACMCompletionProvider {
         val items = mutableListOf<CompletionItem>()
         
         try {
-            // 使用原生TreeSitter服务查找上下文变量
-            val localVariables = treeSitterService.getLocalVariables(contentRef, language, 0, 0)
+            android.util.Log.d("ACMCompletionProvider", "handleMemberCompletion: contextVar='$contextVar', prefix='$prefix'")
+            
+            // 使用原生TreeSitter服务查找上下文变量（获取所有变量）
+            val parseResult = treeSitterService.parseCode(contentRef, language)
+            val localVariables = parseResult?.symbols?.filter {
+                it.type == SymbolType.VARIABLE || it.type == SymbolType.PARAMETER
+            } ?: emptyList()
             
             // 查找上下文变量的类型信息
             val contextSymbol = localVariables.find { it.name == contextVar }
             if (contextSymbol != null) {
+                android.util.Log.d("ACMCompletionProvider", "Found context variable: ${contextSymbol.name} of type ${contextSymbol.dataType}")
+                
+                // 1. 优先检查是否为STL容器类型
+                if (isSTLType(contextSymbol.dataType)) {
+                    android.util.Log.d("ACMCompletionProvider", "Type ${contextSymbol.dataType} is STL container")
+                    items.addAll(stlProvider.getMemberCompletions(contextSymbol.dataType, prefix))
+                    return items
+                }
+                
+                // 2. 检查是否为基本类型（基本类型没有成员）
+                if (isPrimitiveType(contextSymbol.dataType)) {
+                    android.util.Log.d("ACMCompletionProvider", "Type ${contextSymbol.dataType} is primitive type - no members")
+                    return items // 返回空列表
+                }
+                
+                // 3. 尝试获取用户定义的struct成员
+                val structMembers = getStructMembers(contentRef, language, contextSymbol.dataType, prefix)
+                if (structMembers.isNotEmpty()) {
+                    android.util.Log.d("ACMCompletionProvider", "Added ${structMembers.size} struct members for type ${contextSymbol.dataType}")
+                    items.addAll(structMembers)
+                    return items
+                }
+                
+                // 4. 如果没有找到struct成员，可能是未识别的类型，提供通用STL方法
+                android.util.Log.d("ACMCompletionProvider", "Type ${contextSymbol.dataType} not recognized, trying STL fallback")
                 items.addAll(stlProvider.getMemberCompletions(contextSymbol.dataType, prefix))
-                return items
+                
+            } else {
+                android.util.Log.d("ACMCompletionProvider", "Context variable '$contextVar' not found in TreeSitter results")
+                // 临时禁用STL推断，优先让struct成员补全工作
+                // items.addAll(stlProvider.inferMemberCompletions(contextVar, prefix))
             }
+            
         } catch (e: Exception) {
-            // TreeSitter解析失败，降级处理
+            android.util.Log.e("ACMCompletionProvider", "TreeSitter member completion failed", e)
+            // 临时禁用STL推断，优先让struct成员补全工作
+            // items.addAll(stlProvider.inferMemberCompletions(contextVar, prefix))
         }
         
-        // TreeSitter不可用时，基于常见类型推断提供STL补全
-        items.addAll(stlProvider.inferMemberCompletions(contextVar, prefix))
+        return items
+    }
+    
+    /**
+     * 判断是否为STL容器类型
+     */
+    private fun isSTLType(dataType: String): Boolean {
+        val stlTypes = setOf(
+            "vector", "string", "map", "set", "unordered_map", "unordered_set",
+            "queue", "priority_queue", "stack", "deque", "list", "array",
+            "multiset", "multimap", "pair"
+        )
+        return stlTypes.contains(dataType.lowercase())
+    }
+    
+    /**
+     * 判断是否为基本类型
+     */
+    private fun isPrimitiveType(dataType: String): Boolean {
+        val primitiveTypes = setOf(
+            "int", "long", "short", "char", "byte",
+            "float", "double", "bool", "boolean",
+            "void", "auto", "size_t", "uint32_t", "int64_t"
+        )
+        return primitiveTypes.contains(dataType.lowercase())
+    }
+    
+    /**
+     * 获取struct成员补全
+     */
+    private fun getStructMembers(
+        contentRef: ContentReference,
+        language: String,
+        structTypeName: String,
+        prefix: String
+    ): List<CompletionItem> {
+        val items = mutableListOf<CompletionItem>()
+        
+        try {
+            // 获取所有symbols
+            val parseResult = treeSitterService.parseCode(contentRef, language)
+            val allSymbols = parseResult?.symbols ?: emptyList()
+            
+            // 查找指定struct的成员
+            val structMembers = allSymbols.filter { symbol ->
+                symbol.type == SymbolType.STRUCT_MEMBER && 
+                symbol.parentStruct == structTypeName &&
+                symbol.name.startsWith(prefix, ignoreCase = true)
+            }
+            
+            android.util.Log.d("ACMCompletionProvider", "Found ${structMembers.size} members for struct '$structTypeName'")
+            
+            // 转换为补全项
+            structMembers.forEach { member ->
+                android.util.Log.d("ACMCompletionProvider", "  Member: ${member.name} (${member.dataType})")
+                
+                val item = PriorityCompletionItem(
+                    member.name,
+                    "${member.dataType} - ${member.description}",
+                    prefix.length,
+                    member.name,
+                    CompletionConstants.PRIORITY_STRUCT_MEMBER,
+                    CompletionItemKind.Field
+                )
+                items.add(item)
+            }
+            
+        } catch (e: Exception) {
+            android.util.Log.e("ACMCompletionProvider", "Failed to get struct members", e)
+        }
         
         return items
     }
@@ -265,6 +370,7 @@ class ACMCompletionProvider {
                     SymbolType.STRUCT -> CompletionItemKind.Struct
                     SymbolType.ENUM -> CompletionItemKind.Enum
                     SymbolType.PARAMETER -> CompletionItemKind.Variable
+                    SymbolType.STRUCT_MEMBER -> CompletionItemKind.Field
                 }
                 
                 PriorityCompletionItem(

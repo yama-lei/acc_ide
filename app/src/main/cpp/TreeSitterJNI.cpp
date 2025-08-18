@@ -19,7 +19,8 @@ enum SymbolType {
     CLASS = 2,
     STRUCT = 3,
     ENUM = 4,
-    PARAMETER = 5
+    PARAMETER = 5,
+    STRUCT_MEMBER = 6
 };
 
 // 作用域类型枚举
@@ -40,6 +41,7 @@ struct SymbolInfo {
     int column;
     int scopeLevel;
     std::string description;
+    std::string parentStruct; // 用于struct成员，记录所属的struct名称
 };
 
 // 作用域信息结构
@@ -60,11 +62,12 @@ struct ParseResult {
 jobject createSymbolInfo(JNIEnv *env, const SymbolInfo &symbol) {
     jclass symbolClass = env->FindClass("com/acc_ide/completion/core/SymbolInfo");
     jmethodID constructor = env->GetMethodID(symbolClass, "<init>", 
-        "(Ljava/lang/String;Lcom/acc_ide/completion/core/SymbolType;Ljava/lang/String;IIILjava/lang/String;)V");
+        "(Ljava/lang/String;Lcom/acc_ide/completion/core/SymbolType;Ljava/lang/String;IIILjava/lang/String;Ljava/lang/String;)V");
     
     jstring name = env->NewStringUTF(symbol.name.c_str());
     jstring dataType = env->NewStringUTF(symbol.dataType.c_str());
     jstring description = env->NewStringUTF(symbol.description.c_str());
+    jstring parentStruct = env->NewStringUTF(symbol.parentStruct.c_str());
     
     // 获取SymbolType枚举
     jclass symbolTypeClass = env->FindClass("com/acc_ide/completion/core/SymbolType");
@@ -89,6 +92,9 @@ jobject createSymbolInfo(JNIEnv *env, const SymbolInfo &symbol) {
         case PARAMETER:
             typeField = env->GetStaticFieldID(symbolTypeClass, "PARAMETER", "Lcom/acc_ide/completion/core/SymbolType;");
             break;
+        case STRUCT_MEMBER:
+            typeField = env->GetStaticFieldID(symbolTypeClass, "STRUCT_MEMBER", "Lcom/acc_ide/completion/core/SymbolType;");
+            break;
         default:
             typeField = env->GetStaticFieldID(symbolTypeClass, "VARIABLE", "Lcom/acc_ide/completion/core/SymbolType;");
     }
@@ -96,7 +102,7 @@ jobject createSymbolInfo(JNIEnv *env, const SymbolInfo &symbol) {
     jobject symbolTypeObj = env->GetStaticObjectField(symbolTypeClass, typeField);
     
     return env->NewObject(symbolClass, constructor, name, symbolTypeObj, dataType, 
-                         symbol.line, symbol.column, symbol.scopeLevel, description);
+                         symbol.line, symbol.column, symbol.scopeLevel, description, parentStruct);
 }
 
 // 工具函数：创建Java ScopeInfo对象
@@ -175,6 +181,7 @@ jobject createParseResult(JNIEnv *env, const ParseResult &result) {
 
 // 函数声明
 void extractVariableNamesFromDeclarator(TSNode node, const std::string &source, std::vector<std::string> &varNames);
+void extractStructMembers(TSNode node, const std::string &source, ParseResult &result, const std::string &structName, int scopeLevel);
 
 // 提取变量声明信息
 void extractVariableInfo(TSNode node, const std::string &source, std::string &varType, std::vector<std::string> &varNames) {
@@ -203,14 +210,14 @@ void extractVariableInfo(TSNode node, const std::string &source, std::string &va
                 "  Extracting from declarator");
             extractVariableNamesFromDeclarator(child, source, varNames);
         }
-        // 直接的标识符
-        else if (strcmp(childType, "identifier") == 0) {
+        // 直接的标识符（包括field_identifier用于struct成员）
+        else if (strcmp(childType, "identifier") == 0 || strcmp(childType, "field_identifier") == 0) {
             uint32_t start = ts_node_start_byte(child);
             uint32_t end = ts_node_end_byte(child);
             std::string name = source.substr(start, end - start);
             varNames.push_back(name);
             __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
-                "  Found identifier: %s", name.c_str());
+                "  Found %s: %s", childType, name.c_str());
         }
         // 递归查找
         else {
@@ -223,8 +230,8 @@ void extractVariableInfo(TSNode node, const std::string &source, std::string &va
 void extractVariableNamesFromDeclarator(TSNode node, const std::string &source, std::vector<std::string> &varNames) {
     const char *nodeType = ts_node_type(node);
     
-    // 如果是标识符，直接添加
-    if (strcmp(nodeType, "identifier") == 0) {
+    // 如果是标识符（包括field_identifier），直接添加
+    if (strcmp(nodeType, "identifier") == 0 || strcmp(nodeType, "field_identifier") == 0) {
         uint32_t start = ts_node_start_byte(node);
         uint32_t end = ts_node_end_byte(node);
         std::string name = source.substr(start, end - start);
@@ -237,7 +244,7 @@ void extractVariableNamesFromDeclarator(TSNode node, const std::string &source, 
         TSNode child = ts_node_child(node, i);
         const char *childType = ts_node_type(child);
         
-        if (strcmp(childType, "identifier") == 0) {
+        if (strcmp(childType, "identifier") == 0 || strcmp(childType, "field_identifier") == 0) {
             uint32_t start = ts_node_start_byte(child);
             uint32_t end = ts_node_end_byte(child);
             std::string name = source.substr(start, end - start);
@@ -245,6 +252,53 @@ void extractVariableNamesFromDeclarator(TSNode node, const std::string &source, 
         } else {
             // 递归查找，处理复杂的声明器结构
             extractVariableNamesFromDeclarator(child, source, varNames);
+        }
+    }
+}
+
+// 提取struct成员
+void extractStructMembers(TSNode node, const std::string &source, ParseResult &result, const std::string &structName, int scopeLevel) {
+    __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+        "extractStructMembers: processing %d children for struct %s", ts_node_child_count(node), structName.c_str());
+    
+    for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
+        TSNode child = ts_node_child(node, i);
+        const char *childType = ts_node_type(child);
+        
+        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+            "  Struct member child %d: %s", i, childType);
+        
+        // 查找field_declaration（成员声明）
+        if (strcmp(childType, "field_declaration") == 0) {
+            std::string memberType = "auto";
+            std::vector<std::string> memberNames;
+            
+            // 提取成员类型和名称
+            extractVariableInfo(child, source, memberType, memberNames);
+            
+            // 为每个成员创建符号
+            for (const std::string &memberName : memberNames) {
+                __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                    "Creating struct member: %s.%s of type %s", structName.c_str(), memberName.c_str(), memberType.c_str());
+                
+                TSPoint memberPoint = ts_node_start_point(child);
+                
+                SymbolInfo symbol;
+                symbol.name = memberName;
+                symbol.type = STRUCT_MEMBER;
+                symbol.dataType = memberType;
+                symbol.line = memberPoint.row;
+                symbol.column = memberPoint.column;
+                symbol.scopeLevel = scopeLevel;
+                symbol.description = "Struct member of " + structName;
+                symbol.parentStruct = structName;
+                
+                result.symbols.push_back(symbol);
+            }
+        }
+        // 递归处理子节点
+        else {
+            extractStructMembers(child, source, result, structName, scopeLevel);
         }
     }
 }
@@ -297,6 +351,7 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
                         symbol.column = startPoint.column;
                         symbol.scopeLevel = scopeLevel;
                         symbol.description = "Function definition";
+                        symbol.parentStruct = "";
                         
                         result.symbols.push_back(symbol);
                         break;
@@ -321,6 +376,7 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
                 symbol.column = startPoint.column;
                 symbol.scopeLevel = scopeLevel;
                 symbol.description = "Function definition";
+                symbol.parentStruct = "";
                 
                 result.symbols.push_back(symbol);
                 break;
@@ -338,7 +394,9 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
         scopeLevel++;
     }
     else if (type == "class_definition" || type == "class_declaration" || type == "struct_specifier") {
-        // 查找类名
+        std::string structName = "";
+        
+        // 查找类名/结构体名
         for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
             TSNode child = ts_node_child(node, i);
             const char *childType = ts_node_type(child);
@@ -346,19 +404,38 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
             if (strcmp(childType, "identifier") == 0 || strcmp(childType, "type_identifier") == 0) {
                 uint32_t start = ts_node_start_byte(child);
                 uint32_t end = ts_node_end_byte(child);
-                std::string name = source.substr(start, end - start);
+                structName = source.substr(start, end - start);
                 
                 SymbolInfo symbol;
-                symbol.name = name;
+                symbol.name = structName;
                 symbol.type = (type == "struct_specifier") ? STRUCT : CLASS;
                 symbol.dataType = (type == "struct_specifier") ? "struct" : "class";
                 symbol.line = startPoint.row;
                 symbol.column = startPoint.column;
                 symbol.scopeLevel = scopeLevel;
                 symbol.description = symbol.dataType + " definition";
+                symbol.parentStruct = "";
                 
                 result.symbols.push_back(symbol);
                 break;
+            }
+        }
+        
+        // 如果是struct，需要查找成员变量
+        if (type == "struct_specifier" && !structName.empty()) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                "Processing struct %s members", structName.c_str());
+            
+            // 查找field_declaration_list（struct体）
+            for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
+                TSNode child = ts_node_child(node, i);
+                const char *childType = ts_node_type(child);
+                
+                if (strcmp(childType, "field_declaration_list") == 0) {
+                    // 递归查找struct成员
+                    extractStructMembers(child, source, result, structName, scopeLevel + 1);
+                    break;
+                }
             }
         }
         
@@ -399,6 +476,7 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
             symbol.column = startPoint.column;
             symbol.scopeLevel = scopeLevel;
             symbol.description = "Variable declaration";
+            symbol.parentStruct = "";
             
             result.symbols.push_back(symbol);
         }
@@ -428,6 +506,7 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
                 symbol.column = startPoint.column;
                 symbol.scopeLevel = scopeLevel;
                 symbol.description = "Macro definition";
+                symbol.parentStruct = "";
                 
                 result.symbols.push_back(symbol);
                 break; // 只需要第一个identifier（宏名称）
