@@ -43,6 +43,11 @@ interface TreeSitterInterface {
      * 获取支持的语言列表
      */
     fun getSupportedLanguages(): List<String>
+    
+    /**
+     * 执行TreeSitter查询
+     */
+    fun executeQuery(contentRef: ContentReference, language: String, query: String): QueryResult?
 }
 
 /**

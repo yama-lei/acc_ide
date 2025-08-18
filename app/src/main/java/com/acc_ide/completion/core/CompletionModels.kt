@@ -89,5 +89,27 @@ data class ParseResult(
     val parseTree: String? = null // 可选的语法树文本表示
 )
 
+/**
+ * TreeSitter 查询匹配结果
+ */
+data class QueryMatch(
+    val captureName: String,
+    val nodeText: String,
+    val startLine: Int,
+    val startColumn: Int,
+    val endLine: Int,
+    val endColumn: Int,
+    val nodeType: String
+)
+
+/**
+ * TreeSitter 查询结果
+ */
+data class QueryResult(
+    val matches: List<QueryMatch>,
+    val success: Boolean,
+    val errorMessage: String = ""
+)
+
 // 移除自定义ContentReference，统一使用sora-editor的类型
 // import io.github.rosemoe.sora.text.ContentReference

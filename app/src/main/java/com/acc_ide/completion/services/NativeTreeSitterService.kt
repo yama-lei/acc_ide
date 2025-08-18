@@ -171,56 +171,138 @@ class NativeTreeSitterService : TreeSitterInterface {
     }
     
     /**
-     * 判断符号在指定位置是否可见
+     * 判断符号在指定位置是否可见 - 修复版本
      */
     private fun isSymbolVisibleAtPosition(symbol: SymbolInfo, line: Int, column: Int, scopes: List<ScopeInfo>): Boolean {
         // 1. 符号必须在当前位置之前声明
         if (symbol.line > line || (symbol.line == line && symbol.column >= column)) {
+            Log.d(TAG, "Symbol ${symbol.name} declared after current position (${symbol.line}:${symbol.column} vs $line:$column)")
             return false
         }
         
         // 2. 全局符号（函数、结构体、宏等）总是可见
         if (symbol.scopeLevel == 0) {
+            Log.d(TAG, "Symbol ${symbol.name} is global, visible")
             return true
         }
         
-        // 3. 局部变量需要检查作用域
-        if (symbol.type == SymbolType.VARIABLE || symbol.type == SymbolType.PARAMETER) {
-            return isInSameOrParentScope(symbol, line, column, scopes)
+        // 3. 特殊处理类成员的可见性
+        if (symbol.type == SymbolType.STRUCT_MEMBER && symbol.parentStruct.isNotEmpty()) {
+            val isInClassMemberFunction = isInClassMemberFunction(symbol.parentStruct, line, column, scopes)
+            if (isInClassMemberFunction) {
+                Log.d(TAG, "Symbol ${symbol.name} is class member, visible in member function")
+                return true
+            }
         }
         
-        return true
+        // 4. 所有其他符号都需要检查作用域可见性
+        val isVisible = isInSameOrParentScope(symbol, line, column, scopes)
+        Log.d(TAG, "Symbol ${symbol.name} scope visibility: $isVisible")
+        return isVisible
     }
     
     /**
-     * 判断变量是否在当前位置的作用域内或父作用域中
+     * 判断当前位置是否在指定类的成员函数中
      */
-    private fun isInSameOrParentScope(symbol: SymbolInfo, line: Int, column: Int, scopes: List<ScopeInfo>): Boolean {
-        // 获取符号所在的作用域
-        val symbolScope = scopes.find { scope ->
-            symbol.scopeLevel == scope.level &&
-            symbol.line >= scope.startLine && symbol.line <= scope.endLine
+    private fun isInClassMemberFunction(className: String, line: Int, column: Int, scopes: List<ScopeInfo>): Boolean {
+        // 找到包含当前位置的类作用域
+        val classScope = scopes.find { scope ->
+            scope.type == ScopeType.CLASS &&
+            line >= scope.startLine && line <= scope.endLine
         }
         
-        // 获取当前位置所在的作用域
-        val currentScope = getCurrentScope(scopes, line, column)
-        
-        if (symbolScope == null) {
-            Log.d(TAG, "Symbol ${symbol.name} scope not found, treating as global")
+        if (classScope != null) {
+            Log.d(TAG, "Current position is in class scope ${classScope.startLine}-${classScope.endLine}")
+            // 在类作用域中，类成员总是可见的
             return true
         }
         
-        if (currentScope == null) {
-            Log.d(TAG, "Current position scope not found, only global symbols visible")
-            return symbol.scopeLevel == 0
+        // 检查是否在类的成员函数中
+        val functionScope = scopes.find { scope ->
+            scope.type == ScopeType.FUNCTION &&
+            line >= scope.startLine && line <= scope.endLine
         }
         
-        // 检查当前位置是否在符号的作用域内或其子作用域内
+        if (functionScope != null) {
+            // 检查这个函数是否在目标类内部
+            val containingClassScope = scopes.find { scope ->
+                scope.type == ScopeType.CLASS &&
+                functionScope.startLine >= scope.startLine && functionScope.endLine <= scope.endLine
+            }
+            
+            if (containingClassScope != null) {
+                Log.d(TAG, "Function at ${functionScope.startLine}-${functionScope.endLine} is in class scope ${containingClassScope.startLine}-${containingClassScope.endLine}")
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    /**
+     * 判断变量是否在当前位置的作用域内或父作用域中 - 修复版本
+     */
+    private fun isInSameOrParentScope(symbol: SymbolInfo, line: Int, column: Int, scopes: List<ScopeInfo>): Boolean {
+        // 找到符号所在的最具体作用域（最高级别）
+        val symbolScope = scopes
+            .filter { scope -> 
+                symbol.line >= scope.startLine && symbol.line <= scope.endLine 
+            }
+            .maxByOrNull { it.level }
+        
+        // 找到当前位置所在的最具体作用域（最高级别）
+        val currentScope = scopes
+            .filter { scope -> 
+                line >= scope.startLine && line <= scope.endLine 
+            }
+            .maxByOrNull { it.level }
+        
+        Log.d(TAG, "Symbol ${symbol.name} at line ${symbol.line}, scopeLevel=${symbol.scopeLevel}")
+        Log.d(TAG, "  Symbol scope: ${symbolScope?.let { "${it.type} level ${it.level} (${it.startLine}-${it.endLine})" } ?: "none"}")
+        Log.d(TAG, "  Current position at line $line")
+        Log.d(TAG, "  Current scope: ${currentScope?.let { "${it.type} level ${it.level} (${it.startLine}-${it.endLine})" } ?: "none"}")
+        
+        // 如果符号没有找到明确的作用域，视为全局符号
+        if (symbolScope == null) {
+            Log.d(TAG, "Symbol ${symbol.name} has no scope, treating as global")
+            return true
+        }
+        
+        // 如果当前位置没有作用域，只能看到全局符号
+        if (currentScope == null) {
+            Log.d(TAG, "Current position has no scope, only global symbols visible")
+            return false
+        }
+        
+        // 检查当前位置是否在符号作用域的范围内
+        // 符号在其声明的作用域及其所有子作用域中可见
         val isInSymbolScope = line >= symbolScope.startLine && line <= symbolScope.endLine
         
-        Log.d(TAG, "Symbol ${symbol.name} scope: ${symbolScope.startLine}-${symbolScope.endLine}, current: $line, visible: $isInSymbolScope")
+        // 进一步检查：如果符号在函数A中，当前位置在函数B中，则不可见
+        val symbolFunction = scopes.find { scope -> 
+            scope.type == ScopeType.FUNCTION && 
+            symbol.line >= scope.startLine && symbol.line <= scope.endLine 
+        }
+        val currentFunction = scopes.find { scope -> 
+            scope.type == ScopeType.FUNCTION && 
+            line >= scope.startLine && line <= scope.endLine 
+        }
         
-        return isInSymbolScope
+        val result = if (symbolFunction != null && currentFunction != null) {
+            // 如果都在函数中，必须是同一个函数
+            val sameFunction = symbolFunction.startLine == currentFunction.startLine && 
+                               symbolFunction.endLine == currentFunction.endLine
+            Log.d(TAG, "Symbol function: ${symbolFunction.startLine}-${symbolFunction.endLine}")
+            Log.d(TAG, "Current function: ${currentFunction.startLine}-${currentFunction.endLine}")
+            Log.d(TAG, "Same function: $sameFunction")
+            sameFunction && isInSymbolScope
+        } else {
+            // 其他情况按照作用域包含关系判断
+            isInSymbolScope
+        }
+        
+        Log.d(TAG, "Final visibility for ${symbol.name}: $result")
+        return result
     }
     
     /**
@@ -328,5 +410,32 @@ class NativeTreeSitterService : TreeSitterInterface {
     override fun getSupportedLanguages(): List<String> {
         return listOf("cpp", "java", "python")
     }
+    
+    /**
+     * 执行TreeSitter查询
+     */
+    override fun executeQuery(contentRef: ContentReference, language: String, query: String): QueryResult? {
+        Log.d(TAG, "executeQuery called for language: $language")
+        
+        if (!isJniLoaded) {
+            Log.e(TAG, "JNI not loaded, cannot execute query")
+            return null
+        }
+        
+        return try {
+            val code = contentRef.toString()
+            val result = executeQueryNative(code, language, query)
+            Log.d(TAG, "Query executed, success: ${result?.success}, matches: ${result?.matches?.size}")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to execute query", e)
+            null
+        }
+    }
+    
+    /**
+     * 原生查询执行方法
+     */
+    private external fun executeQueryNative(code: String, language: String, query: String): QueryResult?
 }
 

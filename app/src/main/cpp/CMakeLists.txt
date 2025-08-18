@@ -32,8 +32,12 @@ if(NOT EXISTS ${TREE_SITTER_PYTHON_LIB})
     message(FATAL_ERROR "TreeSitter Python library not found at ${TREE_SITTER_PYTHON_LIB}")
 endif()
 
-# 创建JNI库
-add_library(treesitter-jni SHARED TreeSitterJNI.cpp)
+# 创建JNI库 - 使用模块化的源文件
+add_library(treesitter-jni SHARED 
+    TreeSitterJNI.cpp
+    TreeSitterCore.cpp
+    TreeSitterQuery.cpp
+)
 
 # 链接库
 target_link_libraries(treesitter-jni

@@ -296,18 +296,20 @@ class ACMCompletionProvider {
             android.util.Log.d("ACMCompletionProvider", "Found ${symbolsAtPosition.size} symbols at position")
             
             if (symbolsAtPosition.isNotEmpty()) {
-                // 获取所有可见符号
-                val localVariables = treeSitterService.getLocalVariables(contentRef, language, position.line, position.column)
-                val functions = treeSitterService.getFunctionDefinitions(contentRef, language)
-                val classes = treeSitterService.getClassDefinitions(contentRef, language)
+                // 直接使用所有可见符号（包括类成员）
+                android.util.Log.d("ACMCompletionProvider", "Found: ${symbolsAtPosition.size} total symbols at position")
                 
-                android.util.Log.d("ACMCompletionProvider", "Found: ${localVariables.size} vars, ${functions.size} functions, ${classes.size} classes")
+                // 按类型分组记录
+                val variables = symbolsAtPosition.filter { it.type == SymbolType.VARIABLE }
+                val parameters = symbolsAtPosition.filter { it.type == SymbolType.PARAMETER }
+                val structMembers = symbolsAtPosition.filter { it.type == SymbolType.STRUCT_MEMBER }
+                val functions = symbolsAtPosition.filter { it.type == SymbolType.FUNCTION }
+                val classes = symbolsAtPosition.filter { it.type == SymbolType.CLASS || it.type == SymbolType.STRUCT }
                 
-                // 合并所有符号
-                val allSymbols = (localVariables + functions + classes).distinctBy { "${it.name}_${it.type}" }
+                android.util.Log.d("ACMCompletionProvider", "Found: ${variables.size} vars, ${parameters.size} params, ${structMembers.size} members, ${functions.size} functions, ${classes.size} classes")
                 
                 // 转换为补全项
-                val symbolItems = convertSymbolsToCompletionItems(allSymbols, prefix, 0)
+                val symbolItems = convertSymbolsToCompletionItems(symbolsAtPosition, prefix, 0)
                 items.addAll(symbolItems)
                 android.util.Log.d("ACMCompletionProvider", "Converted ${symbolItems.size} symbol items")
             }
