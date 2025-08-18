@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(python run_completion_tests.py)",
-      "Bash(python test_sorting_simple.py)"
+      "Bash(python test_sorting_simple.py)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(rm:*)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(sed:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

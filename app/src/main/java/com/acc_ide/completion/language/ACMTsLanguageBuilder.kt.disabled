@@ -1,0 +1,96 @@
+package com.acc_ide.completion
+
+import io.github.rosemoe.sora.lang.Language
+import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.editor.ts.TsLanguageSpec
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+
+/**
+ * ACM专用的TreeSitter语言构建器
+ * 用于创建集成TreeSitter语法分析和TextMate语法高亮的混合语言实例
+ * 
+ * 设计思路：
+ * - TextMate负责语法高亮和主题着色
+ * - TreeSitter负责语法解析、AST构建和符号提取
+ * - 两者互补，不冲突
+ */
+object ACMTsLanguageBuilder {
+    
+    /**
+     * 创建C++语言实例 (混合模式)
+     * TreeSitter用于语法分析，TextMate用于语法高亮
+     */
+    fun createCppLanguage(languageSpec: TsLanguageSpec): Language {
+        return try {
+            // 创建具有TreeSitter增强功能的TextMate语言
+            // TreeSitter提供精确的语法解析用于自动补全
+            // TextMate提供美观的语法高亮
+            ACMHybridLanguage(
+                scopeName = "source.cpp",
+                languageSpec = languageSpec,
+                enableTreeSitter = true
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // 降级到纯TextMate语言
+            try {
+                TextMateLanguage.create("source.cpp", true)
+            } catch (fallbackException: Exception) {
+                EmptyLanguage()
+            }
+        }
+    }
+    
+    /**
+     * 创建Java语言实例 (混合模式)
+     */
+    fun createJavaLanguage(languageSpec: TsLanguageSpec): Language {
+        return try {
+            ACMHybridLanguage(
+                scopeName = "source.java",
+                languageSpec = languageSpec,
+                enableTreeSitter = true
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            try {
+                TextMateLanguage.create("source.java", true)
+            } catch (fallbackException: Exception) {
+                EmptyLanguage()
+            }
+        }
+    }
+    
+    /**
+     * 创建Python语言实例 (混合模式)
+     */
+    fun createPythonLanguage(languageSpec: TsLanguageSpec): Language {
+        return try {
+            ACMHybridLanguage(
+                scopeName = "source.python",
+                languageSpec = languageSpec,
+                enableTreeSitter = true
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            try {
+                TextMateLanguage.create("source.python", true)
+            } catch (fallbackException: Exception) {
+                EmptyLanguage()
+            }
+        }
+    }
+    
+    /**
+     * 创建纯TextMate语言实例 (无TreeSitter)
+     * 用于当TreeSitter不可用时的降级方案
+     */
+    fun createTextMateOnlyLanguage(scopeName: String): Language {
+        return try {
+            TextMateLanguage.create(scopeName, true)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            EmptyLanguage()
+        }
+    }
+}

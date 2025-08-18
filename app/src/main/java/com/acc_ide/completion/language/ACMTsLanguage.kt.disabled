@@ -1,18 +1,24 @@
 package com.acc_ide.completion
 
 import android.os.Bundle
-import io.github.rosemoe.sora.lang.EmptyLanguage
-import io.github.rosemoe.sora.lang.completion.CompletionHelper
+import io.github.rosemoe.sora.editor.ts.TsLanguage
+import io.github.rosemoe.sora.editor.ts.TsLanguageSpec
+import io.github.rosemoe.sora.editor.ts.TsThemeBuilder
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.widget.SymbolPairMatch
 
 /**
- * Enhanced language implementation for ACM competitive programming
- * Extends EmptyLanguage with intelligent completion support
+ * ACM竞赛编程专用的TreeSitter语言实现
+ * 集成智能补全功能，支持作用域感知的变量识别
  */
-class ACMLanguage(private val languageType: String) : EmptyLanguage() {
+class ACMTsLanguage(
+    languageSpec: TsLanguageSpec,
+    private val languageType: String,
+    tab: Boolean = false,
+    themeDescription: TsThemeBuilder.() -> Unit
+) : TsLanguage(languageSpec, tab, themeDescription) {
     
     private val completionProvider = ACMCompletionProvider()
     
@@ -45,13 +51,12 @@ class ACMLanguage(private val languageType: String) : EmptyLanguage() {
     }
     
     private val symbolPairMatch: SymbolPairMatch by lazy {
-        val pairs = when (languageType.lowercase()) {
-            "cpp", "c++" -> CPP_SYMBOL_PAIRS
-            "java" -> JAVA_SYMBOL_PAIRS
-            "python", "py" -> PYTHON_SYMBOL_PAIRS
-            else -> JAVA_SYMBOL_PAIRS // Default
+        when (languageType.lowercase()) {
+            "cpp", "c++" -> SymbolPairMatch(CPP_SYMBOL_PAIRS)
+            "java" -> SymbolPairMatch(JAVA_SYMBOL_PAIRS)
+            "python", "py" -> SymbolPairMatch(PYTHON_SYMBOL_PAIRS)
+            else -> SymbolPairMatch(JAVA_SYMBOL_PAIRS) // Default
         }
-        SymbolPairMatch(pairs)
     }
     
     override fun requireAutoComplete(
@@ -102,8 +107,55 @@ class ACMLanguage(private val languageType: String) : EmptyLanguage() {
     private fun isIdentifierChar(c: Char): Boolean {
         return c.isLetterOrDigit() || c == '_'
     }
+}
+
+/**
+ * ACMTsLanguage构建器，简化语言创建过程
+ */
+object ACMTsLanguageBuilder {
     
-    override fun getInterruptionLevel(): Int {
-        return INTERRUPTION_LEVEL_SLIGHT
+    /**
+     * 创建C++语言实例
+     */
+    fun createCppLanguage(
+        languageSpec: TsLanguageSpec,
+        themeDescription: TsThemeBuilder.() -> Unit = { }
+    ): ACMTsLanguage {
+        return ACMTsLanguage(
+            languageSpec = languageSpec,
+            languageType = "cpp",
+            tab = true, // C++通常使用tab
+            themeDescription = themeDescription
+        )
+    }
+    
+    /**
+     * 创建Java语言实例
+     */
+    fun createJavaLanguage(
+        languageSpec: TsLanguageSpec,
+        themeDescription: TsThemeBuilder.() -> Unit = { }
+    ): ACMTsLanguage {
+        return ACMTsLanguage(
+            languageSpec = languageSpec,
+            languageType = "java",
+            tab = false, // Java通常使用空格
+            themeDescription = themeDescription
+        )
+    }
+    
+    /**
+     * 创建Python语言实例
+     */
+    fun createPythonLanguage(
+        languageSpec: TsLanguageSpec,
+        themeDescription: TsThemeBuilder.() -> Unit = { }
+    ): ACMTsLanguage {
+        return ACMTsLanguage(
+            languageSpec = languageSpec,
+            languageType = "python",
+            tab = false, // Python使用空格
+            themeDescription = themeDescription
+        )
     }
 }

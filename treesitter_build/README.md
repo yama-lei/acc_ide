@@ -1,96 +1,139 @@
-# Tree-sitter Build Scripts
+# Tree-sitter Library Builder
 
-This directory contains scripts to build Tree-sitter libraries for Android.
+**Version:** 0.7  
+**Build Date:** 2025-08-18  
+**Compatibility:** Android NDK 27.0+, Android 15+ (16KB alignment)
 
-## 🚀 Quick Start (Interactive Mode)
+## 🎯 Overview
 
-Simply run the launcher script from the project root:
+This script builds Tree-sitter libraries with proper 16KB page alignment for Android devices, ensuring compatibility with Android 15+ and Google Play validation requirements.
 
+### 🔧 Supported Languages
+- **C++** - Complete parser with scanner support
+- **Java** - Full language parsing
+- **Python** - Parser with scanner support  
+- **Core** - Tree-sitter runtime library
+
+## 🚀 Quick Start
+
+### Interactive Mode (Recommended)
 ```powershell
-# From project root directory
-./start.ps1
+.\Build-TreeSitter.ps1
 ```
 
-Or run directly from the treesitter_build directory:
-
+### Non-Interactive Mode
 ```powershell
-# From treesitter_build directory
-./Build-Complete-TreeSitter.ps1
+# Single architecture
+.\Build-TreeSitter.ps1 -AndroidNdkPath "C:\android-ndk-r26d" -Architectures @("arm64-v8a") -NonInteractive
+
+# Multiple architectures  
+.\Build-TreeSitter.ps1 -AndroidNdkPath "C:\android-ndk-r26d" -Architectures @("arm64-v8a", "armeabi-v7a") -NonInteractive
 ```
 
-The script will guide you through:
-1. **NDK Path Configuration** - Enter your Android NDK path
-2. **CMake Selection** - Choose from auto-detected CMake installations or enter custom path
-3. **Architecture Selection** - Select which architectures to build
+## 📋 Requirements
 
-## 📋 Interactive Process
+- **Android NDK 27.0+** (Download: https://developer.android.com/ndk/downloads)
+- **PowerShell 5.0+**
+- **Internet connection** (for source downloads)
+- **Disk space:** ~500MB during build
 
-### Step 1: Android NDK
-- Enter your NDK path (e.g., `C:\android-ndk-r26d`)
-- Script validates the path and checks for ndk-build.cmd
+## 🏗️ Build Process
 
-### Step 2: CMake Configuration
-- Auto-detects CMake from:
-  - Android SDK (`AndroidSDK\cmake\3.22.1\bin\cmake.exe`)
-  - MinGW installations
-  - System PATH
-- Choose from detected options or enter custom path
+The script performs the following steps:
 
-### Step 3: Architecture Selection
-1. arm64-v8a (64-bit ARM - Modern phones)
-2. armeabi-v7a (32-bit ARM - Older devices)  
-3. x86_64 (64-bit x86 - Emulators)
-4. x86 (32-bit x86 - Old emulators)
-5. All architectures (recommended)
+1. **🧹 Cleanup** - Removes previous build artifacts
+2. **📥 Download** - Fetches Tree-sitter sources from GitHub
+3. **⚙️ Configure** - Creates Android.mk and Application.mk with 16KB alignment
+4. **🔨 Compile** - Builds libraries using Android NDK
+5. **📦 Package** - Copies libraries to output directories
+6. **✅ Validate** - Checks library alignment (if llvm-readelf available)
 
-## 🛠️ Non-Interactive Mode
+## 📁 Output Structure
 
-For automation or CI/CD:
-
-```powershell
-./Build-Complete-TreeSitter.ps1 -AndroidNdkPath "C:\android-ndk-r26d" -CustomCMakePath "C:\Android\Sdk\cmake\3.22.1\bin\cmake.exe" -Architectures @("arm64-v8a", "x86_64") -NonInteractive
+```
+treesitter_build/
+├── Build-TreeSitter.ps1    # Main build script
+├── README.md                     # This file
+├── libs/                         # Output libraries
+│   └── {architecture}/
+│       ├── libtree-sitter.so
+│       ├── libtree-sitter-cpp.so
+│       ├── libtree-sitter-java.so
+│       └── libtree-sitter-python.so
+└── build_temp/                   # Temporary files (optional cleanup)
 ```
 
-## 📁 Supported CMake Sources
+Libraries are also automatically copied to: `../app/src/main/jniLibs/{architecture}/`
 
-- **Android SDK CMake 3.22.1+** (recommended)
-- **MinGW CMake**
-- **System CMake**
-- **Custom path**
+## 🎮 Architecture Options
 
-> **Note**: Android NDK doesn't include CMake executable, only `android.toolchain.cmake` for cross-compilation.
+| Option | Architecture | Description |
+|--------|-------------|-------------|
+| 1 | arm64-v8a | 64-bit ARM - Modern phones (recommended) |
+| 2 | armeabi-v7a | 32-bit ARM - Older devices |
+| 3 | x86_64 | 64-bit x86 - Emulators |
+| 4 | x86 | 32-bit x86 - Old emulators |
+| 5 | All | All architectures |
 
-## 📦 Output
+## 🔧 Advanced Features
 
-Built libraries are copied to:
-```
-../app/src/main/jniLibs/
-├── arm64-v8a/
-├── armeabi-v7a/
-├── x86_64/
-└── x86/
-```
+### 16KB Page Alignment
+- Automatic 16KB alignment for Android 15+ compatibility
+- Google Play validation compliance (November 2025)
+- Enhanced performance on modern devices
 
-## 🔧 Features
+### Build Optimization
+- Optimized compiler flags (`-O2`, `-fPIC`)
+- Security hardening (`-z relro`, `-z now`)
+- Symbol stripping for smaller binaries
 
-- **16KB Page Alignment** - Android 15+ compatibility
-- **Auto-detection** - Finds NDK and CMake automatically
-- **Validation** - Checks library alignment using llvm-readelf
-- **Recovery** - CMake rebuild if ndk-build fails alignment
-- **Interactive** - User-friendly step-by-step process
+### Error Handling
+- Comprehensive error checking
+- Detailed progress reporting
+- Automatic cleanup on failure
 
-## 🆘 Troubleshooting
+## 🎯 Integration with ACC IDE
 
-If build fails:
-1. Ensure Android NDK 27+ is installed
-2. Install CMake via Android Studio SDK Manager
-3. Check internet connection for source downloads
-4. Verify sufficient disk space (>500MB)
-5. Try building single architecture first
+After successful build:
 
-## 📄 Libraries Built
+1. **Compile app:**
+   ```bash
+   cd ..
+   ./gradlew assembleDebug
+   ```
 
-- `libtree-sitter.so` - Core library
-- `libtree-sitter-java.so` - Java parser
-- `libtree-sitter-cpp.so` - C++ parser
-- `libtree-sitter-python.so` - Python parser 
+2. **Test features:**
+   - Open C++/Java/Python files in editor
+   - Verify TreeSitter-powered auto-completion
+   - Check variable/function scope detection
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**NDK not found:**
+- Ensure Android NDK 27.0+ is installed
+- Check ndk-build.cmd exists in NDK directory
+
+**Download failures:**
+- Check internet connection
+- Verify GitHub is accessible
+- Try running script again (auto-retry on some failures)
+
+**Build failures:**
+- Ensure sufficient disk space (>500MB)
+- Check antivirus isn't blocking build process
+- Try building single architecture first
+
+**Alignment warnings:**
+- Libraries are functional even without perfect 16KB alignment
+- Warnings mainly affect Android 15+ optimization
+- Most users won't experience issues
+
+### Debug Information
+
+The script provides detailed logging:
+- ✅ SUCCESS: Operations completed successfully (green)
+- ⚠️ WARNING: Issues that don't prevent completion (yellow)  
+- ❌ ERROR: Critical failures (red)
+- ℹ️ INFO: General information (cyan)
