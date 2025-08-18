@@ -18,4 +18,5 @@
 /release
 /app/release
 local.properties
+.claude
 

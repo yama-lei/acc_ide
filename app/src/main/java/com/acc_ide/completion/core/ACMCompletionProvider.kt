@@ -160,6 +160,12 @@ class ACMCompletionProvider {
             if (contextSymbol != null) {
                 android.util.Log.d("ACMCompletionProvider", "Found context variable: ${contextSymbol.name} of type ${contextSymbol.dataType}")
                 
+                // 首先打印所有可用的符号用于调试
+                android.util.Log.d("ACMCompletionProvider", "All available symbols:")
+                parseResult?.symbols?.forEach { symbol ->
+                    android.util.Log.d("ACMCompletionProvider", "  Symbol: ${symbol.name}, type: ${symbol.type}, dataType: ${symbol.dataType}, parentStruct: ${symbol.parentStruct}")
+                }
+                
                 // 1. 优先检查是否为STL容器类型
                 if (isSTLType(contextSymbol.dataType)) {
                     android.util.Log.d("ACMCompletionProvider", "Type ${contextSymbol.dataType} is STL container")
@@ -330,18 +336,28 @@ class ACMCompletionProvider {
             val line = contentRef.getLine(position.line)
             val beforeCursor = line.substring(0, position.column)
             
-            // 简单检查点号操作符
+            // 检查点号操作符 (.)
             val lastDotIndex = beforeCursor.lastIndexOf('.')
-            if (lastDotIndex > 0) {
-                val beforeDot = beforeCursor.substring(0, lastDotIndex).trim()
-                val afterDot = beforeCursor.substring(lastDotIndex + 1)
+            // 检查箭头操作符 (->)
+            val lastArrowIndex = beforeCursor.lastIndexOf("->")
+            
+            // 选择最靠近光标的操作符
+            val (operatorIndex, operatorLength) = when {
+                lastDotIndex > lastArrowIndex -> Pair(lastDotIndex, 1)
+                lastArrowIndex >= 0 -> Pair(lastArrowIndex, 2)
+                else -> Pair(-1, 0)
+            }
+            
+            if (operatorIndex > 0) {
+                val beforeOperator = beforeCursor.substring(0, operatorIndex).trim()
+                val afterOperator = beforeCursor.substring(operatorIndex + operatorLength)
                 
                 // 提取变量名（简化实现）
-                val words = beforeDot.split(Regex("\\W+"))
+                val words = beforeOperator.split(Regex("\\W+"))
                 val varName = words.lastOrNull { it.isNotEmpty() && it[0].isLetter() }
                 
                 if (varName != null) {
-                    return Pair(afterDot, varName)
+                    return Pair(afterOperator, varName)
                 }
             }
             

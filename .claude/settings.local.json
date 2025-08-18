@@ -8,7 +8,8 @@
       "Bash(rm:*)",
       "Bash(./gradlew assembleDebug)",
       "Bash(sed:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:tree-sitter.github.io)"
     ],
     "deny": [],
     "ask": []

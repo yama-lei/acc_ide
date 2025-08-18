@@ -139,18 +139,88 @@ class NativeTreeSitterService : TreeSitterInterface {
     override fun getSymbolsAtPosition(contentRef: ContentReference, language: String, line: Int, column: Int): List<SymbolInfo> {
         val result = parseCode(contentRef, language) ?: return emptyList()
         
-        // 简化版本：返回当前位置之前声明的所有符号
+        Log.d(TAG, "getSymbolsAtPosition($line:$column) - analyzing scope visibility")
+        
+        // 获取当前位置所在的作用域
+        val currentScope = getCurrentScope(result.scopes, line, column)
+        Log.d(TAG, "Current position is in scope level: ${currentScope?.level ?: "global"}")
+        
+        // 过滤符号：只包含在当前作用域可见的符号
         val visibleSymbols = result.symbols.filter { symbol ->
-            // 符号必须在当前位置之前声明
-            symbol.line < line || (symbol.line == line && symbol.column < column)
+            isSymbolVisibleAtPosition(symbol, line, column, result.scopes)
         }
         
         Log.d(TAG, "getSymbolsAtPosition($line:$column) found ${visibleSymbols.size} visible symbols")
         visibleSymbols.forEach { symbol ->
-            Log.d(TAG, "  Symbol: ${symbol.name} (${symbol.type}) at ${symbol.line}:${symbol.column}")
+            Log.d(TAG, "  Visible symbol: ${symbol.name} (${symbol.type}) at ${symbol.line}:${symbol.column}, scope: ${symbol.scopeLevel}")
         }
         
         return visibleSymbols
+    }
+    
+    /**
+     * 获取当前位置所在的作用域
+     */
+    private fun getCurrentScope(scopes: List<ScopeInfo>, line: Int, column: Int): ScopeInfo? {
+        return scopes
+            .filter { scope ->
+                // 当前位置在作用域范围内
+                line >= scope.startLine && line <= scope.endLine
+            }
+            .maxByOrNull { it.level } // 返回最深层的作用域
+    }
+    
+    /**
+     * 判断符号在指定位置是否可见
+     */
+    private fun isSymbolVisibleAtPosition(symbol: SymbolInfo, line: Int, column: Int, scopes: List<ScopeInfo>): Boolean {
+        // 1. 符号必须在当前位置之前声明
+        if (symbol.line > line || (symbol.line == line && symbol.column >= column)) {
+            return false
+        }
+        
+        // 2. 全局符号（函数、结构体、宏等）总是可见
+        if (symbol.scopeLevel == 0) {
+            return true
+        }
+        
+        // 3. 局部变量需要检查作用域
+        if (symbol.type == SymbolType.VARIABLE || symbol.type == SymbolType.PARAMETER) {
+            return isInSameOrParentScope(symbol, line, column, scopes)
+        }
+        
+        return true
+    }
+    
+    /**
+     * 判断变量是否在当前位置的作用域内或父作用域中
+     */
+    private fun isInSameOrParentScope(symbol: SymbolInfo, line: Int, column: Int, scopes: List<ScopeInfo>): Boolean {
+        // 获取符号所在的作用域
+        val symbolScope = scopes.find { scope ->
+            symbol.scopeLevel == scope.level &&
+            symbol.line >= scope.startLine && symbol.line <= scope.endLine
+        }
+        
+        // 获取当前位置所在的作用域
+        val currentScope = getCurrentScope(scopes, line, column)
+        
+        if (symbolScope == null) {
+            Log.d(TAG, "Symbol ${symbol.name} scope not found, treating as global")
+            return true
+        }
+        
+        if (currentScope == null) {
+            Log.d(TAG, "Current position scope not found, only global symbols visible")
+            return symbol.scopeLevel == 0
+        }
+        
+        // 检查当前位置是否在符号的作用域内或其子作用域内
+        val isInSymbolScope = line >= symbolScope.startLine && line <= symbolScope.endLine
+        
+        Log.d(TAG, "Symbol ${symbol.name} scope: ${symbolScope.startLine}-${symbolScope.endLine}, current: $line, visible: $isInSymbolScope")
+        
+        return isInSymbolScope
     }
     
     /**
