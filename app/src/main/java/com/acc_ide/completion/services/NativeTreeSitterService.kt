@@ -47,11 +47,13 @@ class NativeTreeSitterService : TreeSitterInterface {
         Log.d(TAG, "parseCode called for language: $language, text length: ${text.length}")
         Log.d(TAG, "JNI loaded: $isJniLoaded")
         
-        // 检查缓存
-        parseCache[cacheKey]?.let { 
-            Log.d(TAG, "Returning cached result for $language")
-            return it 
-        }
+        // 临时禁用缓存以测试新的解析逻辑
+        // parseCache[cacheKey]?.let { 
+        //     Log.d(TAG, "Returning cached result for $language")
+        //     return it 
+        // }
+        
+        Log.d(TAG, "Forcing fresh parse (cache disabled for testing)")
         
         return try {
             val result = when (language.lowercase()) {
@@ -68,19 +70,19 @@ class NativeTreeSitterService : TreeSitterInterface {
                                 }
                                 nativeResult
                             } else {
-                                Log.d(TAG, "Native result is null, using mock parser")
-                                createMockParseResult(text, "cpp")
+                                Log.d(TAG, "Native result is null, using empty fallback")
+                                createEmptyParseResult()
                             }
                         } catch (e: UnsatisfiedLinkError) {
-                            Log.w(TAG, "Native TreeSitter not available, using fallback", e)
-                            createMockParseResult(text, "cpp")
+                            Log.w(TAG, "Native TreeSitter not available, using empty fallback", e)
+                            createEmptyParseResult()
                         } catch (e: Exception) {
-                            Log.e(TAG, "TreeSitter parsing failed, using fallback", e)
-                            createMockParseResult(text, "cpp")
+                            Log.e(TAG, "TreeSitter parsing failed, using empty fallback", e)
+                            createEmptyParseResult()
                         }
                     } else {
-                        Log.d(TAG, "JNI not loaded, using mock parser")
-                        createMockParseResult(text, "cpp")
+                        Log.d(TAG, "JNI not loaded, using empty fallback")
+                        createEmptyParseResult()
                     }
                 }
                 "java" -> {
@@ -89,13 +91,13 @@ class NativeTreeSitterService : TreeSitterInterface {
                             Log.d(TAG, "Attempting TreeSitter parsing for Java")
                             val nativeResult = parseJavaCode(text)
                             Log.d(TAG, "TreeSitter parsing successful: ${nativeResult != null}")
-                            nativeResult ?: createMockParseResult(text, "java")
+                            nativeResult ?: createEmptyParseResult()
                         } catch (e: Exception) {
                             Log.e(TAG, "TreeSitter parsing failed, using fallback", e)
-                            createMockParseResult(text, "java")
+                            createEmptyParseResult()
                         }
                     } else {
-                        createMockParseResult(text, "java")
+                        createEmptyParseResult()
                     }
                 }
                 "python", "py" -> {
@@ -104,13 +106,13 @@ class NativeTreeSitterService : TreeSitterInterface {
                             Log.d(TAG, "Attempting TreeSitter parsing for Python")
                             val nativeResult = parsePythonCode(text)
                             Log.d(TAG, "TreeSitter parsing successful: ${nativeResult != null}")
-                            nativeResult ?: createMockParseResult(text, "python")
+                            nativeResult ?: createEmptyParseResult()
                         } catch (e: Exception) {
                             Log.e(TAG, "TreeSitter parsing failed, using fallback", e)
-                            createMockParseResult(text, "python")
+                            createEmptyParseResult()
                         }
                     } else {
-                        createMockParseResult(text, "python")
+                        createEmptyParseResult()
                     }
                 }
                 else -> {
@@ -194,123 +196,11 @@ class NativeTreeSitterService : TreeSitterInterface {
     private external fun parsePythonCode(code: String): ParseResult?
     
     /**
-     * 创建模拟解析结果 (改进的实现)
+     * 创建空的解析结果（当TreeSitter失败时的fallback）
      */
-    private fun createMockParseResult(code: String, language: String): ParseResult {
-        val symbols = mutableListOf<SymbolInfo>()
-        val scopes = mutableListOf<ScopeInfo>()
-        
-        Log.d(TAG, "createMockParseResult for $language, code length: ${code.length}")
-        
-        val lines = code.split('\n')
-        var currentScopeLevel = 0
-        
-        lines.forEachIndexed { lineIndex, line ->
-            val trimmedLine = line.trim()
-            
-            when (language) {
-                "cpp" -> {
-                    // 匹配函数定义: return_type function_name(...) {
-                    Regex("""(\w+(?:\s*\*)?)\s+(\w+)\s*\([^)]*\)\s*\{""").find(trimmedLine)?.let { match ->
-                        symbols.add(SymbolInfo(
-                            name = match.groupValues[2],
-                            type = SymbolType.FUNCTION,
-                            dataType = match.groupValues[1].trim(),
-                            line = lineIndex,
-                            column = match.range.first,
-                            scopeLevel = currentScopeLevel,
-                            description = "Function"
-                        ))
-                        Log.d(TAG, "Found function: ${match.groupValues[2]}")
-                    }
-                    
-                    
-                    // 匹配for循环变量: for(int i = 0; ...)
-                    Regex("""for\s*\(\s*(\w+)\s+(\w+)\s*=""").find(trimmedLine)?.let { match ->
-                        symbols.add(SymbolInfo(
-                            name = match.groupValues[2],
-                            type = SymbolType.VARIABLE,
-                            dataType = match.groupValues[1],
-                            line = lineIndex,
-                            column = match.range.first,
-                            scopeLevel = currentScopeLevel + 1,
-                            description = "Loop variable"
-                        ))
-                        Log.d(TAG, "Found loop variable: ${match.groupValues[2]}")
-                    }
-                    
-                    // 匹配struct/class定义
-                    Regex("""(struct|class)\s+(\w+)""").find(trimmedLine)?.let { match ->
-                        symbols.add(SymbolInfo(
-                            name = match.groupValues[2],
-                            type = if (match.groupValues[1] == "struct") SymbolType.STRUCT else SymbolType.CLASS,
-                            dataType = match.groupValues[1],
-                            line = lineIndex,
-                            column = match.range.first,
-                            scopeLevel = currentScopeLevel,
-                            description = "${match.groupValues[1]} definition"
-                        ))
-                        Log.d(TAG, "Found ${match.groupValues[1]}: ${match.groupValues[2]}")
-                    }
-                }
-                
-                "java" -> {
-                    // 匹配类定义
-                    Regex("""class\s+(\w+)""").find(trimmedLine)?.let { match ->
-                        symbols.add(SymbolInfo(
-                            name = match.groupValues[1],
-                            type = SymbolType.CLASS,
-                            dataType = "class",
-                            line = lineIndex,
-                            column = match.range.first,
-                            scopeLevel = currentScopeLevel,
-                            description = "Class"
-                        ))
-                        Log.d(TAG, "Found class: ${match.groupValues[1]}")
-                    }
-                    
-                    // 匹配方法定义
-                    Regex("""(public|private|protected)?\s*(\w+)\s+(\w+)\s*\([^)]*\)\s*\{""").find(trimmedLine)?.let { match ->
-                        symbols.add(SymbolInfo(
-                            name = match.groupValues[3],
-                            type = SymbolType.FUNCTION,
-                            dataType = match.groupValues[2],
-                            line = lineIndex,
-                            column = match.range.first,
-                            scopeLevel = currentScopeLevel,
-                            description = "Method"
-                        ))
-                        Log.d(TAG, "Found method: ${match.groupValues[3]}")
-                    }
-                    
-                    // 匹配变量声明
-                    Regex("""(int|String|boolean|double|float)\s+(\w+)""").find(trimmedLine)?.let { match ->
-                        symbols.add(SymbolInfo(
-                            name = match.groupValues[2],
-                            type = SymbolType.VARIABLE,
-                            dataType = match.groupValues[1],
-                            line = lineIndex,
-                            column = match.range.first,
-                            scopeLevel = currentScopeLevel,
-                            description = "Variable"
-                        ))
-                        Log.d(TAG, "Found variable: ${match.groupValues[2]}")
-                    }
-                }
-            }
-            
-            // 跟踪作用域级别
-            if (trimmedLine.contains('{')) {
-                currentScopeLevel++
-            }
-            if (trimmedLine.contains('}')) {
-                currentScopeLevel = maxOf(0, currentScopeLevel - 1)
-            }
-        }
-        
-        Log.d(TAG, "Mock parser found ${symbols.size} symbols")
-        
-        return ParseResult(symbols, scopes)
+    private fun createEmptyParseResult(): ParseResult {
+        Log.d(TAG, "Creating empty parse result as fallback")
+        return ParseResult(emptyList(), emptyList())
     }
     
     /**

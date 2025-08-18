@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <android/log.h>
 #include "tree_sitter/api.h"
 
 // TreeSitter语言声明
@@ -139,7 +140,7 @@ jobject createParseResult(JNIEnv *env, const ParseResult &result) {
     if (!parseResultClass) return nullptr;
     
     jmethodID constructor = env->GetMethodID(parseResultClass, "<init>", 
-        "(Ljava/util/List;Ljava/util/List;)V");
+        "(Ljava/util/List;Ljava/util/List;Ljava/lang/String;)V");
     if (!constructor) return nullptr;
     
     // 创建symbols列表
@@ -166,7 +167,86 @@ jobject createParseResult(JNIEnv *env, const ParseResult &result) {
         }
     }
     
-    return env->NewObject(parseResultClass, constructor, symbolsList, scopesList);
+    // 创建parseTree参数（设为null）
+    jstring parseTree = nullptr;
+    
+    return env->NewObject(parseResultClass, constructor, symbolsList, scopesList, parseTree);
+}
+
+// 函数声明
+void extractVariableNamesFromDeclarator(TSNode node, const std::string &source, std::vector<std::string> &varNames);
+
+// 提取变量声明信息
+void extractVariableInfo(TSNode node, const std::string &source, std::string &varType, std::vector<std::string> &varNames) {
+    __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+        "extractVariableInfo: node has %d children", ts_node_child_count(node));
+        
+    // 查找类型节点
+    for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
+        TSNode child = ts_node_child(node, i);
+        const char *childType = ts_node_type(child);
+        
+        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+            "  Child %d: %s", i, childType);
+        
+        // 查找基本类型 (primitive_type, type_identifier)
+        if (strcmp(childType, "primitive_type") == 0 || strcmp(childType, "type_identifier") == 0) {
+            uint32_t start = ts_node_start_byte(child);
+            uint32_t end = ts_node_end_byte(child);
+            varType = source.substr(start, end - start);
+            __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                "  Found type: %s", varType.c_str());
+        }
+        // 查找初始化声明器列表
+        else if (strcmp(childType, "init_declarator") == 0 || strcmp(childType, "declarator") == 0) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                "  Extracting from declarator");
+            extractVariableNamesFromDeclarator(child, source, varNames);
+        }
+        // 直接的标识符
+        else if (strcmp(childType, "identifier") == 0) {
+            uint32_t start = ts_node_start_byte(child);
+            uint32_t end = ts_node_end_byte(child);
+            std::string name = source.substr(start, end - start);
+            varNames.push_back(name);
+            __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                "  Found identifier: %s", name.c_str());
+        }
+        // 递归查找
+        else {
+            extractVariableInfo(child, source, varType, varNames);
+        }
+    }
+}
+
+// 从声明器中提取变量名
+void extractVariableNamesFromDeclarator(TSNode node, const std::string &source, std::vector<std::string> &varNames) {
+    const char *nodeType = ts_node_type(node);
+    
+    // 如果是标识符，直接添加
+    if (strcmp(nodeType, "identifier") == 0) {
+        uint32_t start = ts_node_start_byte(node);
+        uint32_t end = ts_node_end_byte(node);
+        std::string name = source.substr(start, end - start);
+        varNames.push_back(name);
+        return;
+    }
+    
+    // 递归查找子节点中的标识符
+    for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
+        TSNode child = ts_node_child(node, i);
+        const char *childType = ts_node_type(child);
+        
+        if (strcmp(childType, "identifier") == 0) {
+            uint32_t start = ts_node_start_byte(child);
+            uint32_t end = ts_node_end_byte(child);
+            std::string name = source.substr(start, end - start);
+            varNames.push_back(name);
+        } else {
+            // 递归查找，处理复杂的声明器结构
+            extractVariableNamesFromDeclarator(child, source, varNames);
+        }
+    }
 }
 
 // 递归遍历AST节点
@@ -177,17 +257,61 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
     TSPoint startPoint = ts_node_start_point(node);
     TSPoint endPoint = ts_node_end_point(node);
     
+    // 添加详细的调试日志
+    __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+        "Traversing node: %s at %d:%d", type.c_str(), startPoint.row, startPoint.column);
+    
     // 根据节点类型提取符号
     if (type == "function_definition" || type == "method_declaration") {
-        // 查找函数名
+        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+            "Found function definition node at %d:%d", startPoint.row, startPoint.column);
+            
+        // 查找函数名（通常在function_declarator中）
         for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
             TSNode child = ts_node_child(node, i);
             const char *childType = ts_node_type(child);
             
-            if (strcmp(childType, "identifier") == 0) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                "  Function child %d: %s", i, childType);
+            
+            // 查找function_declarator
+            if (strcmp(childType, "function_declarator") == 0) {
+                // 在function_declarator中查找identifier
+                for (uint32_t j = 0; j < ts_node_child_count(child); j++) {
+                    TSNode grandchild = ts_node_child(child, j);
+                    const char *grandchildType = ts_node_type(grandchild);
+                    
+                    if (strcmp(grandchildType, "identifier") == 0) {
+                        uint32_t start = ts_node_start_byte(grandchild);
+                        uint32_t end = ts_node_end_byte(grandchild);
+                        std::string name = source.substr(start, end - start);
+                        
+                        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                            "Creating function symbol: %s", name.c_str());
+                        
+                        SymbolInfo symbol;
+                        symbol.name = name;
+                        symbol.type = FUNCTION;
+                        symbol.dataType = "function";
+                        symbol.line = startPoint.row;
+                        symbol.column = startPoint.column;
+                        symbol.scopeLevel = scopeLevel;
+                        symbol.description = "Function definition";
+                        
+                        result.symbols.push_back(symbol);
+                        break;
+                    }
+                }
+                break; // 找到function_declarator后就退出
+            }
+            // 如果直接找到identifier（某些简单情况）
+            else if (strcmp(childType, "identifier") == 0) {
                 uint32_t start = ts_node_start_byte(child);
                 uint32_t end = ts_node_end_byte(child);
                 std::string name = source.substr(start, end - start);
+                
+                __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                    "Creating function symbol (direct): %s", name.c_str());
                 
                 SymbolInfo symbol;
                 symbol.name = name;
@@ -249,7 +373,41 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
         scopeLevel++;
     }
     else if (type == "declaration" || type == "variable_declaration") {
-        // 查找变量声明
+        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+            "Found variable declaration node at %d:%d", startPoint.row, startPoint.column);
+            
+        // 提取变量类型和名称
+        std::string varType = "auto";
+        std::vector<std::string> varNames;
+        
+        // 递归查找类型信息和变量名
+        extractVariableInfo(node, source, varType, varNames);
+        
+        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+            "Extracted type: %s, found %d variables", varType.c_str(), (int)varNames.size());
+        
+        // 为每个变量创建符号
+        for (const std::string &name : varNames) {
+            __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                "Creating symbol: %s of type %s", name.c_str(), varType.c_str());
+                
+            SymbolInfo symbol;
+            symbol.name = name;
+            symbol.type = VARIABLE;
+            symbol.dataType = varType;
+            symbol.line = startPoint.row;
+            symbol.column = startPoint.column;
+            symbol.scopeLevel = scopeLevel;
+            symbol.description = "Variable declaration";
+            
+            result.symbols.push_back(symbol);
+        }
+    }
+    else if (type == "preproc_def") {
+        __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+            "Found macro definition node at %d:%d", startPoint.row, startPoint.column);
+            
+        // 查找宏名称
         for (uint32_t i = 0; i < ts_node_child_count(node); i++) {
             TSNode child = ts_node_child(node, i);
             const char *childType = ts_node_type(child);
@@ -259,16 +417,20 @@ void traverseNode(TSNode node, const std::string &source, ParseResult &result, i
                 uint32_t end = ts_node_end_byte(child);
                 std::string name = source.substr(start, end - start);
                 
+                __android_log_print(ANDROID_LOG_DEBUG, "TreeSitterJNI", 
+                    "Creating macro symbol: %s", name.c_str());
+                
                 SymbolInfo symbol;
                 symbol.name = name;
-                symbol.type = VARIABLE;
-                symbol.dataType = "auto"; // 简化处理
+                symbol.type = VARIABLE; // 暂时使用VARIABLE类型，后续可以考虑添加MACRO类型
+                symbol.dataType = "macro";
                 symbol.line = startPoint.row;
                 symbol.column = startPoint.column;
                 symbol.scopeLevel = scopeLevel;
-                symbol.description = "Variable declaration";
+                symbol.description = "Macro definition";
                 
                 result.symbols.push_back(symbol);
+                break; // 只需要第一个identifier（宏名称）
             }
         }
     }
