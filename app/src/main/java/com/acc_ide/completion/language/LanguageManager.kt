@@ -14,7 +14,6 @@ import com.acc_ide.completion.language.ACMLanguage
  */
 object LanguageManager {
     
-    private var currentLanguage: String = "cpp"
     private var isInitialized = false
     private var isTextMateEnabledValue = true
     
@@ -29,25 +28,12 @@ object LanguageManager {
         }
     }
     
-    /**
-     * 获取当前语言
-     */
-    fun getCurrentLanguage(): String {
-        return currentLanguage
-    }
-    
-    /**
-     * 设置当前语言
-     */
-    fun setCurrentLanguage(language: String) {
-        currentLanguage = language
-    }
     
     /**
      * 根据文件名和扩展名获取Language实例
      * 这是EditorFragment调用的主要方法
      */
-    fun getLanguageForFile(fileName: String, fileExtension: String): Language {
+    fun getLanguageForFile(@Suppress("UNUSED_PARAMETER") fileName: String, fileExtension: String): Language {
         return when (fileExtension.lowercase()) {
             "cpp", "c++", "cc", "cxx", "h", "hpp" -> {
                 createTextMateLanguage("source.cpp")

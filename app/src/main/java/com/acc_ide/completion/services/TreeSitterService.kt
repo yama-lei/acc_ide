@@ -14,18 +14,16 @@ import com.acc_ide.completion.core.*
  */
 class TreeSitterService {
     
-    companion object {
-        private const val TAG = "TreeSitterService"
-        private var isLoaded = false
-        
-        init {
-            try {
-                System.loadLibrary("treesitter-jni")
-                isLoaded = true
-                Log.d(TAG, "Tree-sitter loaded")
-            } catch (e: UnsatisfiedLinkError) {
-                Log.e(TAG, "Tree-sitter load failed", e)
-            }
+    private val TAG = "TreeSitterService"
+    private var isLoaded = false
+    
+    init {
+        try {
+            System.loadLibrary("treesitter-jni")
+            isLoaded = true
+            Log.d(TAG, "Tree-sitter loaded")
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Tree-sitter load failed", e)
         }
     }
     

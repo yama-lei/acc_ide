@@ -11,7 +11,7 @@ import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.widget.SymbolPairMatch
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
-import com.acc_ide.completion.core.ACMCompletionProvider
+import com.acc_ide.completion.core.ModernACMCompletionProvider
 
 /**
  * ACM编程语言实现
@@ -20,7 +20,7 @@ import com.acc_ide.completion.core.ACMCompletionProvider
  */
 class ACMLanguage(private val scopeName: String) : Language {
     
-    private val acmCompletionProvider = ACMCompletionProvider()
+    private val acmCompletionProvider = ModernACMCompletionProvider()
     private val textMateLanguage: TextMateLanguage
     
     init {
@@ -45,13 +45,29 @@ class ACMLanguage(private val scopeName: String) : Language {
         android.util.Log.d("ACMLanguage", "requireAutoComplete called at ${position.line}:${position.column}")
         
         try {
-            // 使用ACM补全提供器进行智能补全（包含关键字、STL、TreeSitter符号）
-            android.util.Log.d("ACMLanguage", "Calling ACMCompletionProvider.requireAutoComplete")
-            acmCompletionProvider.requireAutoComplete(content, position, publisher, extraArguments)
-            android.util.Log.d("ACMLanguage", "ACMCompletionProvider completed successfully")
+            // 根据scopeName检测语言类型
+            val language = detectLanguageFromScope(scopeName)
+            android.util.Log.d("ACMLanguage", "Detected language: $language for scope: $scopeName")
+            
+            // 使用现代化ACM补全提供器进行智能补全（包含关键字、STL、TreeSitter符号）
+            android.util.Log.d("ACMLanguage", "Calling ModernACMCompletionProvider.requireAutoComplete")
+            acmCompletionProvider.requireAutoComplete(content, position, publisher, language)
+            android.util.Log.d("ACMLanguage", "ModernACMCompletionProvider completed successfully")
         } catch (e: Exception) {
-            android.util.Log.e("ACMLanguage", "ACM completion failed", e)
+            android.util.Log.e("ACMLanguage", "Modern ACM completion failed", e)
             // 发生异常时不提供补全，避免错误的fallback
+        }
+    }
+    
+    /**
+     * 根据TextMate scope名称检测语言类型
+     */
+    private fun detectLanguageFromScope(scopeName: String): String {
+        return when {
+            scopeName.contains("cpp") || scopeName.contains("c++") -> "cpp"
+            scopeName.contains("java") -> "java"
+            scopeName.contains("python") -> "python"
+            else -> "cpp" // 默认使用C++，保持与老系统一致
         }
     }
     
