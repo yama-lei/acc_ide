@@ -9,9 +9,9 @@
 
 // TreeSitter语言声明
 extern "C" {
-    TSLanguage *tree_sitter_cpp();
-    TSLanguage *tree_sitter_java();
-    TSLanguage *tree_sitter_python();
+    const TSLanguage *tree_sitter_cpp(void);
+    const TSLanguage *tree_sitter_java(void);
+    const TSLanguage *tree_sitter_python(void);
 }
 
 // 符号类型枚举
@@ -94,11 +94,11 @@ ParseResult parsePythonCodeCore(const std::string &code);
 QueryResult executeQuery(const std::string &code, const std::string &language, const std::string &query);
 
 // 辅助函数声明
-TSLanguage* getLanguageByName(const std::string &language);
+const TSLanguage* getLanguageByName(const std::string &language);
 std::string getNodeText(TSNode node, const std::string &source);
 TSNode findFunctionName(TSNode declarator);
 TSNode findParameterName(TSNode declarator);
-void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<SymbolInfo> &symbols, int scopeLevel = 0);
+void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<SymbolInfo> &symbols, int scopeLevel = 0, const std::string &language = "cpp");
 void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int currentLevel = 0);
 
 #endif // TREESITTER_JNI_H

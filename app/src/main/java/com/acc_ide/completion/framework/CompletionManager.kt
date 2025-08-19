@@ -5,9 +5,9 @@ import io.github.rosemoe.sora.lang.completion.CompletionItem
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.ContentReference
-import com.acc_ide.completion.languages.CppLanguageProcessor
-import com.acc_ide.completion.languages.JavaLanguageProcessor
-import com.acc_ide.completion.languages.PythonLanguageProcessor
+import com.acc_ide.completion.languages.cpp.CppLanguageProcessor
+import com.acc_ide.completion.languages.java.JavaLanguageProcessor
+import com.acc_ide.completion.languages.python.PythonLanguageProcessor
 
 /**
  * 补全管理器

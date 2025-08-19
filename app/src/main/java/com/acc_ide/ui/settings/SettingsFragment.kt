@@ -20,7 +20,7 @@ import com.acc_ide.R
 import com.acc_ide.ui.main.MainActivity
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TextMateManager
-import com.acc_ide.completion.language.LanguageManager
+import com.acc_ide.completion.languages.LanguageManager
 import com.google.android.material.slider.Slider
 import androidx.appcompat.app.AppCompatDelegate
 import android.content.SharedPreferences

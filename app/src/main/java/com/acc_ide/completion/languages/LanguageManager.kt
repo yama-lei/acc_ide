@@ -1,4 +1,4 @@
-package com.acc_ide.completion.language
+package com.acc_ide.completion.languages
 
 import android.content.Context
 import io.github.rosemoe.sora.lang.EmptyLanguage
@@ -6,11 +6,13 @@ import io.github.rosemoe.sora.lang.Language
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import com.acc_ide.util.TextMateManager
-import com.acc_ide.completion.language.ACMLanguage
+import com.acc_ide.completion.languages.cpp.CppLanguageSupport
+import com.acc_ide.completion.languages.java.JavaLanguageSupport
+import com.acc_ide.completion.languages.python.PythonLanguageSupport
 
 /**
  * 语言管理器，用于管理和切换不同编程语言
- * 现在集成了TreeSitter支持的ACM语言
+ * 现在集成了TreeSitter支持的多语言：C++、Java、Python
  */
 object LanguageManager {
     
@@ -51,11 +53,16 @@ object LanguageManager {
     }
     
     /**
-     * 创建ACM语言实例（集成TextMate和ACM补全）
+     * 创建语言实例（集成TextMate和补全系统）
      */
     private fun createTextMateLanguage(scopeName: String): Language {
         return if (isTextMateEnabled()) {
-            ACMLanguage(scopeName)
+            when (scopeName) {
+                "source.cpp" -> CppLanguageSupport(scopeName)
+                "source.java" -> JavaLanguageSupport(scopeName)
+                "source.python" -> PythonLanguageSupport(scopeName)
+                else -> CppLanguageSupport(scopeName) // 默认使用C++支持
+            }
         } else {
             EmptyLanguage()
         }

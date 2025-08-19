@@ -1,4 +1,4 @@
-package com.acc_ide.completion.languages
+package com.acc_ide.completion.languages.cpp
 
 import android.util.Log
 import io.github.rosemoe.sora.lang.completion.CompletionItem
@@ -8,8 +8,7 @@ import io.github.rosemoe.sora.text.ContentReference
 import com.acc_ide.completion.core.*
 import com.acc_ide.completion.framework.AbstractTreeSitterProcessor
 import com.acc_ide.completion.framework.UniversalCompletionEngine.PriorityCompletionItem
-import com.acc_ide.completion.providers.KeywordProvider
-import com.acc_ide.completion.providers.STLProvider
+import com.acc_ide.completion.providers.cpp.CppStaticLibrary
 
 /**
  * C++ 语言处理器
@@ -20,8 +19,7 @@ class CppLanguageProcessor : AbstractTreeSitterProcessor() {
     
     private val TAG = "CppLanguageProcessor"
     
-    private val keywordProvider = KeywordProvider()
-    private val stlProvider = STLProvider()
+    private val cppStaticLibrary = CppStaticLibrary()
     
     override fun getLanguageId(): String = "cpp"
     
@@ -67,9 +65,8 @@ class CppLanguageProcessor : AbstractTreeSitterProcessor() {
             Log.e(TAG, "TreeSitter symbol extraction failed", e)
         }
         
-        // 2. 总是提供关键字和STL补全
-        items.addAll(keywordProvider.getKeywordCompletions(prefix, "cpp"))
-        items.addAll(stlProvider.getSTLCompletions(prefix, "cpp"))
+        // 2. 总是提供C++静态库补全
+        items.addAll(cppStaticLibrary.getAllCompletions(prefix))
         
         return items
     }
@@ -97,9 +94,9 @@ class CppLanguageProcessor : AbstractTreeSitterProcessor() {
                 Log.d(TAG, "Found context variable: ${contextSymbol.name} of type ${contextSymbol.dataType}")
                 
                 // 1. 优先检查是否为STL容器类型
-                if (isStandardLibraryType(contextSymbol.dataType)) {
+                if (cppStaticLibrary.isSTLContainer(contextSymbol.dataType)) {
                     Log.d(TAG, "Type ${contextSymbol.dataType} is STL container")
-                    items.addAll(stlProvider.getMemberCompletions(contextSymbol.dataType, prefix))
+                    items.addAll(cppStaticLibrary.getContainerMemberCompletions(contextSymbol.dataType, prefix))
                     return items
                 }
                 
@@ -122,7 +119,7 @@ class CppLanguageProcessor : AbstractTreeSitterProcessor() {
                 
                 // 4. 如果没有找到struct成员，可能是未识别的类型，提供通用STL方法
                 Log.d(TAG, "Type ${contextSymbol.dataType} not recognized, trying STL fallback")
-                items.addAll(stlProvider.getMemberCompletions(contextSymbol.dataType, prefix))
+                items.addAll(cppStaticLibrary.getContainerMemberCompletions(contextSymbol.dataType, prefix))
                 
             } else {
                 Log.d(TAG, "Context variable '$contextVar' not found in TreeSitter results")
@@ -136,39 +133,33 @@ class CppLanguageProcessor : AbstractTreeSitterProcessor() {
     }
     
     override fun getKeywords(): Set<String> {
-        return setOf(
-            // C++ 关键字
-            "auto", "break", "case", "char", "const", "continue", "default", "do",
-            "double", "else", "enum", "extern", "float", "for", "goto", "if",
-            "int", "long", "register", "return", "short", "signed", "sizeof", "static",
-            "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while",
-            // C++11/14/17/20 关键字
-            "alignas", "alignof", "and", "and_eq", "asm", "bitand", "bitor", "bool",
-            "catch", "class", "compl", "const_cast", "constexpr", "decltype", "delete",
-            "dynamic_cast", "explicit", "export", "false", "friend", "inline", "mutable",
-            "namespace", "new", "noexcept", "not", "not_eq", "nullptr", "operator", "or",
-            "or_eq", "private", "protected", "public", "reinterpret_cast", "static_assert",
-            "static_cast", "template", "this", "thread_local", "throw", "true", "try",
-            "typeid", "typename", "using", "virtual", "wchar_t", "xor", "xor_eq",
-            // ACM常用
-            "main", "include", "define", "pragma", "once", "iostream", "algorithm",
-            "vector", "string", "map", "set", "queue", "stack", "priority_queue"
-        )
+        // 从C++静态库获取关键字
+        val keywords = mutableSetOf<String>()
+        val keywordCompletions = cppStaticLibrary.getKeywordCompletions("")
+        keywordCompletions.forEach { item ->
+            keywords.add(item.label.toString())
+        }
+        return keywords
     }
     
     override fun getStandardLibraryItems(): Map<String, List<String>> {
-        return mapOf(
-            "vector" to listOf("push_back", "pop_back", "size", "empty", "clear", "begin", "end", "front", "back", "at", "resize", "reserve"),
-            "string" to listOf("length", "size", "empty", "clear", "substr", "find", "replace", "append", "push_back", "pop_back", "c_str"),
-            "map" to listOf("insert", "erase", "find", "count", "size", "empty", "clear", "begin", "end", "lower_bound", "upper_bound"),
-            "set" to listOf("insert", "erase", "find", "count", "size", "empty", "clear", "begin", "end", "lower_bound", "upper_bound"),
-            "queue" to listOf("push", "pop", "front", "back", "size", "empty"),
-            "stack" to listOf("push", "pop", "top", "size", "empty"),
-            "priority_queue" to listOf("push", "pop", "top", "size", "empty"),
-            "deque" to listOf("push_back", "pop_back", "push_front", "pop_front", "size", "empty", "clear", "begin", "end", "front", "back"),
-            "list" to listOf("push_back", "pop_back", "push_front", "pop_front", "size", "empty", "clear", "begin", "end", "front", "back"),
-            "pair" to listOf("first", "second", "make_pair")
-        )
+        // 从C++静态库生成标准库映射
+        val stlItems = mutableMapOf<String, List<String>>()
+        
+        // 获取所有容器类型的成员函数
+        listOf(
+            "vector", "string", "deque", "list", "array",
+            "set", "multiset", "map", "multimap", 
+            "unordered_set", "unordered_multiset", "unordered_map", "unordered_multimap",
+            "stack", "queue", "priority_queue", "pair", "tuple"
+        ).forEach { container ->
+            val members = cppStaticLibrary.getContainerMemberCompletions(container, "")
+            if (members.isNotEmpty()) {
+                stlItems[container] = members.map { it.label.toString() }
+            }
+        }
+        
+        return stlItems
     }
     
     override fun isPrimitiveType(dataType: String): Boolean {
@@ -181,12 +172,7 @@ class CppLanguageProcessor : AbstractTreeSitterProcessor() {
     }
     
     override fun isStandardLibraryType(dataType: String): Boolean {
-        val stlTypes = setOf(
-            "vector", "string", "map", "set", "unordered_map", "unordered_set",
-            "queue", "priority_queue", "stack", "deque", "list", "array",
-            "multiset", "multimap", "pair"
-        )
-        return stlTypes.contains(dataType.lowercase())
+        return cppStaticLibrary.isSTLContainer(dataType)
     }
     
     // isAvailable() 现在由 AbstractTreeSitterProcessor 提供

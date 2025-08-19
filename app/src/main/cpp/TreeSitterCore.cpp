@@ -6,7 +6,7 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // 获取语言实例
-TSLanguage* getLanguageByName(const std::string &language) {
+const TSLanguage* getLanguageByName(const std::string &language) {
     if (language == "cpp" || language == "c++") {
         return tree_sitter_cpp();
     } else if (language == "java") {
@@ -274,7 +274,7 @@ TSNode findParameterName(TSNode declarator) {
 }
 
 // 遍历节点提取符号信息 - 修复作用域分析
-void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<SymbolInfo> &symbols, int scopeLevel) {
+void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<SymbolInfo> &symbols, int scopeLevel, const std::string &language) {
     if (ts_node_is_null(node)) {
         return;
     }
@@ -286,67 +286,214 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
     
     // 识别函数定义
     if (strcmp(nodeType, "function_definition") == 0) {
-        TSNode declarator = ts_node_child_by_field_name(node, "declarator", 10);
-        if (!ts_node_is_null(declarator)) {
-            // 查找函数名
-            TSNode functionName = findFunctionName(declarator);
-            if (!ts_node_is_null(functionName)) {
-                SymbolInfo symbol;
-                symbol.name = getNodeText(functionName, source);
-                symbol.type = FUNCTION;
-                symbol.dataType = "function";
-                symbol.line = startPoint.row;
-                symbol.column = startPoint.column;
-                symbol.scopeLevel = scopeLevel; // 函数定义在当前作用域
-                symbol.description = "Function definition";
+        SymbolInfo symbol;
+        symbol.type = FUNCTION;
+        symbol.dataType = "function";
+        symbol.line = startPoint.row;
+        symbol.column = startPoint.column;
+        symbol.scopeLevel = scopeLevel; // 函数定义在当前作用域
+        symbol.description = "Function definition";
+        
+        if (language == "python") {
+            // Python函数定义：使用name字段获取函数名
+            TSNode nameNode = ts_node_child_by_field_name(node, "name", 4);
+            if (!ts_node_is_null(nameNode)) {
+                symbol.name = getNodeText(nameNode, source);
                 symbols.push_back(symbol);
-                LOGD("Found function: %s at scope level %d", symbol.name.c_str(), scopeLevel);
+                LOGD("Found Python function: %s at scope level %d", symbol.name.c_str(), scopeLevel);
             }
             
-            // 提取函数参数
-            if (strcmp(ts_node_type(declarator), "function_declarator") == 0) {
-                TSNode parameters = ts_node_child_by_field_name(declarator, "parameters", 10);
-                if (!ts_node_is_null(parameters) && strcmp(ts_node_type(parameters), "parameter_list") == 0) {
-                    uint32_t paramCount = ts_node_child_count(parameters);
-                    for (uint32_t i = 0; i < paramCount; i++) {
-                        TSNode param = ts_node_child(parameters, i);
-                        const char *paramType = ts_node_type(param);
-                        
-                        if (strcmp(paramType, "parameter_declaration") == 0) {
-                            TSNode paramDeclarator = ts_node_child_by_field_name(param, "declarator", 10);
-                            if (!ts_node_is_null(paramDeclarator)) {
-                                // 使用专门的函数查找参数名
-                                TSNode paramName = findParameterName(paramDeclarator);
-                                if (!ts_node_is_null(paramName)) {
-                                    TSPoint paramPoint = ts_node_start_point(param);
-                                    SymbolInfo paramSymbol;
-                                    paramSymbol.name = getNodeText(paramName, source);
-                                    paramSymbol.type = PARAMETER;
-                                    
-                                    // 提取具体的参数类型
-                                    std::string baseType = extractDataType(param, source);
-                                    paramSymbol.dataType = analyzeDeclaratorType(paramDeclarator, baseType);
-                                    
-                                    paramSymbol.line = paramPoint.row;
-                                    paramSymbol.column = paramPoint.column;
-                                    paramSymbol.scopeLevel = scopeLevel + 1; // 参数在函数作用域内
-                                    paramSymbol.description = "Function parameter";
-                                    symbols.push_back(paramSymbol);
-                                    LOGD("Found parameter: %s (%s) at scope level %d", paramSymbol.name.c_str(), paramSymbol.dataType.c_str(), scopeLevel + 1);
+            // 处理Python函数参数
+            TSNode parameters = ts_node_child_by_field_name(node, "parameters", 10);
+            if (!ts_node_is_null(parameters)) {
+                uint32_t paramCount = ts_node_child_count(parameters);
+                for (uint32_t i = 0; i < paramCount; i++) {
+                    TSNode param = ts_node_child(parameters, i);
+                    const char *paramType = ts_node_type(param);
+                    
+                    if (strcmp(paramType, "identifier") == 0) {
+                        SymbolInfo paramSymbol;
+                        paramSymbol.name = getNodeText(param, source);
+                        paramSymbol.type = PARAMETER;
+                        paramSymbol.dataType = "parameter";
+                        TSPoint paramPoint = ts_node_start_point(param);
+                        paramSymbol.line = paramPoint.row;
+                        paramSymbol.column = paramPoint.column;
+                        paramSymbol.scopeLevel = scopeLevel + 1; // 参数在函数作用域内
+                        paramSymbol.description = "Function parameter";
+                        symbols.push_back(paramSymbol);
+                        LOGD("Found Python parameter: %s", paramSymbol.name.c_str());
+                    }
+                }
+            }
+            
+            // 处理函数体，作用域级别+1
+            TSNode body = ts_node_child_by_field_name(node, "body", 4);
+            if (!ts_node_is_null(body)) {
+                traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
+            }
+        } else {
+            // C++/Java函数定义处理（原有逻辑）
+            TSNode declarator = ts_node_child_by_field_name(node, "declarator", 10);
+            if (!ts_node_is_null(declarator)) {
+                // 查找函数名
+                TSNode functionName = findFunctionName(declarator);
+                if (!ts_node_is_null(functionName)) {
+                    symbol.name = getNodeText(functionName, source);
+                    symbols.push_back(symbol);
+                    LOGD("Found function: %s at scope level %d", symbol.name.c_str(), scopeLevel);
+                }
+                
+                // 提取函数参数
+                if (strcmp(ts_node_type(declarator), "function_declarator") == 0) {
+                    TSNode parameters = ts_node_child_by_field_name(declarator, "parameters", 10);
+                    if (!ts_node_is_null(parameters) && strcmp(ts_node_type(parameters), "parameter_list") == 0) {
+                        uint32_t paramCount = ts_node_child_count(parameters);
+                        for (uint32_t i = 0; i < paramCount; i++) {
+                            TSNode param = ts_node_child(parameters, i);
+                            const char *paramType = ts_node_type(param);
+                            
+                            if (strcmp(paramType, "parameter_declaration") == 0) {
+                                TSNode paramDeclarator = ts_node_child_by_field_name(param, "declarator", 10);
+                                if (!ts_node_is_null(paramDeclarator)) {
+                                    // 使用专门的函数查找参数名
+                                    TSNode paramName = findParameterName(paramDeclarator);
+                                    if (!ts_node_is_null(paramName)) {
+                                        TSPoint paramPoint = ts_node_start_point(param);
+                                        SymbolInfo paramSymbol;
+                                        paramSymbol.name = getNodeText(paramName, source);
+                                        paramSymbol.type = PARAMETER;
+                                        
+                                        // 提取具体的参数类型
+                                        std::string baseType = extractDataType(param, source);
+                                        paramSymbol.dataType = analyzeDeclaratorType(paramDeclarator, baseType);
+                                        
+                                        paramSymbol.line = paramPoint.row;
+                                        paramSymbol.column = paramPoint.column;
+                                        paramSymbol.scopeLevel = scopeLevel + 1; // 参数在函数作用域内
+                                        paramSymbol.description = "Function parameter";
+                                        symbols.push_back(paramSymbol);
+                                        LOGD("Found parameter: %s (%s) at scope level %d", paramSymbol.name.c_str(), paramSymbol.dataType.c_str(), scopeLevel + 1);
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        
-        // 进入函数体，作用域级别+1
-        TSNode body = ts_node_child_by_field_name(node, "body", 4);
-        if (!ts_node_is_null(body)) {
-            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1);
+            
+            // 进入函数体，作用域级别+1
+            TSNode body = ts_node_child_by_field_name(node, "body", 4);
+            if (!ts_node_is_null(body)) {
+                traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
+            }
         }
         return; // 不继续遍历子节点，已经处理了函数体
+    }
+    
+    // Java特定：识别类声明
+    else if (language == "java" && strcmp(nodeType, "class_declaration") == 0) {
+        // 查找类名
+        uint32_t childCount = ts_node_child_count(node);
+        for (uint32_t i = 0; i < childCount; i++) {
+            TSNode child = ts_node_child(node, i);
+            const char *childType = ts_node_type(child);
+            
+            if (strcmp(childType, "identifier") == 0) {
+                SymbolInfo symbol;
+                symbol.name = getNodeText(child, source);
+                symbol.type = CLASS;
+                symbol.dataType = "class";
+                symbol.line = startPoint.row;
+                symbol.column = startPoint.column;
+                symbol.scopeLevel = scopeLevel;
+                symbol.description = "Class";
+                symbols.push_back(symbol);
+                LOGD("Found Java class: %s at scope level %d", symbol.name.c_str(), scopeLevel);
+                break; // 找到类名后停止查找
+            }
+        }
+        
+        // 处理类体，作用域级别+1
+        for (uint32_t i = 0; i < childCount; i++) {
+            TSNode child = ts_node_child(node, i);
+            const char *childType = ts_node_type(child);
+            if (strcmp(childType, "class_body") == 0) {
+                traverseNodeForSymbols(child, source, symbols, scopeLevel + 1, language);
+                break;
+            }
+        }
+        return; // 避免重复处理子节点
+    }
+    else if (language == "java" && strcmp(nodeType, "method_declaration") == 0) {
+        SymbolInfo symbol;
+        symbol.type = FUNCTION;
+        symbol.dataType = "method";
+        symbol.line = startPoint.row;
+        symbol.column = startPoint.column;
+        symbol.scopeLevel = scopeLevel;
+        symbol.description = "Java method";
+        
+        // Java方法声明：使用name字段获取方法名
+        TSNode nameNode = ts_node_child_by_field_name(node, "name", 4);
+        if (!ts_node_is_null(nameNode)) {
+            symbol.name = getNodeText(nameNode, source);
+            symbols.push_back(symbol);
+            LOGD("Found Java method: %s at scope level %d", symbol.name.c_str(), scopeLevel);
+        }
+        
+        // 处理Java方法参数
+        TSNode parameters = ts_node_child_by_field_name(node, "parameters", 10);
+        if (!ts_node_is_null(parameters)) {
+            uint32_t paramCount = ts_node_child_count(parameters);
+            for (uint32_t i = 0; i < paramCount; i++) {
+                TSNode param = ts_node_child(parameters, i);
+                const char *paramType = ts_node_type(param);
+                
+                if (strcmp(paramType, "formal_parameter") == 0) {
+                    // Java形式参数有name字段
+                    TSNode paramNameNode = ts_node_child_by_field_name(param, "name", 4);
+                    if (!ts_node_is_null(paramNameNode)) {
+                        SymbolInfo paramSymbol;
+                        paramSymbol.name = getNodeText(paramNameNode, source);
+                        paramSymbol.type = PARAMETER;
+                        paramSymbol.dataType = "parameter";
+                        TSPoint paramPoint = ts_node_start_point(param);
+                        paramSymbol.line = paramPoint.row;
+                        paramSymbol.column = paramPoint.column;
+                        paramSymbol.scopeLevel = scopeLevel + 1;
+                        paramSymbol.description = "Method parameter";
+                        symbols.push_back(paramSymbol);
+                        LOGD("Found Java parameter: %s", paramSymbol.name.c_str());
+                    }
+                }
+            }
+        }
+        
+        // 处理方法体，作用域级别+1
+        TSNode body = ts_node_child_by_field_name(node, "body", 4);
+        if (!ts_node_is_null(body)) {
+            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
+        }
+        return; // 不继续遍历子节点，已经处理了方法体
+    }
+    
+    // Python特定：识别赋值语句中的变量定义
+    else if (language == "python" && strcmp(nodeType, "assignment") == 0) {
+        // Python赋值：var = value
+        TSNode left = ts_node_child_by_field_name(node, "left", 4);
+        if (!ts_node_is_null(left) && strcmp(ts_node_type(left), "identifier") == 0) {
+            SymbolInfo symbol;
+            symbol.name = getNodeText(left, source);
+            symbol.type = VARIABLE;
+            symbol.dataType = "variable";
+            symbol.line = startPoint.row;
+            symbol.column = startPoint.column;
+            symbol.scopeLevel = scopeLevel;
+            symbol.description = "Python variable assignment";
+            symbols.push_back(symbol);
+            LOGD("Found Python variable: %s at scope level %d", symbol.name.c_str(), scopeLevel);
+        }
     }
     
     // 识别变量声明
@@ -492,6 +639,88 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
         }
     }
     
+    // Java特定：识别字段声明（类成员变量）
+    else if (language == "java" && strcmp(nodeType, "field_declaration") == 0) {
+        // Java字段声明可能有type字段和多个variable_declarator
+        TSNode typeNode = ts_node_child_by_field_name(node, "type", 4);
+        std::string javaType = "unknown";
+        if (!ts_node_is_null(typeNode)) {
+            javaType = getNodeText(typeNode, source);
+        } else {
+            // 如果没有type字段，查找第一个非modifier子节点作为类型
+            uint32_t childCount = ts_node_child_count(node);
+            for (uint32_t i = 0; i < childCount; i++) {
+                TSNode child = ts_node_child(node, i);
+                const char *childType = ts_node_type(child);
+                
+                if (strcmp(childType, "type_identifier") == 0 || 
+                    strcmp(childType, "integral_type") == 0 || 
+                    strcmp(childType, "floating_point_type") == 0) {
+                    javaType = getNodeText(child, source);
+                    break;
+                }
+            }
+        }
+        
+        // 查找所有的variable_declarator
+        uint32_t childCount = ts_node_child_count(node);
+        for (uint32_t i = 0; i < childCount; i++) {
+            TSNode child = ts_node_child(node, i);
+            const char *childType = ts_node_type(child);
+            
+            if (strcmp(childType, "variable_declarator") == 0) {
+                // Java变量声明器有name字段
+                TSNode nameNode = ts_node_child_by_field_name(child, "name", 4);
+                if (!ts_node_is_null(nameNode)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(nameNode, source);
+                    symbol.type = STRUCT_MEMBER; // Java字段作为结构体成员
+                    symbol.dataType = javaType;
+                    TSPoint varPoint = ts_node_start_point(child);
+                    symbol.line = varPoint.row;
+                    symbol.column = varPoint.column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Field";
+                    symbols.push_back(symbol);
+                    LOGD("Found Java field: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
+            }
+        }
+    }
+    else if (language == "java" && strcmp(nodeType, "local_variable_declaration") == 0) {
+        // Java本地变量声明有type字段和多个declarator
+        TSNode typeNode = ts_node_child_by_field_name(node, "type", 4);
+        std::string javaType = "unknown";
+        if (!ts_node_is_null(typeNode)) {
+            javaType = getNodeText(typeNode, source);
+        }
+        
+        // 查找所有的variable_declarator
+        uint32_t childCount = ts_node_child_count(node);
+        for (uint32_t i = 0; i < childCount; i++) {
+            TSNode child = ts_node_child(node, i);
+            const char *childType = ts_node_type(child);
+            
+            if (strcmp(childType, "variable_declarator") == 0) {
+                // Java变量声明器有name字段
+                TSNode nameNode = ts_node_child_by_field_name(child, "name", 4);
+                if (!ts_node_is_null(nameNode)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(nameNode, source);
+                    symbol.type = VARIABLE;
+                    symbol.dataType = javaType;
+                    TSPoint varPoint = ts_node_start_point(child);
+                    symbol.line = varPoint.row;
+                    symbol.column = varPoint.column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Local variable";
+                    symbols.push_back(symbol);
+                    LOGD("Found Java local variable: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
+            }
+        }
+    }
+    
     // 识别结构体定义
     else if (strcmp(nodeType, "struct_specifier") == 0) {
         TSNode nameNode = ts_node_child_by_field_name(node, "name", 4);
@@ -622,7 +851,7 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                             }
                             
                             // 继续递归处理方法体（包括参数和局部变量）
-                            traverseNodeForSymbols(member, source, symbols, scopeLevel + 1);
+                            traverseNodeForSymbols(member, source, symbols, scopeLevel + 1, language);
                             continue; // 跳过后面的普通字段处理
                         } else if (!isMethodDeclaration) {
                             // 处理普通成员变量
@@ -697,7 +926,7 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                         }
                         
                         // 继续递归处理方法体（包括参数和局部变量）
-                        traverseNodeForSymbols(member, source, symbols, scopeLevel + 1);
+                        traverseNodeForSymbols(member, source, symbols, scopeLevel + 1, language);
                         continue; // 跳过后面的递归处理，避免重复
                     }
                 }
@@ -817,7 +1046,7 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
         // 处理命名空间体内容，增加作用域级别
         TSNode body = ts_node_child_by_field_name(node, "body", 4);
         if (!ts_node_is_null(body)) {
-            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1);
+            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
         }
         return; // 避免重复处理子节点
     }
@@ -867,13 +1096,13 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
         TSNode initializer = ts_node_child_by_field_name(node, "initializer", 11);
         if (!ts_node_is_null(initializer)) {
             // 递归处理初始化部分的变量声明
-            traverseNodeForSymbols(initializer, source, symbols, scopeLevel + 1);
+            traverseNodeForSymbols(initializer, source, symbols, scopeLevel + 1, language);
         }
         
         // 处理for语句体
         TSNode body = ts_node_child_by_field_name(node, "body", 4);
         if (!ts_node_is_null(body)) {
-            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1);
+            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
         }
         return; // 避免重复处理子节点
     }
@@ -900,7 +1129,7 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
         // 处理for循环体
         TSNode body = ts_node_child_by_field_name(node, "body", 4);
         if (!ts_node_is_null(body)) {
-            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1);
+            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
         }
         return; // 避免重复处理子节点
     }
@@ -936,13 +1165,15 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
         // 处理catch体
         TSNode body = ts_node_child_by_field_name(node, "body", 4);
         if (!ts_node_is_null(body)) {
-            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1);
+            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1, language);
         }
         return; // 避免重复处理子节点
     }
     
     // 递归处理子节点，但跳过已经特殊处理的节点类型
     if (strcmp(nodeType, "function_definition") != 0 && 
+        strcmp(nodeType, "method_declaration") != 0 &&
+        strcmp(nodeType, "class_declaration") != 0 &&
         strcmp(nodeType, "for_statement") != 0 && 
         strcmp(nodeType, "for_range_loop") != 0 && 
         strcmp(nodeType, "catch_clause") != 0) {
@@ -950,14 +1181,14 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
         int nextScopeLevel = scopeLevel;
         
         // 检查是否需要增加作用域级别
-        if (strcmp(nodeType, "compound_statement") == 0) {
+        if (strcmp(nodeType, "compound_statement") == 0 || strcmp(nodeType, "block") == 0) {
             nextScopeLevel++;
-            LOGD("Entering compound_statement, scope level: %d -> %d", scopeLevel, nextScopeLevel);
+            LOGD("Entering %s, scope level: %d -> %d", nodeType, scopeLevel, nextScopeLevel);
         }
         
         for (uint32_t i = 0; i < childCount; i++) {
             TSNode child = ts_node_child(node, i);
-            traverseNodeForSymbols(child, source, symbols, nextScopeLevel);
+            traverseNodeForSymbols(child, source, symbols, nextScopeLevel, language);
         }
     }
 }
@@ -985,6 +1216,17 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
         scope.type = SCOPE_FUNCTION;
         scopes.push_back(scope);
         LOGD("Created FUNCTION_SCOPE level %d: lines %d-%d", currentLevel, startPoint.row, endPoint.row);
+        currentLevel++;
+    }
+    // 识别Java方法声明
+    else if (strcmp(nodeType, "method_declaration") == 0) {
+        ScopeInfo scope;
+        scope.level = currentLevel;
+        scope.startLine = startPoint.row;
+        scope.endLine = endPoint.row;
+        scope.type = SCOPE_FUNCTION;
+        scopes.push_back(scope);
+        LOGD("Created FUNCTION_SCOPE level %d for Java method: lines %d-%d", currentLevel, startPoint.row, endPoint.row);
         currentLevel++;
     }
     // 识别方法定义（可能出现在field_declaration中）
@@ -1018,7 +1260,7 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
         }
     }
     // 识别块作用域（函数体、if/for/while语句块等）
-    else if (strcmp(nodeType, "compound_statement") == 0) {
+    else if (strcmp(nodeType, "compound_statement") == 0 || strcmp(nodeType, "block") == 0) {
         ScopeInfo scope;
         scope.level = currentLevel;
         scope.startLine = startPoint.row;
@@ -1029,7 +1271,7 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
         currentLevel++;
     }
     // 识别类作用域
-    else if (strcmp(nodeType, "class_specifier") == 0) {
+    else if (strcmp(nodeType, "class_specifier") == 0 || strcmp(nodeType, "class_declaration") == 0) {
         ScopeInfo scope;
         scope.level = currentLevel;
         scope.startLine = startPoint.row;
@@ -1058,7 +1300,7 @@ ParseResult parseCppCodeCore(const std::string &code) {
         return result;
     }
     
-    TSLanguage *language = tree_sitter_cpp();
+    const TSLanguage *language = tree_sitter_cpp();
     if (!language || !ts_parser_set_language(parser, language)) {
         LOGE("Failed to set C++ language");
         ts_parser_delete(parser);
@@ -1075,7 +1317,7 @@ ParseResult parseCppCodeCore(const std::string &code) {
     TSNode rootNode = ts_tree_root_node(tree);
     
     // 提取符号和作用域信息
-    traverseNodeForSymbols(rootNode, code, result.symbols);
+    traverseNodeForSymbols(rootNode, code, result.symbols, 0, "cpp");
     traverseNodeForScopes(rootNode, result.scopes);
     
     LOGD("Parsed %zu symbols and %zu scopes", result.symbols.size(), result.scopes.size());
@@ -1096,7 +1338,7 @@ ParseResult parseJavaCodeCore(const std::string &code) {
         return result;
     }
     
-    TSLanguage *language = tree_sitter_java();
+    const TSLanguage *language = tree_sitter_java();
     if (!language || !ts_parser_set_language(parser, language)) {
         LOGE("Failed to set Java language");
         ts_parser_delete(parser);
@@ -1113,7 +1355,7 @@ ParseResult parseJavaCodeCore(const std::string &code) {
     TSNode rootNode = ts_tree_root_node(tree);
     
     // 提取符号和作用域信息
-    traverseNodeForSymbols(rootNode, code, result.symbols);
+    traverseNodeForSymbols(rootNode, code, result.symbols, 0, "java");
     traverseNodeForScopes(rootNode, result.scopes);
     
     LOGD("Parsed %zu symbols and %zu scopes", result.symbols.size(), result.scopes.size());
@@ -1134,7 +1376,7 @@ ParseResult parsePythonCodeCore(const std::string &code) {
         return result;
     }
     
-    TSLanguage *language = tree_sitter_python();
+    const TSLanguage *language = tree_sitter_python();
     if (!language || !ts_parser_set_language(parser, language)) {
         LOGE("Failed to set Python language");
         ts_parser_delete(parser);
@@ -1151,7 +1393,7 @@ ParseResult parsePythonCodeCore(const std::string &code) {
     TSNode rootNode = ts_tree_root_node(tree);
     
     // 提取符号和作用域信息
-    traverseNodeForSymbols(rootNode, code, result.symbols);
+    traverseNodeForSymbols(rootNode, code, result.symbols, 0, "python");
     traverseNodeForScopes(rootNode, result.scopes);
     
     LOGD("Parsed %zu symbols and %zu scopes", result.symbols.size(), result.scopes.size());

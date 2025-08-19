@@ -1,4 +1,4 @@
-package com.acc_ide.completion.language
+package com.acc_ide.completion.languages.cpp
 
 import android.os.Bundle
 import io.github.rosemoe.sora.lang.Language
@@ -14,11 +14,11 @@ import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import com.acc_ide.completion.core.ModernACMCompletionProvider
 
 /**
- * ACM编程语言实现
+ * C++ 语言支持实现
  * 提供基础的关键字、STL容器、算法补全
- * 结合TextMate语法高亮和ACM专用补全
+ * 结合TextMate语法高亮和C++专用补全
  */
-class ACMLanguage(private val scopeName: String) : Language {
+class CppLanguageSupport(private val scopeName: String) : Language {
     
     private val acmCompletionProvider = ModernACMCompletionProvider()
     private val textMateLanguage: TextMateLanguage
@@ -42,19 +42,19 @@ class ACMLanguage(private val scopeName: String) : Language {
         publisher: CompletionPublisher,
         extraArguments: Bundle
     ) {
-        android.util.Log.d("ACMLanguage", "requireAutoComplete called at ${position.line}:${position.column}")
+        android.util.Log.d("CppLanguageSupport", "requireAutoComplete called at ${position.line}:${position.column}")
         
         try {
             // 根据scopeName检测语言类型
             val language = detectLanguageFromScope(scopeName)
-            android.util.Log.d("ACMLanguage", "Detected language: $language for scope: $scopeName")
+            android.util.Log.d("CppLanguageSupport", "Detected language: $language for scope: $scopeName")
             
-            // 使用现代化ACM补全提供器进行智能补全（包含关键字、STL、TreeSitter符号）
-            android.util.Log.d("ACMLanguage", "Calling ModernACMCompletionProvider.requireAutoComplete")
+            // 使用现代化补全提供器进行智能补全（包含关键字、STL、TreeSitter符号）
+            android.util.Log.d("CppLanguageSupport", "Calling ModernACMCompletionProvider.requireAutoComplete")
             acmCompletionProvider.requireAutoComplete(content, position, publisher, language)
-            android.util.Log.d("ACMLanguage", "ModernACMCompletionProvider completed successfully")
+            android.util.Log.d("CppLanguageSupport", "ModernACMCompletionProvider completed successfully")
         } catch (e: Exception) {
-            android.util.Log.e("ACMLanguage", "Modern ACM completion failed", e)
+            android.util.Log.e("CppLanguageSupport", "Modern completion failed", e)
             // 发生异常时不提供补全，避免错误的fallback
         }
     }

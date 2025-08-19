@@ -24,7 +24,7 @@ import com.acc_ide.ui.iopanel.IOPanelFragment
 import com.acc_ide.ui.settings.SettingsFragment
 import com.acc_ide.util.TextMateManager
 import com.acc_ide.view.SymbolPanelView
-import com.acc_ide.completion.language.LanguageManager
+import com.acc_ide.completion.languages.LanguageManager
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme

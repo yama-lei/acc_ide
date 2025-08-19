@@ -1,6 +1,6 @@
 # ACM 竞赛编程智能补全系统
 
-基于 Tree-sitter CST 的 C++ 智能代码补全系统，专为 ACM 竞赛编程设计。
+基于 Tree-sitter CST 的本地代码补全系统，专为 ACM 竞赛编程设计。
 
 ## 系统架构
 
@@ -10,14 +10,17 @@
 
 ### 核心设计理念
 
-- **Tree-sitter 提供 CST**：保留完整语法信息（括号、分号、注释等）
+- **Tree-sitter 提供 CST**：本来用于语法高亮，这里复用做符号提取
 - **自定义符号提取**：从 CST 中提取符号信息用于补全
 - **严格遵循官方设计**：使用 `TSParser` → `TSTree` → 手动遍历 `TSNode`
+- **模块化设计**：按语言分层组织，便于扩展
+- **本地化方案**：无需网络，适合竞赛环境
 
-### 为什么使用 CST 而非 AST？
+### 架构说明
 
-- **CST**：保留所有语法细节，支持增量解析，适合编辑器
-- **AST**：抽象语法结构，丢弃格式信息，适合编译器
+- **Tree-sitter**：主要用于语法高亮，这里复用做基础语法解析
+- **本地补全**：由CST简化的补全逻辑，专注竞赛编程场景
+- **非 LSP 架构**：不依赖 Language Server Protocol，减少复杂性
 
 ## 已实现功能 ✅
 
@@ -42,6 +45,10 @@
 - ✅ **使用频率统计**：常用符号优先显示
 - ✅ **ACM 模板补全**：`gcd`, `lcm`, `pow_mod` 等常用模板
 
+### Java 和 Python 支持
+- ✅ **基础语法解析**：变量、函数、类声明
+- ⏳ **补全逻辑开发中**：完整智能补全功能待实现
+
 ## 系统组件
 
 ### 原生层 (C++)
@@ -55,12 +62,31 @@ app/src/main/cpp/
 ### Kotlin 服务层
 ```
 app/src/main/java/com/acc_ide/completion/
-├── services/TreeSitterService.kt        # Tree-sitter Kotlin封装
-├── core/ACMCompletionProvider.kt         # 主补全提供器
-├── core/CompletionModels.kt              # 数据模型定义
-├── providers/KeywordProvider.kt          # C++关键字补全
-├── providers/STLProvider.kt              # STL补全
-└── language/ACMLanguage.kt               # 语言集成
+├── core/                    # 核心组件
+│   ├── CompletionConstants.kt
+│   ├── CompletionModels.kt
+│   └── ModernACMCompletionProvider.kt
+├── framework/               # 通用补全框架
+│   ├── AbstractTreeSitterProcessor.kt
+│   ├── CompletionManager.kt
+│   ├── LanguageProcessor.kt
+│   └── UniversalCompletionEngine.kt
+├── languages/               # 语言处理器
+│   ├── LanguageManager.kt
+│   ├── cpp/
+│   │   ├── CppLanguageProcessor.kt
+│   │   └── CppLanguageSupport.kt
+│   ├── java/
+│   │   └── JavaLanguageProcessor.kt
+│   └── python/
+│       └── PythonLanguageProcessor.kt
+├── providers/               # 静态提示库
+│   ├── cpp/
+│   │   └── CppStaticLibrary.kt
+│   ├── java/
+│   └── python/
+└── services/                # Tree-sitter服务
+    └── TreeSitterService.kt
 ```
 
 ## 实现原理
@@ -149,33 +175,31 @@ int main() {
 
 ## 未来 TODO
 
-### 短期目标 (3-6个月)
-- [ ] **Java 语法支持**：泛型、注解、Lambda 表达式
-- [ ] **Python 语法支持**：动态类型推断、装饰器、生成器
+### 近期计划
+- [ ] **完善 Java 补全**：实现完整的 Java 语言补全逻辑
+- [ ] **完善 Python 补全**：实现完整的 Python 语言补全逻辑
 - [ ] **高级 C++ 特性**：Lambda 表达式、auto 类型推导、模板特化
 - [ ] **模糊匹配**：支持 "vect" 匹配 "vector"
 - [ ] **智能参数提示**：函数调用时显示参数信息
 
-### 中期目标 (6-12个月)
+### 中期计划
 - [ ] **错误容忍解析**：语法错误时仍能提供补全
 - [ ] **代码片段补全**：`for` 循环、`class` 定义等模板
 - [ ] **继承关系分析**：支持多态和继承的成员访问
 - [ ] **跨文件符号索引**：项目范围的符号查找
 - [ ] **增量更新优化**：更精确的增量解析
 
-### 长期目标 (1-2年)
-- [ ] **AI 增强补全**：基于上下文的智能建议
-- [ ] **代码生成**：自然语言到代码转换
-- [ ] **全局符号索引**：跨项目符号查找
-- [ ] **实时代码质量分析**：重构建议、代码异味检测
+### 长期规划
+- [ ] **迁移到 LSP 架构**：实现标准 Language Server Protocol 支持
+- [ ] **语法高亮职责分离**：Tree-sitter 专注语法高亮，LSP 负责补全和诊断
+- [ ] **跨文件符号索引**：通过 LSP 实现项目级别的符号管理
+- [ ] **现代化 IDE 特性**：错误诊断、代码格式化、重构建议（通过 LSP）
 
 ## 当前限制
 
-- ❌ **只支持 C++**：Java 和 Python 解析器已集成但未实现补全逻辑
+- ⏳ **多语言支持开发中**：Java 和 Python 的完整补全逻辑待实现
 - ❌ **基础 C++ 语法**：不支持 C++20 新特性（概念、协程等）
 - ❌ **简单类型推导**：不支持复杂的模板类型推导
 - ❌ **单文件分析**：暂不支持跨文件的符号引用
 
 ---
-
-**注意**：当前系统专注于 C++ ACM 竞赛编程场景，提供高精度的局部文件智能补全。Java 和 Python 的完整支持在开发计划中。

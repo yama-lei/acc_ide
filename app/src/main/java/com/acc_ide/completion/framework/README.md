@@ -1,6 +1,6 @@
 # 多语言补全框架
 
-这是一个为ACC IDE设计的可扩展多语言补全框架，支持C++、Java、Python等多种编程语言。
+这是一个为ACC IDE设计的可扩展多语言补全框架，基于Tree-sitter做本地符号解析，专为竞赛编程场景优化。
 
 ## 架构设计
 
@@ -35,11 +35,11 @@
 
 ### 1. 抽象层 (Abstract Classes)
 
-#### LanguageProcessor
+#### AbstractTreeSitterProcessor
 ```kotlin
-abstract class LanguageProcessor {
+abstract class AbstractTreeSitterProcessor : LanguageProcessor {
     abstract fun getLanguageId(): String
-    abstract fun parseCode(code: String): ParseResult?
+    abstract fun parseCode(content: ContentReference, language: String): ParseResult?
     abstract fun provideRegularCompletions(...): List<CompletionItem>
     abstract fun provideMemberCompletions(...): List<CompletionItem>
 }
@@ -128,15 +128,10 @@ completions.forEach { item ->
 ### 1. 创建语言处理器
 
 ```kotlin
-class NewLanguageProcessor : LanguageProcessor() {
+class NewLanguageProcessor : AbstractTreeSitterProcessor() {
     override fun getLanguageId(): String = "newlang"
     override fun getLanguageName(): String = "New Language"
     override fun getSupportedExtensions(): Set<String> = setOf("nl", "newlang")
-    
-    override fun parseCode(code: String): ParseResult? {
-        // 实现代码解析逻辑
-        return treeSitterService.parseCode(createContentRef(code), "newlang")
-    }
     
     override fun provideRegularCompletions(...): List<CompletionItem> {
         // 实现常规补全逻辑
@@ -203,24 +198,17 @@ val cppStatus = completionManager.getLanguageStatus("cpp")
 Log.d("Completion", "C++ status: $cppStatus")
 ```
 
-## 迁移指南
+## 架构说明
 
-### 从旧版本迁移
+### 本地化设计
+- **Tree-sitter复用**：将语法高亮工具复用做符号提取
+- **无网络依赖**：适合竞赛环境的离线使用
+- **简化逻辑**：专注基础补全功能，不追求IDE级别的复杂特性
 
-1. **替换补全提供器**：
-```kotlin
-// 旧版本
-val provider = ACMCompletionProvider()
-
-// 新版本
-val provider = ModernACMCompletionProvider()
-```
-
-2. **API兼容性**：
-新框架保持向后兼容，现有的`requireAutoComplete`API不变。
-
-3. **逐步迁移**：
-可以同时使用旧版本和新版本，逐步迁移各个功能模块。
+### 非LSP架构
+- **直接集成**：避免LSP协议的复杂性
+- **性能优化**：减少进程间通信开销
+- **竞赛优化**：针对ACM场景的特定需求
 
 ## 测试和验证
 
@@ -248,27 +236,3 @@ fun testMultiLanguageSupport() {
     assertTrue(supportedLanguages.contains("python"))
 }
 ```
-
-## 未来发展
-
-### 短期目标 (3-6个月)
-- [ ] 完善Java语言处理器
-- [ ] 完善Python语言处理器
-- [ ] 添加JavaScript/TypeScript支持
-- [ ] 性能优化和缓存机制
-
-### 中期目标 (6-12个月)
-- [ ] 跨文件符号索引
-- [ ] 智能导入补全
-- [ ] 代码片段补全
-- [ ] 实时错误检测
-
-### 长期目标 (1-2年)
-- [ ] AI增强补全
-- [ ] 语义理解补全
-- [ ] 项目级别分析
-- [ ] 代码生成助手
-
----
-
-这个框架为ACC IDE提供了强大的多语言补全基础，既满足了当前C++补全的需求，又为未来扩展其他语言奠定了坚实基础。
