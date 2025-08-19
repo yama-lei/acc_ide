@@ -20,13 +20,6 @@ class STLProvider {
             "list", "multiset", "multimap"
         )
         
-        // STL 算法
-        private val STL_ALGORITHMS = listOf(
-            "sort", "reverse", "find", "binary_search", "lower_bound", "upper_bound",
-            "max", "min", "max_element", "min_element", "accumulate", "count",
-            "unique", "next_permutation", "prev_permutation", "fill", "copy",
-            "swap", "make_pair"
-        )
         
         // Vector 方法
         private val VECTOR_METHODS = mapOf(
@@ -40,11 +33,7 @@ class STLProvider {
             "back" to CompletionConstants.PRIORITY_STL_FUNCTION,
             "pop_back" to CompletionConstants.PRIORITY_STL_FUNCTION,
             "insert" to CompletionConstants.PRIORITY_STL_FUNCTION,
-            "erase" to CompletionConstants.PRIORITY_STL_FUNCTION,
-            "resize" to CompletionConstants.PRIORITY_STL_UNCOMMON,
-            "reserve" to CompletionConstants.PRIORITY_STL_UNCOMMON,
-            "capacity" to CompletionConstants.PRIORITY_STL_UNCOMMON,
-            "shrink_to_fit" to CompletionConstants.PRIORITY_STL_UNCOMMON
+            "erase" to CompletionConstants.PRIORITY_STL_FUNCTION
         )
         
         // String 方法
@@ -59,8 +48,7 @@ class STLProvider {
             "insert" to CompletionConstants.PRIORITY_STL_FUNCTION,
             "erase" to CompletionConstants.PRIORITY_STL_FUNCTION,
             "replace" to CompletionConstants.PRIORITY_STL_FUNCTION,
-            "c_str" to CompletionConstants.PRIORITY_STL_FUNCTION,
-            "compare" to CompletionConstants.PRIORITY_STL_UNCOMMON
+            "c_str" to CompletionConstants.PRIORITY_STL_FUNCTION
         )
         
         // Map 方法
@@ -78,10 +66,6 @@ class STLProvider {
             "upper_bound" to CompletionConstants.PRIORITY_STL_FUNCTION
         )
         
-        // 通用容器方法
-        private val COMMON_CONTAINER_METHODS = listOf(
-            "size", "empty", "clear", "begin", "end", "push_back", "pop_back", "insert", "erase"
-        )
     }
     
     /**
@@ -94,7 +78,6 @@ class STLProvider {
         when (language.lowercase()) {
             "cpp", "c++" -> {
                 items.addAll(getContainerCompletions(lowerPrefix, prefix.length))
-                items.addAll(getAlgorithmCompletions(lowerPrefix, prefix.length))
             }
         }
         
@@ -118,37 +101,13 @@ class STLProvider {
                 items.addAll(getMethodCompletions(prefix, MAP_METHODS, "map"))
             }
             else -> {
-                // 如果类型未知，提供通用方法
-                items.addAll(getCommonMethodCompletions(prefix))
+                // 如果类型未知，不提供补全
             }
         }
         
         return items
     }
     
-    /**
-     * 基于变量名推断类型并提供成员补全
-     * 当TreeSitter不可用时的降级方案
-     */
-    fun inferMemberCompletions(variableName: String, prefix: String): List<CompletionItem> {
-        val items = mutableListOf<CompletionItem>()
-        val lowerVarName = variableName.lowercase()
-        
-        // 基于变量名推断类型
-        val inferredType = when {
-            lowerVarName.contains("vec") || lowerVarName.contains("arr") -> "vector"
-            lowerVarName.contains("str") || lowerVarName.contains("s") -> "string"
-            lowerVarName.contains("map") || lowerVarName.contains("mp") -> "map"
-            lowerVarName.contains("set") -> "set"
-            lowerVarName.contains("queue") || lowerVarName.contains("q") -> "queue"
-            lowerVarName.contains("stack") || lowerVarName.contains("st") -> "stack"
-            else -> "unknown"
-        }
-        
-        items.addAll(getMemberCompletions(inferredType, prefix))
-        
-        return items
-    }
     
     /**
      * 获取容器补全
@@ -168,23 +127,6 @@ class STLProvider {
             }
     }
     
-    /**
-     * 获取算法补全
-     */
-    private fun getAlgorithmCompletions(prefix: String, prefixLength: Int): List<CompletionItem> {
-        return STL_ALGORITHMS
-            .filter { it.startsWith(prefix) }
-            .map { algorithm ->
-                PriorityCompletionItem(
-                    algorithm,
-                    "STL Algorithm",
-                    prefixLength,
-                    "$algorithm()",
-                    CompletionConstants.PRIORITY_STL_COMMON,
-                    CompletionItemKind.Function
-                )
-            }
-    }
     
     /**
      * 获取方法补全
@@ -208,21 +150,4 @@ class STLProvider {
             }
     }
     
-    /**
-     * 获取通用方法补全
-     */
-    private fun getCommonMethodCompletions(prefix: String): List<CompletionItem> {
-        return COMMON_CONTAINER_METHODS
-            .filter { it.startsWith(prefix, ignoreCase = true) }
-            .map { method ->
-                PriorityCompletionItem(
-                    method,
-                    "Common STL method",
-                    prefix.length,
-                    "$method()",
-                    CompletionConstants.PRIORITY_STL_FUNCTION,
-                    CompletionItemKind.Method
-                )
-            }
-    }
 }

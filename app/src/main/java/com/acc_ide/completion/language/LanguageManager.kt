@@ -17,7 +17,6 @@ object LanguageManager {
     private var currentLanguage: String = "cpp"
     private var isInitialized = false
     private var isTextMateEnabledValue = true
-    private var isTreeSitterPreferredValue = true
     
     /**
      * 初始化LanguageManager
@@ -76,31 +75,8 @@ object LanguageManager {
         }
     }
     
-    /**
-     * 根据语言名称获取Language实例
-     */
-    fun getLanguageInstance(language: String): Language {
-        return when (language.lowercase()) {
-            "cpp", "c++" -> createTextMateLanguage("source.cpp")
-            "java" -> createTextMateLanguage("source.java") 
-            "python", "py" -> createTextMateLanguage("source.python")
-            else -> createTextMateLanguage("text.plain")
-        }
-    }
     
-    /**
-     * 获取支持的语言列表
-     */
-    fun getSupportedLanguages(): List<String> {
-        return listOf("cpp", "java", "python")
-    }
     
-    /**
-     * 检查语言是否支持
-     */
-    fun isLanguageSupported(language: String): Boolean {
-        return getSupportedLanguages().contains(language.lowercase())
-    }
     
     /**
      * 检查TextMate是否启用
@@ -109,24 +85,6 @@ object LanguageManager {
         return isTextMateEnabledValue
     }
     
-    /**
-     * 设置TextMate启用状态
-     */
-    fun setTextMateEnabled(enabled: Boolean) {
-        isTextMateEnabledValue = enabled
-    }
     
-    /**
-     * 检查是否优先使用TreeSitter
-     */
-    fun isTreeSitterPreferred(): Boolean {
-        return isTreeSitterPreferredValue
-    }
     
-    /**
-     * 设置是否优先使用TreeSitter
-     */
-    fun setTreeSitterPreferred(preferred: Boolean) {
-        isTreeSitterPreferredValue = preferred
-    }
 }

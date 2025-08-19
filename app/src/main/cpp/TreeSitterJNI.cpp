@@ -61,23 +61,23 @@ jobject createScopeInfo(JNIEnv *env, const ScopeInfo &scope) {
     jfieldID typeField;
     
     switch (scope.type) {
-        case FUNCTION_SCOPE:
-            typeField = env->GetStaticFieldID(scopeTypeClass, "FUNCTION", "Lcom/acc_ide/completion/core/ScopeType;");
+        case SCOPE_FUNCTION:
+            typeField = env->GetStaticFieldID(scopeTypeClass, "SCOPE_FUNCTION", "Lcom/acc_ide/completion/core/ScopeType;");
             break;
-        case CLASS_SCOPE:
-            typeField = env->GetStaticFieldID(scopeTypeClass, "CLASS", "Lcom/acc_ide/completion/core/ScopeType;");
+        case SCOPE_CLASS:
+            typeField = env->GetStaticFieldID(scopeTypeClass, "SCOPE_CLASS", "Lcom/acc_ide/completion/core/ScopeType;");
             break;
-        case BLOCK_SCOPE:
-            typeField = env->GetStaticFieldID(scopeTypeClass, "BLOCK", "Lcom/acc_ide/completion/core/ScopeType;");
+        case SCOPE_BLOCK:
+            typeField = env->GetStaticFieldID(scopeTypeClass, "SCOPE_BLOCK", "Lcom/acc_ide/completion/core/ScopeType;");
             break;
-        case NAMESPACE_SCOPE:
-            typeField = env->GetStaticFieldID(scopeTypeClass, "NAMESPACE", "Lcom/acc_ide/completion/core/ScopeType;");
+        case SCOPE_NAMESPACE:
+            typeField = env->GetStaticFieldID(scopeTypeClass, "SCOPE_NAMESPACE", "Lcom/acc_ide/completion/core/ScopeType;");
             break;
-        case GLOBAL_SCOPE:
-            typeField = env->GetStaticFieldID(scopeTypeClass, "GLOBAL", "Lcom/acc_ide/completion/core/ScopeType;");
+        case SCOPE_GLOBAL:
+            typeField = env->GetStaticFieldID(scopeTypeClass, "SCOPE_GLOBAL", "Lcom/acc_ide/completion/core/ScopeType;");
             break;
         default:
-            typeField = env->GetStaticFieldID(scopeTypeClass, "GLOBAL", "Lcom/acc_ide/completion/core/ScopeType;");
+            typeField = env->GetStaticFieldID(scopeTypeClass, "SCOPE_GLOBAL", "Lcom/acc_ide/completion/core/ScopeType;");
     }
     
     jobject typeEnum = env->GetStaticObjectField(scopeTypeClass, typeField);
@@ -87,7 +87,7 @@ jobject createScopeInfo(JNIEnv *env, const ScopeInfo &scope) {
 
 jobject createParseResult(JNIEnv *env, const ParseResult &result) {
     jclass parseResultClass = env->FindClass("com/acc_ide/completion/core/ParseResult");
-    jmethodID constructor = env->GetMethodID(parseResultClass, "<init>", "(Ljava/util/List;Ljava/util/List;Ljava/lang/String;)V");
+    jmethodID constructor = env->GetMethodID(parseResultClass, "<init>", "(Ljava/util/List;Ljava/util/List;)V");
     
     // 创建符号列表
     jclass arrayListClass = env->FindClass("java/util/ArrayList");
@@ -109,10 +109,7 @@ jobject createParseResult(JNIEnv *env, const ParseResult &result) {
         env->DeleteLocalRef(scopeInfo);
     }
     
-    // 创建parseTree字符串（可以为null）
-    jstring parseTree = nullptr; // 传递null，使用默认值
-    
-    return env->NewObject(parseResultClass, constructor, symbolList, scopeList, parseTree);
+    return env->NewObject(parseResultClass, constructor, symbolList, scopeList);
 }
 
 jobject createQueryMatch(JNIEnv *env, const QueryMatch &match) {
@@ -153,7 +150,7 @@ jobject createQueryResult(JNIEnv *env, const QueryResult &result) {
 extern "C" {
 
 JNIEXPORT jobject JNICALL
-Java_com_acc_1ide_completion_services_NativeTreeSitterService_parseCppCode(JNIEnv *env, jobject thiz, jstring code) {
+Java_com_acc_1ide_completion_services_TreeSitterService_parseCppCode(JNIEnv *env, jobject /* thiz */, jstring code) {
     const char *codeStr = env->GetStringUTFChars(code, nullptr);
     if (!codeStr) {
         LOGE("Failed to get code string");
@@ -170,7 +167,7 @@ Java_com_acc_1ide_completion_services_NativeTreeSitterService_parseCppCode(JNIEn
 }
 
 JNIEXPORT jobject JNICALL
-Java_com_acc_1ide_completion_services_NativeTreeSitterService_parseJavaCode(JNIEnv *env, jobject thiz, jstring code) {
+Java_com_acc_1ide_completion_services_TreeSitterService_parseJavaCode(JNIEnv *env, jobject /* thiz */, jstring code) {
     const char *codeStr = env->GetStringUTFChars(code, nullptr);
     if (!codeStr) {
         LOGE("Failed to get code string");
@@ -187,7 +184,7 @@ Java_com_acc_1ide_completion_services_NativeTreeSitterService_parseJavaCode(JNIE
 }
 
 JNIEXPORT jobject JNICALL
-Java_com_acc_1ide_completion_services_NativeTreeSitterService_parsePythonCode(JNIEnv *env, jobject thiz, jstring code) {
+Java_com_acc_1ide_completion_services_TreeSitterService_parsePythonCode(JNIEnv *env, jobject /* thiz */, jstring code) {
     const char *codeStr = env->GetStringUTFChars(code, nullptr);
     if (!codeStr) {
         LOGE("Failed to get code string");
@@ -203,30 +200,6 @@ Java_com_acc_1ide_completion_services_NativeTreeSitterService_parsePythonCode(JN
     return createParseResult(env, result);
 }
 
-JNIEXPORT jobject JNICALL
-Java_com_acc_1ide_completion_services_NativeTreeSitterService_executeQueryNative(JNIEnv *env, jobject thiz, 
-                                                                          jstring code, jstring language, jstring query) {
-    const char *codeStr = env->GetStringUTFChars(code, nullptr);
-    const char *languageStr = env->GetStringUTFChars(language, nullptr);
-    const char *queryStr = env->GetStringUTFChars(query, nullptr);
-    
-    if (!codeStr || !languageStr || !queryStr) {
-        LOGE("Failed to get string parameters");
-        if (codeStr) env->ReleaseStringUTFChars(code, codeStr);
-        if (languageStr) env->ReleaseStringUTFChars(language, languageStr);
-        if (queryStr) env->ReleaseStringUTFChars(query, queryStr);
-        return nullptr;
-    }
-    
-    LOGD("Executing query for language: %s", languageStr);
-    
-    QueryResult result = executeQuery(codeStr, languageStr, queryStr);
-    
-    env->ReleaseStringUTFChars(code, codeStr);
-    env->ReleaseStringUTFChars(language, languageStr);
-    env->ReleaseStringUTFChars(query, queryStr);
-    
-    return createQueryResult(env, result);
-}
+// 删除查询方法 - 不符合Tree-sitter官方简单设计
 
 } // extern "C"

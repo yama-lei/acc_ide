@@ -393,6 +393,101 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                         LOGD("Found init variable: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
                     }
                 }
+            } else if (strcmp(childType, "array_declarator") == 0) {
+                // 处理数组声明 (如 bool vis[MAXN])
+                TSNode identifier = findParameterName(child); // 复用函数来查找变量名
+                if (!ts_node_is_null(identifier)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(identifier, source);
+                    symbol.type = VARIABLE;
+                    
+                    // 提取具体的变量类型（包括数组修饰符）
+                    std::string baseType = extractDataType(node, source);
+                    symbol.dataType = analyzeDeclaratorType(child, baseType);
+                    
+                    symbol.line = ts_node_start_point(identifier).row;
+                    symbol.column = ts_node_start_point(identifier).column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Array variable declaration";
+                    symbols.push_back(symbol);
+                    LOGD("Found array variable: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
+            } else if (strcmp(childType, "pointer_declarator") == 0) {
+                // 处理指针声明 (如 int *ptr)
+                TSNode identifier = findParameterName(child);
+                if (!ts_node_is_null(identifier)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(identifier, source);
+                    symbol.type = VARIABLE;
+                    
+                    // 提取具体的变量类型（包括指针修饰符）
+                    std::string baseType = extractDataType(node, source);
+                    symbol.dataType = analyzeDeclaratorType(child, baseType);
+                    
+                    symbol.line = ts_node_start_point(identifier).row;
+                    symbol.column = ts_node_start_point(identifier).column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Pointer variable declaration";
+                    symbols.push_back(symbol);
+                    LOGD("Found pointer variable: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
+            } else if (strcmp(childType, "reference_declarator") == 0) {
+                // 处理引用声明 (如 int &ref)  
+                TSNode identifier = findParameterName(child);
+                if (!ts_node_is_null(identifier)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(identifier, source);
+                    symbol.type = VARIABLE;
+                    
+                    // 提取具体的变量类型（包括引用修饰符）
+                    std::string baseType = extractDataType(node, source);
+                    symbol.dataType = analyzeDeclaratorType(child, baseType);
+                    
+                    symbol.line = ts_node_start_point(identifier).row;
+                    symbol.column = ts_node_start_point(identifier).column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Reference variable declaration";
+                    symbols.push_back(symbol);
+                    LOGD("Found reference variable: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
+            } else if (strcmp(childType, "function_declarator") == 0) {
+                // 处理函数指针声明 (如 int (*func)(int))
+                TSNode identifier = findParameterName(child);
+                if (!ts_node_is_null(identifier)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(identifier, source);
+                    symbol.type = VARIABLE;
+                    
+                    // 提取具体的变量类型（函数指针）
+                    std::string baseType = extractDataType(node, source);
+                    symbol.dataType = analyzeDeclaratorType(child, baseType);
+                    
+                    symbol.line = ts_node_start_point(identifier).row;
+                    symbol.column = ts_node_start_point(identifier).column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Function pointer declaration";
+                    symbols.push_back(symbol);
+                    LOGD("Found function pointer: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
+            } else if (strcmp(childType, "parenthesized_declarator") == 0) {
+                // 处理括号声明器 (如 int (*ptr))
+                TSNode identifier = findParameterName(child);
+                if (!ts_node_is_null(identifier)) {
+                    SymbolInfo symbol;
+                    symbol.name = getNodeText(identifier, source);
+                    symbol.type = VARIABLE;
+                    
+                    // 提取具体的变量类型
+                    std::string baseType = extractDataType(node, source);
+                    symbol.dataType = analyzeDeclaratorType(child, baseType);
+                    
+                    symbol.line = ts_node_start_point(identifier).row;
+                    symbol.column = ts_node_start_point(identifier).column;
+                    symbol.scopeLevel = scopeLevel;
+                    symbol.description = "Parenthesized variable declaration";
+                    symbols.push_back(symbol);
+                    LOGD("Found parenthesized variable: %s (%s) at scope level %d", symbol.name.c_str(), symbol.dataType.c_str(), scopeLevel);
+                }
             }
         }
     }
@@ -418,19 +513,29 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                 for (uint32_t i = 0; i < memberCount; i++) {
                     TSNode member = ts_node_child(body, i);
                     if (strcmp(ts_node_type(member), "field_declaration") == 0) {
-                        TSNode memberDeclarator = ts_node_child_by_field_name(member, "declarator", 10);
-                        if (!ts_node_is_null(memberDeclarator)) {
-                            TSPoint memberPoint = ts_node_start_point(member);
-                            SymbolInfo memberSymbol;
-                            memberSymbol.name = getNodeText(memberDeclarator, source);
-                            memberSymbol.type = STRUCT_MEMBER;
-                            memberSymbol.dataType = "member";
-                            memberSymbol.line = memberPoint.row;
-                            memberSymbol.column = memberPoint.column;
-                            memberSymbol.scopeLevel = scopeLevel + 1;
-                            memberSymbol.description = "Struct member";
-                            memberSymbol.parentStruct = symbol.name;
-                            symbols.push_back(memberSymbol);
+                        // 提取具体的成员类型
+                        std::string baseType = extractDataType(member, source);
+                        
+                        // 遍历field_declaration的所有子节点，查找所有field_identifier
+                        uint32_t fieldChildCount = ts_node_child_count(member);
+                        for (uint32_t j = 0; j < fieldChildCount; j++) {
+                            TSNode fieldChild = ts_node_child(member, j);
+                            const char *fieldChildType = ts_node_type(fieldChild);
+                            
+                            if (strcmp(fieldChildType, "field_identifier") == 0) {
+                                TSPoint memberPoint = ts_node_start_point(fieldChild);
+                                SymbolInfo memberSymbol;
+                                memberSymbol.name = getNodeText(fieldChild, source);
+                                memberSymbol.type = STRUCT_MEMBER;
+                                memberSymbol.dataType = baseType;
+                                memberSymbol.line = memberPoint.row;
+                                memberSymbol.column = memberPoint.column;
+                                memberSymbol.scopeLevel = scopeLevel + 1;
+                                memberSymbol.description = "Struct member";
+                                memberSymbol.parentStruct = symbol.name;
+                                symbols.push_back(memberSymbol);
+                                LOGD("Found struct member: %s (%s) in struct %s", memberSymbol.name.c_str(), memberSymbol.dataType.c_str(), symbol.name.c_str());
+                            }
                         }
                     }
                 }
@@ -462,42 +567,79 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                     
                     // 处理字段声明（成员变量）
                     if (strcmp(memberType, "field_declaration") == 0) {
+                        // 检查是否是函数声明（方法声明但没有函数体）或者函数定义（带initializer_list的方法）
+                        bool isMethodDeclaration = false;
+                        bool isMethodDefinition = false;
                         uint32_t fieldChildCount = ts_node_child_count(member);
+                        
+                        // 检查是否包含function_declarator和initializer_list（表示方法定义）
+                        bool hasFunctionDeclarator = false;
+                        bool hasInitializerList = false;
+                        
                         for (uint32_t j = 0; j < fieldChildCount; j++) {
                             TSNode fieldChild = ts_node_child(member, j);
-                            const char *fieldChildType = ts_node_type(fieldChild);
-                            
-                            // 处理field_identifier (简单字段名)
-                            if (strcmp(fieldChildType, "field_identifier") == 0) {
-                                TSPoint memberPoint = ts_node_start_point(member);
-                                SymbolInfo memberSymbol;
-                                memberSymbol.name = getNodeText(fieldChild, source);
-                                memberSymbol.type = STRUCT_MEMBER;
-                                
-                                // 提取具体的成员类型
-                                std::string baseType = extractDataType(member, source);
-                                memberSymbol.dataType = baseType;
-                                
-                                memberSymbol.line = memberPoint.row;
-                                memberSymbol.column = memberPoint.column;
-                                memberSymbol.scopeLevel = scopeLevel + 1;
-                                memberSymbol.description = "Class member";
-                                memberSymbol.parentStruct = symbol.name;
-                                symbols.push_back(memberSymbol);
-                                LOGD("Found class member: %s (%s) in class %s", memberSymbol.name.c_str(), memberSymbol.dataType.c_str(), symbol.name.c_str());
+                            const char *childType = ts_node_type(fieldChild);
+                            if (strcmp(childType, "function_declarator") == 0) {
+                                hasFunctionDeclarator = true;
                             }
-                            // 处理pointer_declarator (指针字段)
-                            else if (strcmp(fieldChildType, "pointer_declarator") == 0) {
-                                TSNode innerDeclarator = ts_node_child_by_field_name(fieldChild, "declarator", 10);
-                                if (!ts_node_is_null(innerDeclarator) && strcmp(ts_node_type(innerDeclarator), "field_identifier") == 0) {
+                            if (strcmp(childType, "initializer_list") == 0) {
+                                hasInitializerList = true;
+                            }
+                        }
+                        
+                        if (hasFunctionDeclarator && hasInitializerList) {
+                            // 这是一个方法定义（带函数体的方法）
+                            isMethodDefinition = true;
+                            LOGD("Found method definition in field_declaration at line %d", ts_node_start_point(member).row);
+                        } else if (hasFunctionDeclarator) {
+                            // 这是一个方法声明（没有函数体）
+                            isMethodDeclaration = true;
+                        }
+                        
+                        if (isMethodDefinition) {
+                            // 处理方法定义
+                            for (uint32_t j = 0; j < fieldChildCount; j++) {
+                                TSNode fieldChild = ts_node_child(member, j);
+                                if (strcmp(ts_node_type(fieldChild), "function_declarator") == 0) {
+                                    // 查找函数名
+                                    TSNode functionName = findFunctionName(fieldChild);
+                                    if (!ts_node_is_null(functionName)) {
+                                        TSPoint methodPoint = ts_node_start_point(member);
+                                        SymbolInfo methodSymbol;
+                                        methodSymbol.name = getNodeText(functionName, source);
+                                        methodSymbol.type = FUNCTION;
+                                        methodSymbol.dataType = "method";
+                                        methodSymbol.line = methodPoint.row;
+                                        methodSymbol.column = methodPoint.column;
+                                        methodSymbol.scopeLevel = scopeLevel + 1; // 类方法在类作用域内
+                                        methodSymbol.description = "Class method";
+                                        methodSymbol.parentStruct = symbol.name;
+                                        symbols.push_back(methodSymbol);
+                                        LOGD("Found class method (field_declaration): %s in class %s", methodSymbol.name.c_str(), symbol.name.c_str());
+                                    }
+                                    break;
+                                }
+                            }
+                            
+                            // 继续递归处理方法体（包括参数和局部变量）
+                            traverseNodeForSymbols(member, source, symbols, scopeLevel + 1);
+                            continue; // 跳过后面的普通字段处理
+                        } else if (!isMethodDeclaration) {
+                            // 处理普通成员变量
+                            for (uint32_t j = 0; j < fieldChildCount; j++) {
+                                TSNode fieldChild = ts_node_child(member, j);
+                                const char *fieldChildType = ts_node_type(fieldChild);
+                                
+                                // 处理field_identifier (简单字段名)
+                                if (strcmp(fieldChildType, "field_identifier") == 0) {
                                     TSPoint memberPoint = ts_node_start_point(member);
                                     SymbolInfo memberSymbol;
-                                    memberSymbol.name = getNodeText(innerDeclarator, source);
+                                    memberSymbol.name = getNodeText(fieldChild, source);
                                     memberSymbol.type = STRUCT_MEMBER;
                                     
-                                    // 提取具体的成员类型（包括指针修饰符）
+                                    // 提取具体的成员类型
                                     std::string baseType = extractDataType(member, source);
-                                    memberSymbol.dataType = analyzeDeclaratorType(fieldChild, baseType);
+                                    memberSymbol.dataType = baseType;
                                     
                                     memberSymbol.line = memberPoint.row;
                                     memberSymbol.column = memberPoint.column;
@@ -505,10 +647,58 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                                     memberSymbol.description = "Class member";
                                     memberSymbol.parentStruct = symbol.name;
                                     symbols.push_back(memberSymbol);
-                                    LOGD("Found class pointer member: %s (%s) in class %s", memberSymbol.name.c_str(), memberSymbol.dataType.c_str(), symbol.name.c_str());
+                                    LOGD("Found class member: %s (%s) in class %s", memberSymbol.name.c_str(), memberSymbol.dataType.c_str(), symbol.name.c_str());
+                                }
+                                // 处理pointer_declarator (指针字段)
+                                else if (strcmp(fieldChildType, "pointer_declarator") == 0) {
+                                    TSNode innerDeclarator = ts_node_child_by_field_name(fieldChild, "declarator", 10);
+                                    if (!ts_node_is_null(innerDeclarator) && strcmp(ts_node_type(innerDeclarator), "field_identifier") == 0) {
+                                        TSPoint memberPoint = ts_node_start_point(member);
+                                        SymbolInfo memberSymbol;
+                                        memberSymbol.name = getNodeText(innerDeclarator, source);
+                                        memberSymbol.type = STRUCT_MEMBER;
+                                        
+                                        // 提取具体的成员类型（包括指针修饰符）
+                                        std::string baseType = extractDataType(member, source);
+                                        memberSymbol.dataType = analyzeDeclaratorType(fieldChild, baseType);
+                                        
+                                        memberSymbol.line = memberPoint.row;
+                                        memberSymbol.column = memberPoint.column;
+                                        memberSymbol.scopeLevel = scopeLevel + 1;
+                                        memberSymbol.description = "Class member";
+                                        memberSymbol.parentStruct = symbol.name;
+                                        symbols.push_back(memberSymbol);
+                                        LOGD("Found class pointer member: %s (%s) in class %s", memberSymbol.name.c_str(), memberSymbol.dataType.c_str(), symbol.name.c_str());
+                                    }
                                 }
                             }
                         }
+                    }
+                    // 处理成员函数定义
+                    else if (strcmp(memberType, "function_definition") == 0) {
+                        TSNode declarator = ts_node_child_by_field_name(member, "declarator", 10);
+                        if (!ts_node_is_null(declarator)) {
+                            // 查找函数名
+                            TSNode functionName = findFunctionName(declarator);
+                            if (!ts_node_is_null(functionName)) {
+                                TSPoint methodPoint = ts_node_start_point(member);
+                                SymbolInfo methodSymbol;
+                                methodSymbol.name = getNodeText(functionName, source);
+                                methodSymbol.type = FUNCTION;
+                                methodSymbol.dataType = "method";
+                                methodSymbol.line = methodPoint.row;
+                                methodSymbol.column = methodPoint.column;
+                                methodSymbol.scopeLevel = scopeLevel + 1; // 类方法在类作用域内
+                                methodSymbol.description = "Class method";
+                                methodSymbol.parentStruct = symbol.name;
+                                symbols.push_back(methodSymbol);
+                                LOGD("Found class method: %s in class %s", methodSymbol.name.c_str(), symbol.name.c_str());
+                            }
+                        }
+                        
+                        // 继续递归处理方法体（包括参数和局部变量）
+                        traverseNodeForSymbols(member, source, symbols, scopeLevel + 1);
+                        continue; // 跳过后面的递归处理，避免重复
                     }
                 }
             }
@@ -528,7 +718,108 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
             symbol.scopeLevel = scopeLevel;
             symbol.description = "Enum definition";
             symbols.push_back(symbol);
+            
+            // 解析枚举成员
+            TSNode body = ts_node_child_by_field_name(node, "body", 4);
+            if (!ts_node_is_null(body)) {
+                uint32_t enumMemberCount = ts_node_child_count(body);
+                for (uint32_t i = 0; i < enumMemberCount; i++) {
+                    TSNode enumMember = ts_node_child(body, i);
+                    if (strcmp(ts_node_type(enumMember), "enumerator") == 0) {
+                        TSNode enumName = ts_node_child_by_field_name(enumMember, "name", 4);
+                        if (!ts_node_is_null(enumName)) {
+                            TSPoint enumPoint = ts_node_start_point(enumMember);
+                            SymbolInfo enumSymbol;
+                            enumSymbol.name = getNodeText(enumName, source);
+                            enumSymbol.type = VARIABLE; // 枚举值作为变量处理
+                            enumSymbol.dataType = symbol.name;
+                            enumSymbol.line = enumPoint.row;
+                            enumSymbol.column = enumPoint.column;
+                            enumSymbol.scopeLevel = scopeLevel + 1;
+                            enumSymbol.description = "Enum member";
+                            enumSymbol.parentStruct = symbol.name;
+                            symbols.push_back(enumSymbol);
+                            LOGD("Found enum member: %s in enum %s", enumSymbol.name.c_str(), symbol.name.c_str());
+                        }
+                    }
+                }
+            }
         }
+    }
+    
+    // 识别联合体定义
+    else if (strcmp(nodeType, "union_specifier") == 0) {
+        TSNode nameNode = ts_node_child_by_field_name(node, "name", 4);
+        if (!ts_node_is_null(nameNode)) {
+            SymbolInfo symbol;
+            symbol.name = getNodeText(nameNode, source);
+            symbol.type = STRUCT; // 联合体作为结构体类型处理
+            symbol.dataType = "union";
+            symbol.line = startPoint.row;
+            symbol.column = startPoint.column;
+            symbol.scopeLevel = scopeLevel;
+            symbol.description = "Union definition";
+            symbols.push_back(symbol);
+            
+            // 解析联合体成员（与struct相同的处理方式）
+            TSNode body = ts_node_child_by_field_name(node, "body", 4);
+            if (!ts_node_is_null(body)) {
+                uint32_t memberCount = ts_node_child_count(body);
+                for (uint32_t i = 0; i < memberCount; i++) {
+                    TSNode member = ts_node_child(body, i);
+                    if (strcmp(ts_node_type(member), "field_declaration") == 0) {
+                        // 提取具体的成员类型
+                        std::string baseType = extractDataType(member, source);
+                        
+                        // 遍历field_declaration的所有子节点，查找所有field_identifier
+                        uint32_t fieldChildCount = ts_node_child_count(member);
+                        for (uint32_t j = 0; j < fieldChildCount; j++) {
+                            TSNode fieldChild = ts_node_child(member, j);
+                            const char *fieldChildType = ts_node_type(fieldChild);
+                            
+                            if (strcmp(fieldChildType, "field_identifier") == 0) {
+                                TSPoint memberPoint = ts_node_start_point(fieldChild);
+                                SymbolInfo memberSymbol;
+                                memberSymbol.name = getNodeText(fieldChild, source);
+                                memberSymbol.type = STRUCT_MEMBER;
+                                memberSymbol.dataType = baseType;
+                                memberSymbol.line = memberPoint.row;
+                                memberSymbol.column = memberPoint.column;
+                                memberSymbol.scopeLevel = scopeLevel + 1;
+                                memberSymbol.description = "Union member";
+                                memberSymbol.parentStruct = symbol.name;
+                                symbols.push_back(memberSymbol);
+                                LOGD("Found union member: %s (%s) in union %s", memberSymbol.name.c_str(), memberSymbol.dataType.c_str(), symbol.name.c_str());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 识别命名空间定义
+    else if (strcmp(nodeType, "namespace_definition") == 0) {
+        TSNode nameNode = ts_node_child_by_field_name(node, "name", 4);
+        if (!ts_node_is_null(nameNode)) {
+            SymbolInfo symbol;
+            symbol.name = getNodeText(nameNode, source);
+            symbol.type = CLASS; // 命名空间作为类类型处理
+            symbol.dataType = "namespace";
+            symbol.line = startPoint.row;
+            symbol.column = startPoint.column;
+            symbol.scopeLevel = scopeLevel;
+            symbol.description = "Namespace definition";
+            symbols.push_back(symbol);
+            LOGD("Found namespace: %s at scope level %d", symbol.name.c_str(), scopeLevel);
+        }
+        
+        // 处理命名空间体内容，增加作用域级别
+        TSNode body = ts_node_child_by_field_name(node, "body", 4);
+        if (!ts_node_is_null(body)) {
+            traverseNodeForSymbols(body, source, symbols, scopeLevel + 1);
+        }
+        return; // 避免重复处理子节点
     }
     
     // 识别typedef定义
@@ -551,6 +842,23 @@ void traverseNodeForSymbols(TSNode node, const std::string &source, std::vector<
                 symbols.push_back(symbol);
                 LOGD("Found typedef: %s at scope level %d", symbol.name.c_str(), scopeLevel);
             }
+        }
+    }
+    
+    // 识别类型别名声明 (using alias = type)
+    else if (strcmp(nodeType, "alias_declaration") == 0) {
+        TSNode nameNode = ts_node_child_by_field_name(node, "name", 4);
+        if (!ts_node_is_null(nameNode)) {
+            SymbolInfo symbol;
+            symbol.name = getNodeText(nameNode, source);
+            symbol.type = CLASS; // 使用CLASS类型表示类型别名
+            symbol.dataType = "alias";
+            symbol.line = startPoint.row;
+            symbol.column = startPoint.column;
+            symbol.scopeLevel = scopeLevel;
+            symbol.description = "Type alias declaration";
+            symbols.push_back(symbol);
+            LOGD("Found type alias: %s at scope level %d", symbol.name.c_str(), scopeLevel);
         }
     }
     
@@ -667,7 +975,6 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
     LOGD("Scope analysis - node: %s at %d:%d-%d:%d, level: %d", 
          nodeType, startPoint.row, startPoint.column, endPoint.row, endPoint.column, currentLevel);
     
-    bool createdScope = false;
     
     // 识别函数作用域
     if (strcmp(nodeType, "function_definition") == 0) {
@@ -675,11 +982,40 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
         scope.level = currentLevel;
         scope.startLine = startPoint.row;
         scope.endLine = endPoint.row;
-        scope.type = FUNCTION_SCOPE;
+        scope.type = SCOPE_FUNCTION;
         scopes.push_back(scope);
         LOGD("Created FUNCTION_SCOPE level %d: lines %d-%d", currentLevel, startPoint.row, endPoint.row);
         currentLevel++;
-        createdScope = true;
+    }
+    // 识别方法定义（可能出现在field_declaration中）
+    else if (strcmp(nodeType, "field_declaration") == 0) {
+        // 检查是否是方法定义（包含function_declarator和initializer_list）
+        bool hasFunctionDeclarator = false;
+        bool hasInitializerList = false;
+        
+        uint32_t childCount = ts_node_child_count(node);
+        for (uint32_t i = 0; i < childCount; i++) {
+            TSNode child = ts_node_child(node, i);
+            const char *childType = ts_node_type(child);
+            if (strcmp(childType, "function_declarator") == 0) {
+                hasFunctionDeclarator = true;
+            }
+            if (strcmp(childType, "initializer_list") == 0) {
+                hasInitializerList = true;
+            }
+        }
+        
+        if (hasFunctionDeclarator && hasInitializerList) {
+            // 这是一个方法定义，创建函数作用域
+            ScopeInfo scope;
+            scope.level = currentLevel;
+            scope.startLine = startPoint.row;
+            scope.endLine = endPoint.row;
+            scope.type = SCOPE_FUNCTION;
+            scopes.push_back(scope);
+            LOGD("Created FUNCTION_SCOPE level %d for method in field_declaration: lines %d-%d", currentLevel, startPoint.row, endPoint.row);
+            currentLevel++;
+        }
     }
     // 识别块作用域（函数体、if/for/while语句块等）
     else if (strcmp(nodeType, "compound_statement") == 0) {
@@ -687,11 +1023,10 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
         scope.level = currentLevel;
         scope.startLine = startPoint.row;
         scope.endLine = endPoint.row;
-        scope.type = BLOCK_SCOPE;
+        scope.type = SCOPE_BLOCK;
         scopes.push_back(scope);
         LOGD("Created BLOCK_SCOPE level %d: lines %d-%d", currentLevel, startPoint.row, endPoint.row);
         currentLevel++;
-        createdScope = true;
     }
     // 识别类作用域
     else if (strcmp(nodeType, "class_specifier") == 0) {
@@ -699,11 +1034,10 @@ void traverseNodeForScopes(TSNode node, std::vector<ScopeInfo> &scopes, int curr
         scope.level = currentLevel;
         scope.startLine = startPoint.row;
         scope.endLine = endPoint.row;
-        scope.type = CLASS_SCOPE;
+        scope.type = SCOPE_CLASS;
         scopes.push_back(scope);
         LOGD("Created CLASS_SCOPE level %d: lines %d-%d", currentLevel, startPoint.row, endPoint.row);
         currentLevel++;
-        createdScope = true;
     }
     
     // 递归处理子节点

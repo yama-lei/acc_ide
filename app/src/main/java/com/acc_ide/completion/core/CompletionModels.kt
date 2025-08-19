@@ -1,12 +1,11 @@
 package com.acc_ide.completion.core
 
 /**
- * 补全相关的数据模型
- * 包含符号信息、作用域信息、解析结果等数据类
+ * Tree-sitter completion models - following official minimalist design
  */
 
 /**
- * 符号信息数据类
+ * Symbol extracted from Tree-sitter AST
  */
 data class SymbolInfo(
     val name: String,
@@ -16,11 +15,18 @@ data class SymbolInfo(
     val column: Int,
     val scopeLevel: Int,
     val description: String = "",
-    val parentStruct: String = "" // struct成员所属的struct名称
+    val parentStruct: String = ""
 )
 
 /**
- * 作用域信息数据类
+ * Symbol types
+ */
+enum class SymbolType {
+    VARIABLE, FUNCTION, CLASS, STRUCT, ENUM, PARAMETER, STRUCT_MEMBER
+}
+
+/**
+ * Scope information for visibility analysis
  */
 data class ScopeInfo(
     val level: Int,
@@ -30,86 +36,16 @@ data class ScopeInfo(
 )
 
 /**
- * 符号类型枚举
- */
-enum class SymbolType {
-    VARIABLE, FUNCTION, CLASS, STRUCT, ENUM, PARAMETER, STRUCT_MEMBER
-}
-
-/**
- * 作用域类型枚举
+ * Scope types
  */
 enum class ScopeType {
-    FUNCTION, CLASS, BLOCK, NAMESPACE, GLOBAL
+    SCOPE_FUNCTION, SCOPE_CLASS, SCOPE_BLOCK, SCOPE_NAMESPACE, SCOPE_GLOBAL
 }
 
 /**
- * 结构体信息数据类
- */
-data class StructInfo(
-    val name: String,
-    val members: List<StructMember>,
-    val line: Int
-)
-
-/**
- * 结构体成员数据类
- */
-data class StructMember(
-    val name: String,
-    val type: String,
-    val line: Int
-)
-
-/**
- * TreeSitter解析结果数据类
- */
-data class TreeSitterResult(
-    val rootNode: TreeSitterNode,
-    val symbols: List<SymbolInfo>,
-    val scopes: List<ScopeInfo>
-)
-
-/**
- * TreeSitter节点数据类
- */
-data class TreeSitterNode(
-    val type: String,
-    val startPosition: Pair<Int, Int>,
-    val endPosition: Pair<Int, Int>,
-    val children: List<TreeSitterNode> = emptyList()
-)
-
-/**
- * 解析结果数据类（原生TreeSitter使用）
+ * Simple parse result - Tree-sitter provides AST, we extract symbols
  */
 data class ParseResult(
     val symbols: List<SymbolInfo>,
-    val scopes: List<ScopeInfo>,
-    val parseTree: String? = null // 可选的语法树文本表示
+    val scopes: List<ScopeInfo>
 )
-
-/**
- * TreeSitter 查询匹配结果
- */
-data class QueryMatch(
-    val captureName: String,
-    val nodeText: String,
-    val startLine: Int,
-    val startColumn: Int,
-    val endLine: Int,
-    val endColumn: Int,
-    val nodeType: String
-)
-
-/**
- * TreeSitter 查询结果
- */
-data class QueryResult(
-    val matches: List<QueryMatch>,
-    val success: Boolean,
-    val errorMessage: String = ""
-)
-
-// 移除自定义ContentReference，统一使用sora-editor的类型
-// import io.github.rosemoe.sora.text.ContentReference

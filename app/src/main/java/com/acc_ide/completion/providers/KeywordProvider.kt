@@ -24,38 +24,9 @@ class KeywordProvider {
             "new", "delete", "this", "try", "catch", "throw", "using", "std"
         )
         
-        // Java 关键字
-        private val JAVA_KEYWORDS = listOf(
-            "abstract", "boolean", "break", "byte", "case", "catch", "char", "class",
-            "const", "continue", "default", "do", "double", "else", "extends", "final",
-            "finally", "float", "for", "goto", "if", "implements", "import", "instanceof",
-            "int", "interface", "long", "native", "new", "package", "private", "protected",
-            "public", "return", "short", "static", "super", "switch", "synchronized",
-            "this", "throw", "throws", "transient", "try", "void", "volatile", "while",
-            "true", "false", "null"
-        )
         
-        // Python 关键字
-        private val PYTHON_KEYWORDS = listOf(
-            "and", "as", "assert", "break", "class", "continue", "def", "del",
-            "elif", "else", "except", "finally", "for", "from", "global", "if",
-            "import", "in", "is", "lambda", "not", "or", "pass", "raise",
-            "return", "try", "while", "with", "yield", "True", "False", "None"
-        )
         
-        // Python 内置函数
-        private val PYTHON_BUILTINS = listOf(
-            "len", "range", "enumerate", "zip", "map", "filter", "sorted", "reversed",
-            "max", "min", "sum", "abs", "pow", "round", "int", "float", "str",
-            "list", "tuple", "set", "dict", "input", "print", "open", "chr", "ord"
-        )
         
-        // Java 集合类
-        private val JAVA_COLLECTIONS = listOf(
-            "ArrayList", "LinkedList", "HashMap", "TreeMap", "HashSet", "TreeSet",
-            "PriorityQueue", "Stack", "Queue", "Deque", "Collections", "Arrays",
-            "Scanner", "StringBuilder", "StringBuffer"
-        )
         
         // ACM 模板
         private val ACM_TEMPLATES = mapOf(
@@ -78,14 +49,6 @@ class KeywordProvider {
             "cpp", "c++" -> {
                 items.addAll(getKeywordItems(CPP_KEYWORDS, lowerPrefix, prefix.length))
                 items.addAll(getTemplateItems(ACM_TEMPLATES, lowerPrefix, prefix.length))
-            }
-            "java" -> {
-                items.addAll(getKeywordItems(JAVA_KEYWORDS, lowerPrefix, prefix.length))
-                items.addAll(getCollectionItems(JAVA_COLLECTIONS, lowerPrefix, prefix.length))
-            }
-            "python", "py" -> {
-                items.addAll(getKeywordItems(PYTHON_KEYWORDS, lowerPrefix, prefix.length))
-                items.addAll(getBuiltinItems(PYTHON_BUILTINS, lowerPrefix, prefix.length))
             }
         }
         
@@ -136,47 +99,5 @@ class KeywordProvider {
             }
     }
     
-    /**
-     * 获取集合类补全项
-     */
-    private fun getCollectionItems(
-        collections: List<String>,
-        prefix: String,
-        prefixLength: Int
-    ): List<CompletionItem> {
-        return collections
-            .filter { it.lowercase().startsWith(prefix) }
-            .map { collection ->
-                PriorityCompletionItem(
-                    collection,
-                    "Java Collection",
-                    prefixLength,
-                    collection,
-                    CompletionConstants.PRIORITY_STL_COMMON,
-                    CompletionItemKind.Class
-                )
-            }
-    }
     
-    /**
-     * 获取内置函数补全项
-     */
-    private fun getBuiltinItems(
-        builtins: List<String>,
-        prefix: String,
-        prefixLength: Int
-    ): List<CompletionItem> {
-        return builtins
-            .filter { it.startsWith(prefix) }
-            .map { builtin ->
-                PriorityCompletionItem(
-                    builtin,
-                    "Python Built-in",
-                    prefixLength,
-                    "$builtin()",
-                    CompletionConstants.PRIORITY_STL_COMMON,
-                    CompletionItemKind.Function
-                )
-            }
-    }
 }

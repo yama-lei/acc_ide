@@ -27,11 +27,11 @@ enum SymbolType {
 
 // 作用域类型枚举
 enum ScopeType {
-    FUNCTION_SCOPE = 0,
-    CLASS_SCOPE = 1,
-    BLOCK_SCOPE = 2,
-    NAMESPACE_SCOPE = 3,
-    GLOBAL_SCOPE = 4
+    SCOPE_FUNCTION = 0,
+    SCOPE_CLASS = 1,
+    SCOPE_BLOCK = 2,
+    SCOPE_NAMESPACE = 3,
+    SCOPE_GLOBAL = 4
 };
 
 // 符号信息结构

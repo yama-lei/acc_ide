@@ -10,7 +10,7 @@ import io.github.rosemoe.sora.text.ContentReference
 import io.github.rosemoe.sora.text.Content
 import com.acc_ide.completion.providers.KeywordProvider
 import com.acc_ide.completion.providers.STLProvider
-import com.acc_ide.completion.services.NativeTreeSitterService
+import com.acc_ide.completion.services.TreeSitterService
 
 /**
  * ACM竞赛编程智能补全提供器
@@ -28,7 +28,7 @@ class ACMCompletionProvider {
     private val usageFrequency = mutableMapOf<String, Int>()
     
     // 原生TreeSitter服务（用于语义分析）
-    private val treeSitterService = NativeTreeSitterService()
+    private val treeSitterService = TreeSitterService()
     
     // 当前关联的混合语言实例，用于获取TreeSitter分析结果 (临时禁用)
     // private var hybridLanguage: ACMHybridLanguage? = null
@@ -150,8 +150,8 @@ class ACMCompletionProvider {
             android.util.Log.d("ACMCompletionProvider", "handleMemberCompletion: contextVar='$contextVar', prefix='$prefix'")
             
             // 使用原生TreeSitter服务查找上下文变量（获取所有变量）
-            val parseResult = treeSitterService.parseCode(contentRef, language)
-            val localVariables = parseResult?.symbols?.filter {
+            val result = treeSitterService.parseCode(contentRef, language)
+            val localVariables = result?.symbols?.filter {
                 it.type == SymbolType.VARIABLE || it.type == SymbolType.PARAMETER
             } ?: emptyList()
             
@@ -159,12 +159,6 @@ class ACMCompletionProvider {
             val contextSymbol = localVariables.find { it.name == contextVar }
             if (contextSymbol != null) {
                 android.util.Log.d("ACMCompletionProvider", "Found context variable: ${contextSymbol.name} of type ${contextSymbol.dataType}")
-                
-                // 首先打印所有可用的符号用于调试
-                android.util.Log.d("ACMCompletionProvider", "All available symbols:")
-                parseResult?.symbols?.forEach { symbol ->
-                    android.util.Log.d("ACMCompletionProvider", "  Symbol: ${symbol.name}, type: ${symbol.type}, dataType: ${symbol.dataType}, parentStruct: ${symbol.parentStruct}")
-                }
                 
                 // 1. 优先检查是否为STL容器类型
                 if (isSTLType(contextSymbol.dataType)) {
@@ -179,10 +173,21 @@ class ACMCompletionProvider {
                     return items // 返回空列表
                 }
                 
-                // 3. 尝试获取用户定义的struct成员
-                val structMembers = getStructMembers(contentRef, language, contextSymbol.dataType, prefix)
+                // 3. 尝试获取用户定义的struct/class成员
+                // 清理类型名：移除指针标记、引用标记等修饰符
+                val cleanTypeName = contextSymbol.dataType
+                    .replace("*", "")
+                    .replace("&", "")
+                    .replace("const", "")
+                    .replace("class", "")
+                    .replace("struct", "")
+                    .trim()
+                
+                android.util.Log.d("ACMCompletionProvider", "Clean type name: '$cleanTypeName' (from '${contextSymbol.dataType}')")
+                
+                val structMembers = getStructMembers(contentRef, language, cleanTypeName, prefix)
                 if (structMembers.isNotEmpty()) {
-                    android.util.Log.d("ACMCompletionProvider", "Added ${structMembers.size} struct members for type ${contextSymbol.dataType}")
+                    android.util.Log.d("ACMCompletionProvider", "Added ${structMembers.size} struct/class members for type ${cleanTypeName}")
                     items.addAll(structMembers)
                     return items
                 }
@@ -193,14 +198,10 @@ class ACMCompletionProvider {
                 
             } else {
                 android.util.Log.d("ACMCompletionProvider", "Context variable '$contextVar' not found in TreeSitter results")
-                // 临时禁用STL推断，优先让struct成员补全工作
-                // items.addAll(stlProvider.inferMemberCompletions(contextVar, prefix))
             }
             
         } catch (e: Exception) {
             android.util.Log.e("ACMCompletionProvider", "TreeSitter member completion failed", e)
-            // 临时禁用STL推断，优先让struct成员补全工作
-            // items.addAll(stlProvider.inferMemberCompletions(contextVar, prefix))
         }
         
         return items
@@ -243,8 +244,8 @@ class ACMCompletionProvider {
         
         try {
             // 获取所有symbols
-            val parseResult = treeSitterService.parseCode(contentRef, language)
-            val allSymbols = parseResult?.symbols ?: emptyList()
+            val result = treeSitterService.parseCode(contentRef, language)
+            val allSymbols = result?.symbols ?: emptyList()
             
             // 查找指定struct的成员
             val structMembers = allSymbols.filter { symbol ->
@@ -278,6 +279,79 @@ class ACMCompletionProvider {
     }
     
     /**
+     * 获取struct/class成员补全（考虑访问控制）
+     */
+    private fun getStructMembersWithAccessControl(
+        contentRef: ContentReference,
+        language: String,
+        structTypeName: String,
+        prefix: String
+    ): List<CompletionItem> {
+        val items = mutableListOf<CompletionItem>()
+        
+        try {
+            // 获取所有symbols和作用域信息
+            val result = treeSitterService.parseCode(contentRef, language)
+            val allSymbols = result?.symbols ?: emptyList()
+            val allScopes = result?.scopes ?: emptyList()
+            
+            // 确定当前是否在目标类的内部
+            val isInsideTargetClass = allScopes.any { scope ->
+                scope.type == ScopeType.SCOPE_CLASS &&
+                allSymbols.any { symbol ->
+                    symbol.type == SymbolType.CLASS &&
+                    symbol.name == structTypeName &&
+                    symbol.line >= scope.startLine &&
+                    symbol.line <= scope.endLine
+                }
+            }
+            
+            android.util.Log.d("ACMCompletionProvider", "Looking for members of '$structTypeName', inside target class: $isInsideTargetClass")
+            
+            // 查找指定struct/class的成员
+            val structMembers = allSymbols.filter { symbol ->
+                symbol.type == SymbolType.STRUCT_MEMBER && 
+                symbol.parentStruct == structTypeName &&
+                symbol.name.startsWith(prefix, ignoreCase = true)
+            }
+            
+            android.util.Log.d("ACMCompletionProvider", "Found ${structMembers.size} total members for '$structTypeName'")
+            
+            // 根据访问控制过滤成员
+            val accessibleMembers = if (isInsideTargetClass) {
+                // 在类内部：所有成员都可访问（包括私有成员）
+                android.util.Log.d("ACMCompletionProvider", "Inside class - all members accessible")
+                structMembers
+            } else {
+                // 在类外部：只有公有成员可访问
+                // 注意：对于简单的struct，默认所有成员都是公有的
+                android.util.Log.d("ACMCompletionProvider", "Outside class - only public members accessible")
+                structMembers // 暂时返回所有成员，因为Tree-sitter不会解析访问修饰符到STRUCT_MEMBER
+            }
+            
+            // 转换为补全项
+            accessibleMembers.forEach { member ->
+                android.util.Log.d("ACMCompletionProvider", "  Accessible member: ${member.name} (${member.dataType})")
+                
+                val item = PriorityCompletionItem(
+                    member.name,
+                    "${member.dataType} - ${member.description}",
+                    prefix.length,
+                    member.name,
+                    CompletionConstants.PRIORITY_STRUCT_MEMBER,
+                    CompletionItemKind.Field
+                )
+                items.add(item)
+            }
+            
+        } catch (e: Exception) {
+            android.util.Log.e("ACMCompletionProvider", "Failed to get struct members with access control", e)
+        }
+        
+        return items
+    }
+    
+    /**
      * 处理常规补全
      */
     private fun handleRegularCompletion(
@@ -289,15 +363,18 @@ class ACMCompletionProvider {
         val items = mutableListOf<CompletionItem>()
         
         try {
-            // 使用原生TreeSitter服务进行语义分析
+            // 优先尝试使用查询系统进行语义分析
             android.util.Log.d("ACMCompletionProvider", "Getting symbols at position ${position.line}:${position.column}")
+            
+            // 使用Tree-sitter解析获取符号
             val symbolsAtPosition = treeSitterService.getSymbolsAtPosition(contentRef, language, position.line, position.column)
             
             android.util.Log.d("ACMCompletionProvider", "Found ${symbolsAtPosition.size} symbols at position")
             
             if (symbolsAtPosition.isNotEmpty()) {
-                // 直接使用所有可见符号（包括类成员）
-                android.util.Log.d("ACMCompletionProvider", "Found: ${symbolsAtPosition.size} total symbols at position")
+                // TreeSitterService 已经正确处理了作用域可见性，包括类方法内的私有成员访问
+                // 不需要在这里重复过滤 STRUCT_MEMBER
+                android.util.Log.d("ACMCompletionProvider", "Found ${symbolsAtPosition.size} symbols from TreeSitter (scope-filtered)")
                 
                 // 按类型分组记录
                 val variables = symbolsAtPosition.filter { it.type == SymbolType.VARIABLE }
@@ -308,7 +385,7 @@ class ACMCompletionProvider {
                 
                 android.util.Log.d("ACMCompletionProvider", "Found: ${variables.size} vars, ${parameters.size} params, ${structMembers.size} members, ${functions.size} functions, ${classes.size} classes")
                 
-                // 转换为补全项
+                // 转换为补全项（包括在作用域内可访问的struct成员）
                 val symbolItems = convertSymbolsToCompletionItems(symbolsAtPosition, prefix, 0)
                 items.addAll(symbolItems)
                 android.util.Log.d("ACMCompletionProvider", "Converted ${symbolItems.size} symbol items")
@@ -402,26 +479,6 @@ class ACMCompletionProvider {
             }
     }
     
-    /**
-     * 将结构体转换为补全项
-     */
-    private fun convertStructsToCompletionItems(
-        structs: List<StructInfo>,
-        prefix: String
-    ): List<CompletionItem> {
-        return structs
-            .filter { it.name.startsWith(prefix, ignoreCase = true) }
-            .map { struct ->
-                PriorityCompletionItem(
-                    struct.name,
-                    "User-defined struct",
-                    prefix.length,
-                    struct.name,
-                    CompletionConstants.PRIORITY_TYPE,
-                    CompletionItemKind.Struct
-                )
-            }
-    }
     
     /**
      * 计算符号优先级
