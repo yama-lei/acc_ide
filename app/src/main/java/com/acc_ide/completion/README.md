@@ -4,39 +4,151 @@
 
 ## 系统架构
 
+### 三层架构设计
+
 ```
-源码 → Tree-sitter解析器 → CST → 符号提取 → 作用域分析 → 智能补全
+┌─────────────────────────────────────────────────────────────────┐
+│                        应用层 (Kotlin)                          │
+├─────────────────────────────────────────────────────────────────┤
+│  CompletionManager → TreeSitterService → UniversalCompletionEngine │
+│           ↓                    ↓                       ↓        │
+│  语言处理器框架        JNI服务层            补全引擎           │
+├─────────────────────────────────────────────────────────────────┤
+│                        JNI桥接层 (C++)                          │
+├─────────────────────────────────────────────────────────────────┤
+│  TreeSitterJNI.cpp → TreeSitterRegistry → AbstractTreeSitterProcessor │
+│           ↓                    ↓                       ↓        │
+│      JNI接口            处理器注册管理            抽象处理器基类     │
+├─────────────────────────────────────────────────────────────────┤
+│                      原生处理层 (C++)                            │
+├─────────────────────────────────────────────────────────────────┤
+│  CppLanguageProcessor → JavaLanguageProcessor → PythonLanguageProcessor │
+│           ↓                    ↓                       ↓        │
+│      具体语言处理器实现 (继承AbstractTreeSitterProcessor)        │
+│           ↓                    ↓                       ↓        │
+│  tree_sitter_cpp()     tree_sitter_java()      tree_sitter_python() │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 数据流程
+
+```
+用户输入 → TreeSitterService → JNI → TreeSitterRegistry → 
+具体语言处理器 → Tree-sitter解析 → 符号提取 → 作用域过滤 → 补全建议
 ```
 
 ### 核心设计理念
 
 - **Tree-sitter 提供 CST**：本来用于语法高亮，这里复用做符号提取
-- **自定义符号提取**：从 CST 中提取符号信息用于补全
+- **模块化注册机制**：使用Registry模式管理多语言处理器
 - **严格遵循官方设计**：使用 `TSParser` → `TSTree` → 手动遍历 `TSNode`
-- **模块化设计**：按语言分层组织，便于扩展
+- **分层抽象设计**：AbstractTreeSitterProcessor提供通用功能，子类实现语言特定逻辑
 - **本地化方案**：无需网络，适合竞赛环境
-
-### 架构说明
-
-- **Tree-sitter**：主要用于语法高亮，这里复用做基础语法解析
-- **本地补全**：由CST简化的补全逻辑，专注竞赛编程场景
 - **非 LSP 架构**：不依赖 Language Server Protocol，减少复杂性
+
+## 文件结构
+
+### C++原生层
+```
+app/src/main/cpp/
+├── core/                                   # 核心抽象层
+│   ├── AbstractTreeSitterProcessor.h/.cpp  # 抽象处理器基类
+│   ├── ILanguageProcessor.h                # 语言处理器接口
+│   ├── TreeSitterRegistry.h/.cpp          # 注册管理器
+├── languages/                              # 语言特定实现
+│   ├─�� CppLanguageProcessor.h/.cpp         # C++处理器
+│   ├── JavaLanguageProcessor.h/.cpp        # Java处理器
+│   └── PythonLanguageProcessor.h/.cpp      # Python处理器
+├── TreeSitterJNI.h/.cpp                   # JNI桥接层
+└── CMakeLists.txt                          # 构建配置
+```
+
+### Kotlin应用层
+```
+app/src/main/java/com/acc_ide/completion/
+├── core/                                   # 核心数据模型
+│   ├── CompletionModels.kt                 # 符号、作用域等数据类
+│   └── CompletionConstants.kt              # 常量定义
+├── framework/                              # 抽象框架层
+│   ├── AbstractTreeSitterProcessor.kt      # Kotlin抽象处理器
+│   ├── CompletionManager.kt                # 补全管理器
+│   └── UniversalCompletionEngine.kt        # 通用补全引擎
+├── languages/                              # 语言特定实现
+│   ├── cpp/, java/, python/                # 各语言支持
+├── providers/                              # 静态提示库
+│   └── cpp/CppStaticLibrary.kt            # C++标准库提示
+└── services/                               # 核心服务
+    └── TreeSitterService.kt                # Tree-sitter JNI服务
+```
+
+## 实现原理
+
+### 1. Registry注册模式
+```cpp
+// TreeSitterRegistry单例管理所有语言处理器
+class TreeSitterRegistry {
+    std::unordered_map<std::string, std::unique_ptr<ILanguageProcessor>> processors;
+    
+    void initializeBuiltinProcessors() {
+        registerProcessor(std::make_unique<CppLanguageProcessor>());
+        registerProcessor(std::make_unique<JavaLanguageProcessor>());  
+        registerProcessor(std::make_unique<PythonLanguageProcessor>());
+    }
+};
+```
+
+### 2. Tree-sitter解析流程
+```cpp
+ParseResult executeTreeSitterParsing(const std::string &code, const TSLanguage* language) {
+    // 1. 创建parser和tree
+    TSParser *parser = ts_parser_new();
+    ts_parser_set_language(parser, language);
+    TSTree *tree = ts_parser_parse_string(parser, nullptr, code.c_str(), code.length());
+    
+    // 2. 遍历AST提取符号
+    TSNode rootNode = ts_tree_root_node(tree);
+    extractLanguageSpecificSymbols(rootNode, code, symbols, 0);
+    
+    // 3. 清理资源并返回
+    ts_tree_delete(tree);
+    ts_parser_delete(parser);
+    return ParseResult{symbols, scopes};
+}
+```
+
+### 3. 作用域过滤
+```kotlin
+// 根据当前位置过滤可见符号
+fun getSymbolsAtPosition(line: Int, column: Int): List<SymbolInfo> {
+    return symbols.filter { symbol ->
+        // 时间可见性：符号必须在当前位置之前声明
+        val isTemporallyVisible = symbol.line < line || (symbol.line == line && symbol.column < column)
+        
+        // 作用域可见性：根据符号类型和作用域层级判断
+        isTemporallyVisible && when (symbol.type) {
+            SymbolType.VARIABLE -> symbol.scopeLevel == 0 || isInCurrentScope(symbol)
+            SymbolType.STRUCT_MEMBER -> isInClassMethod(symbol)
+            else -> true
+        }
+    }
+}
+```
 
 ## 已实现功能 ✅
 
-### C++ 语法支持
+### C++/Java/Python 语法支持
+
 - ✅ **基本变量声明**：`int x, y = 5;`
 - ✅ **数组变量**：`bool vis[MAXN];`
 - ✅ **指针和引用**：`int *ptr, &ref;`
 - ✅ **结构体成员**：`struct node { int l, r; };`
 - ✅ **类成员和方法**：`class MyClass { int data; };`
 - ✅ **枚举值**：`enum Color { RED, GREEN, BLUE };`
-- ✅ **联合体成员**：`union Data { int i; float f; };`
 - ✅ **函数参数和局部变量**
 - ✅ **命名空间**：`namespace myspace { };`
-- ✅ **类型别名**：`using MyInt = int;`
 
 ### 智能补全特性
+
 - ✅ **作用域感知**：根据当前作用域显示可用符号
 - ✅ **成员访问补全**：`obj.` / `obj->` 智能成员提示
 - ✅ **类型识别**：精确识别变量类型，包括数组、指针、引用
@@ -44,90 +156,6 @@
 - ✅ **优先级排序**：局部变量 > 参数 > 全局变量
 - ✅ **使用频率统计**：常用符号优先显示
 - ✅ **ACM 模板补全**：`gcd`, `lcm`, `pow_mod` 等常用模板
-
-### Java 和 Python 支持
-- ✅ **基础语法解析**：变量、函数、类声明
-- ⏳ **补全逻辑开发中**：完整智能补全功能待实现
-
-## 系统组件
-
-### 原生层 (C++)
-```
-app/src/main/cpp/
-├── TreeSitterCore.cpp      # 核心符号提取逻辑
-├── TreeSitterJNI.cpp       # JNI桥接层
-└── TreeSitterJNI.h         # 头文件定义
-```
-
-### Kotlin 服务层
-```
-app/src/main/java/com/acc_ide/completion/
-├── core/                    # 核心组件
-│   ├── CompletionConstants.kt
-│   ├── CompletionModels.kt
-│   └── ModernACMCompletionProvider.kt
-├── framework/               # 通用补全框架
-│   ├── AbstractTreeSitterProcessor.kt
-│   ├── CompletionManager.kt
-│   ├── LanguageProcessor.kt
-│   └── UniversalCompletionEngine.kt
-├── languages/               # 语言处理器
-│   ├── LanguageManager.kt
-│   ├── cpp/
-│   │   ├── CppLanguageProcessor.kt
-│   │   └── CppLanguageSupport.kt
-│   ├── java/
-│   │   └── JavaLanguageProcessor.kt
-│   └── python/
-│       └── PythonLanguageProcessor.kt
-├── providers/               # 静态提示库
-│   ├── cpp/
-│   │   └── CppStaticLibrary.kt
-│   ├── java/
-│   └── python/
-└── services/                # Tree-sitter服务
-    └── TreeSitterService.kt
-```
-
-## 实现原理
-
-### 1. 符号提取流程
-```cpp
-// 1. 解析源码为CST
-TSParser *parser = ts_parser_new();
-ts_parser_set_language(parser, tree_sitter_cpp());
-TSTree *tree = ts_parser_parse_string(parser, nullptr, code.c_str(), code.length());
-
-// 2. 遍历CST节点
-TSNode rootNode = ts_tree_root_node(tree);
-traverseNodeForSymbols(rootNode, code, symbols);
-
-// 3. 提取符号信息
-if (strcmp(nodeType, "declaration") == 0) {
-    // 处理变量声明
-} else if (strcmp(nodeType, "function_definition") == 0) {
-    // 处理函数定义
-}
-```
-
-### 2. 作用域分析
-- **函数作用域**：函数参数在函数体内可见
-- **块作用域**：`{}` 内的变量只在块内可见
-- **类作用域**：类成员在类内可见
-- **全局作用域**：全局符号在任何地方可见
-
-### 3. 补全触发
-```kotlin
-// 成员访问: obj.
-val (actualPrefix, contextVar) = extractMemberAccessContext(content, position, prefix)
-if (contextVar != null) {
-    // 查找 obj 的类型，提供成员补全
-    handleMemberCompletion(contentRef, language, contextVar, actualPrefix)
-} else {
-    // 常规补全：变量、函数、关键字
-    handleRegularCompletion(contentRef, language, position, actualPrefix)
-}
-```
 
 ## 性能特性
 
@@ -151,17 +179,7 @@ int main() {
 }
 ```
 
-### 数组变量补全 ✅
-```cpp
-const int MAXN = 1e5+5;
-bool vis[MAXN];
-
-int main() {
-    // 输入 'v' → 显示: vis (bool[])
-}
-```
-
-### 结构体成员补全 ✅
+### 结构体成员补全
 ```cpp
 struct node {
     int l, r;  // 多成员声明
@@ -173,7 +191,7 @@ int main() {
 }
 ```
 
-## 未来 TODO
+## TODO
 
 ### 近期计划
 - [ ] **完善 Java 补全**：实现完整的 Java 语言补全逻辑
@@ -197,9 +215,6 @@ int main() {
 
 ## 当前限制
 
-- ⏳ **多语言支持开发中**：Java 和 Python 的完整补全逻辑待实现
 - ❌ **基础 C++ 语法**：不支持 C++20 新特性（概念、协程等）
 - ❌ **简单类型推导**：不支持复杂的模板类型推导
 - ❌ **单文件分析**：暂不支持跨文件的符号引用
-
----

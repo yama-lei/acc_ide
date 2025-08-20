@@ -1,4 +1,5 @@
 #include "TreeSitterJNI.h"
+#include "core/TreeSitterRegistry.h"
 #include <android/log.h>
 
 #define LOG_TAG "TreeSitterJNI"
@@ -112,41 +113,7 @@ jobject createParseResult(JNIEnv *env, const ParseResult &result) {
     return env->NewObject(parseResultClass, constructor, symbolList, scopeList);
 }
 
-jobject createQueryMatch(JNIEnv *env, const QueryMatch &match) {
-    jclass queryMatchClass = env->FindClass("com/acc_ide/completion/core/QueryMatch");
-    jmethodID constructor = env->GetMethodID(queryMatchClass, "<init>", 
-        "(Ljava/lang/String;Ljava/lang/String;IIIILjava/lang/String;)V");
-    
-    jstring captureName = env->NewStringUTF(match.captureName.c_str());
-    jstring nodeText = env->NewStringUTF(match.nodeText.c_str());
-    jstring nodeType = env->NewStringUTF(match.nodeType.c_str());
-    
-    return env->NewObject(queryMatchClass, constructor, captureName, nodeText,
-                         match.startLine, match.startColumn, match.endLine, match.endColumn, nodeType);
-}
-
-jobject createQueryResult(JNIEnv *env, const QueryResult &result) {
-    jclass queryResultClass = env->FindClass("com/acc_ide/completion/core/QueryResult");
-    jmethodID constructor = env->GetMethodID(queryResultClass, "<init>", "(Ljava/util/List;ZLjava/lang/String;)V");
-    
-    // 创建匹配列表
-    jclass arrayListClass = env->FindClass("java/util/ArrayList");
-    jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
-    jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
-    
-    jobject matchList = env->NewObject(arrayListClass, arrayListConstructor);
-    for (const auto &match : result.matches) {
-        jobject queryMatch = createQueryMatch(env, match);
-        env->CallBooleanMethod(matchList, arrayListAdd, queryMatch);
-        env->DeleteLocalRef(queryMatch);
-    }
-    
-    jstring errorMessage = env->NewStringUTF(result.errorMessage.c_str());
-    
-    return env->NewObject(queryResultClass, constructor, matchList, result.success, errorMessage);
-}
-
-// JNI接口函数
+// JNI接口函数 - 使用新的模块化架构
 extern "C" {
 
 JNIEXPORT jobject JNICALL
@@ -157,13 +124,30 @@ Java_com_acc_1ide_completion_services_TreeSitterService_parseCppCode(JNIEnv *env
         return nullptr;
     }
     
-    LOGD("Parsing C++ code: %s", codeStr);
+    LOGD("Parsing C++ code using modular architecture");
     
-    ParseResult result = parseCppCodeCore(codeStr);
-    
-    env->ReleaseStringUTFChars(code, codeStr);
-    
-    return createParseResult(env, result);
+    try {
+        // 使用注册管理器获取C++处理器
+        auto& registry = TreeSitterRegistry::getInstance();
+        auto processor = registry.getProcessor("cpp");
+        
+        if (!processor) {
+            LOGE("Failed to get C++ processor");
+            env->ReleaseStringUTFChars(code, codeStr);
+            return nullptr;
+        }
+        
+        // 使用处理器解析代码
+        ParseResult result = processor->parseCode(std::string(codeStr));
+        
+        env->ReleaseStringUTFChars(code, codeStr);
+        return createParseResult(env, result);
+        
+    } catch (const std::exception& e) {
+        LOGE("Error parsing C++ code: %s", e.what());
+        env->ReleaseStringUTFChars(code, codeStr);
+        return nullptr;
+    }
 }
 
 JNIEXPORT jobject JNICALL
@@ -174,13 +158,30 @@ Java_com_acc_1ide_completion_services_TreeSitterService_parseJavaCode(JNIEnv *en
         return nullptr;
     }
     
-    LOGD("Parsing Java code: %s", codeStr);
+    LOGD("Parsing Java code using modular architecture");
     
-    ParseResult result = parseJavaCodeCore(codeStr);
-    
-    env->ReleaseStringUTFChars(code, codeStr);
-    
-    return createParseResult(env, result);
+    try {
+        // 使用注册管理器获取Java处理器
+        auto& registry = TreeSitterRegistry::getInstance();
+        auto processor = registry.getProcessor("java");
+        
+        if (!processor) {
+            LOGE("Failed to get Java processor");
+            env->ReleaseStringUTFChars(code, codeStr);
+            return nullptr;
+        }
+        
+        // 使用处理器解析代码
+        ParseResult result = processor->parseCode(std::string(codeStr));
+        
+        env->ReleaseStringUTFChars(code, codeStr);
+        return createParseResult(env, result);
+        
+    } catch (const std::exception& e) {
+        LOGE("Error parsing Java code: %s", e.what());
+        env->ReleaseStringUTFChars(code, codeStr);
+        return nullptr;
+    }
 }
 
 JNIEXPORT jobject JNICALL
@@ -191,15 +192,100 @@ Java_com_acc_1ide_completion_services_TreeSitterService_parsePythonCode(JNIEnv *
         return nullptr;
     }
     
-    LOGD("Parsing Python code: %s", codeStr);
+    LOGD("Parsing Python code using modular architecture");
     
-    ParseResult result = parsePythonCodeCore(codeStr);
-    
-    env->ReleaseStringUTFChars(code, codeStr);
-    
-    return createParseResult(env, result);
+    try {
+        // 使用注册管理器获取Python处理器
+        auto& registry = TreeSitterRegistry::getInstance();
+        auto processor = registry.getProcessor("python");
+        
+        if (!processor) {
+            LOGE("Failed to get Python processor");
+            env->ReleaseStringUTFChars(code, codeStr);
+            return nullptr;
+        }
+        
+        // 使用处理器解析代码
+        ParseResult result = processor->parseCode(std::string(codeStr));
+        
+        env->ReleaseStringUTFChars(code, codeStr);
+        return createParseResult(env, result);
+        
+    } catch (const std::exception& e) {
+        LOGE("Error parsing Python code: %s", e.what());
+        env->ReleaseStringUTFChars(code, codeStr);
+        return nullptr;
+    }
 }
 
-// 删除查询方法 - 不符合Tree-sitter官方简单设计
+// 通用语言解析接口 - 新增功能
+JNIEXPORT jobject JNICALL
+Java_com_acc_1ide_completion_services_TreeSitterService_parseCode(JNIEnv *env, jobject /* thiz */, jstring code, jstring language) {
+    const char *codeStr = env->GetStringUTFChars(code, nullptr);
+    const char *langStr = env->GetStringUTFChars(language, nullptr);
+    
+    if (!codeStr || !langStr) {
+        LOGE("Failed to get code or language string");
+        if (codeStr) env->ReleaseStringUTFChars(code, codeStr);
+        if (langStr) env->ReleaseStringUTFChars(language, langStr);
+        return nullptr;
+    }
+    
+    LOGD("Parsing code for language: %s", langStr);
+    
+    try {
+        // 使用注册管理器获取指定语言的处理器
+        auto& registry = TreeSitterRegistry::getInstance();
+        auto processor = registry.getProcessor(std::string(langStr));
+        
+        if (!processor) {
+            LOGE("Failed to get processor for language: %s", langStr);
+            env->ReleaseStringUTFChars(code, codeStr);
+            env->ReleaseStringUTFChars(language, langStr);
+            return nullptr;
+        }
+        
+        // 使用处理器解析代码
+        ParseResult result = processor->parseCode(std::string(codeStr));
+        
+        env->ReleaseStringUTFChars(code, codeStr);
+        env->ReleaseStringUTFChars(language, langStr);
+        return createParseResult(env, result);
+        
+    } catch (const std::exception& e) {
+        LOGE("Error parsing code for language %s: %s", langStr, e.what());
+        env->ReleaseStringUTFChars(code, codeStr);
+        env->ReleaseStringUTFChars(language, langStr);
+        return nullptr;
+    }
+}
+
+// 获取支持的语言列表 - 新增功能
+JNIEXPORT jobject JNICALL
+Java_com_acc_1ide_completion_services_TreeSitterService_getSupportedLanguages(JNIEnv *env, jobject /* thiz */) {
+    try {
+        auto& registry = TreeSitterRegistry::getInstance();
+        auto languages = registry.getSupportedLanguages();
+        
+        // 创建字符串列表
+        jclass arrayListClass = env->FindClass("java/util/ArrayList");
+        jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+        jmethodID arrayListAdd = env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+        
+        jobject languageList = env->NewObject(arrayListClass, arrayListConstructor);
+        
+        for (const auto& lang : languages) {
+            jstring langStr = env->NewStringUTF(lang.c_str());
+            env->CallBooleanMethod(languageList, arrayListAdd, langStr);
+            env->DeleteLocalRef(langStr);
+        }
+        
+        return languageList;
+        
+    } catch (const std::exception& e) {
+        LOGE("Error getting supported languages: %s", e.what());
+        return nullptr;
+    }
+}
 
 } // extern "C"

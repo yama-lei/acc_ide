@@ -45,7 +45,7 @@ add_library(treesitter-jni SHARED
     languages/PythonLanguageProcessor.cpp
     
     # JNI interface layer
-    TreeSitterJNI_New.cpp
+        TreeSitterJNI.cpp
 )
 
 # Link libraries
