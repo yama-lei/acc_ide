@@ -26,71 +26,46 @@ acc_ide/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/acc_ide/
-│   │   │   │   ├── adapter/                      # RecyclerView 适配器
-│   │   │   │   ├── dialog/                       # 对话框组件
-│   │   │   │   ├── model/                        # 数据模型
-│   │   │   │   ├── util/                         # 工具类
-│   │   │   │   ├── view/                         # 自定义视图
-│   │   │   │   ├── MainActivity.kt               # 主应用程序入口点
-│   │   │   │   ├── EditorFragment.kt             # 代码编辑器实现
-│   │   │   │   ├── IOPanelFragment.kt            # 输入/输出面板
-│   │   │   │   ├── SettingsFragment.kt           # 应用程序设置
-│   │   │   │   ├── SplashActivity.kt             # 启动屏幕
-│   │   │   │   ├── WelcomeFragment.kt            # 欢迎屏幕
-│   │   │   │   └── NewFileDialogFragment.kt      # 新文件创建对话框
-│   │   │   ├── res/                              # Android 资源文件
-│   │   │   │   ├── drawable/                     # 图像资源
-│   │   │   │   ├── layout/                       # 布局文件
-│   │   │   │   ├── menu/                         # 菜单资源
-│   │   │   │   ├── values/                       # 字符串、色彩等资源
-│   │   │   │   └── values-zh/                    # 中文本地化资源
-│   │   │   ├── assets/                           # 应用资产文件
-│   │   │   │   ├── fonts/                        # 字体文件
-│   │   │   │   └── textmate/                     # TextMate 语法配置
+│   │   │   │   ├── adapter/                          # RecyclerView 适配器
+│   │   │   │   │   └── FileListAdapter.kt            # 文件列表适配器
+│   │   │   │   ├── completion/                       # 代码补全系统
+│   │   │   │   │   ├── core/                         # 补全核心组件
+│   │   │   │   │   ├── framework/                    # 补全框架
+│   │   │   │   │   ├── languages/                    # 语言特定补全支持
+│   │   │   │   │   ├── providers/                    # 补全提供器
+│   │   │   │   │   ├── services/                     # 补全服务
+│   │   │   │   ├── data/                             
+│   │   │   │   │   ├── model/                        # 数据模型
+│   │   │   │   │   └── repository/                   # 数据仓库
+│   │   │   │   ├── dialog/                           # 对话框组件
+│   │   │   │   ├── ui/                               # UI 组件              
+│   │   │   │   ├── util/                             # 工具类
+│   │   │   │   └── view/                             # 自定义视图
+│   │   │   ├── cpp/                                  
+│   │   │   │   ├── core/                             # Tree-sitter 核心
+│   │   │   │   ├── languages/                        # 语言处理器
+│   │   │   │   └── TreeSitterJNI.cpp                 # JNI 接口
+│   │   │   ├── res/                                  
+│   │   │   ├── assets/                               
+│   │   │   ├── jniLibs/                              
 │   │   │   └── AndroidManifest.xml
-│   ├── build.gradle                              # 模块构建配置
-├── gradle/                                       # Gradle 包装器文件
-└── build.gradle.kts                              # 项目构建配置
+│   ├── build.gradle                                  
+├── gradle/                                           
+├── build.gradle.kts                                  
+└── settings.gradle.kts                               
 ```
 
-### 交互流程
-
-```mermaid
-flowchart TD
-    U["用户 (User)"]
-    APP["ACC IDE (Android App)"]
-    GHA["GitHub Action<br/>code-execution.yml"]
-    JUDGE["评测/编译环境"]
-    RESULT["评测结果"]
-
-    U -- "编写/提交代码、输入、期望输出" --> APP
-    APP -- "通过 API/网络请求<br/>触发 GitHub Action" --> GHA
-    GHA -- "准备评测环境<br/>写入代码/输入/输出文件" --> JUDGE
-    JUDGE -- "编译/运行/对比输出" --> GHA
-    GHA -- "生成评测结果<br/>(AC/WA/CE/RE/TLE/RS)" --> RESULT
-    RESULT -- "返回评测结果<br/>到 APP" --> APP
-    APP -- "展示评测结果<br/>给用户" --> U
-
-    style U fill:#f9f,stroke:#333,stroke-width:2
-    style APP fill:#bbf,stroke:#333,stroke-width:2
-    style GHA fill:#ffd,stroke:#333,stroke-width:2
-    style JUDGE fill:#bfb,stroke:#333,stroke-width:2
-    style RESULT fill:#fc9,stroke:#333,stroke-width:2
-```
 
 ## 已实现功能
 
 ### 编辑器功能
-- **语法高亮**：使用textmate进行语法高亮
-- **代码补全**：简单的代码补全功能，支持常用关键字和函数
+- **语法高亮**：使用`textmate`进行语法高亮
+- **代码补全**：基于`CST(tree-siiter)`的代码补全
 - **主题支持**：深色和浅色模式，适当的语法着色
 - **手势控制**：通过缩放手势调整字体大小
 - **行号和代码块缩进**：提供代码结构视觉辅助
-- **符号面板**：极简风格，移动端友好，支持一键输入常用编程符号。
-- **撤回和反撤回**： 支持代码编辑的撤销和重做操作
 
 ### 文件管理
-- **创建、打开、保存文件**：通过直观界面进行基本文件操作
 - **文件浏览器**：带有可用文件列表的侧边抽屉
 - **重命名和删除**：带有确认对话框的文件管理工具
 - **自动保存**：自动保存更改，防止数据丢失，临时文件夹的路径为`/storage/emulated/0/Android/data/com.acc_ide/files`，其底下的`/tempalte`为模板文件
@@ -112,8 +87,8 @@ flowchart TD
 
 ### 完善部分功能
 - **完善Github Action**： 完善对 Java 和 Python 的编译运行支持
-- **代码补全**：更完善的代码补全功能
 - **安卓版本的Error Lens**： 在编辑器中高亮显示编译错误
+- **LSP**: 计划采用`tree-sitter+LSP`的方案进行精确语法高亮和语义级代码补全  
 
 ### competitive-companion 集成
 - Android 版本的 competitive-companion
@@ -125,10 +100,8 @@ flowchart TD
   - 牛客
 
 ### 编译器本地集成
-- 集成 C/C++、Java 和 Python 编译器
 - 本地编译和执行
 - 支持不同编译器版本
-- 编译进度指示器
 - 在编辑器中高亮显示编译错误
 
 
@@ -139,14 +112,11 @@ flowchart TD
 
 ## 贡献
 
-欢迎贡献！请随时提交 Pull Request。
+如果您在使用的过程中发现任何问题或功能需求，欢迎提交 `issue` 或 `pull request`。
 
 
 ## 致谢
 
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) 提供代码编辑功能
 - [VSCode TextMate](https://github.com/microsoft/vscode-textmate) 提供语法高亮支持
-
----
-
-ACC IDE - 提升您在 Android 上的OJ体验。 
+- [Tree-sitter](https://github.com/tree-sitter/tree-sitter) 提供`CST`的构建支持  

@@ -22,34 +22,36 @@ The project is built with native Android and includes the following main compone
 ```
 acc_ide/
 ├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/acc_ide/
-│   │   │   │   ├── adapter/                      # RecyclerView adapters
-│   │   │   │   ├── dialog/                       # Dialog components
-│   │   │   │   ├── model/                        # Data models
-│   │   │   │   ├── util/                         # Utility classes
-│   │   │   │   ├── view/                         # Custom views
-│   │   │   │   ├── MainActivity.kt               # Main application entry point
-│   │   │   │   ├── EditorFragment.kt             # Code editor implementation
-│   │   │   │   ├── IOPanelFragment.kt            # Input/output panel
-│   │   │   │   ├── SettingsFragment.kt           # Application settings
-│   │   │   │   ├── SplashActivity.kt             # Splash screen
-│   │   │   │   ├── WelcomeFragment.kt            # Welcome screen
-│   │   │   │   └── NewFileDialogFragment.kt      # New file creation dialog
-│   │   │   ├── res/                              # Android resources
-│   │   │   │   ├── drawable/                     # Image resources
-│   │   │   │   ├── layout/                       # Layout files
-│   │   │   │   ├── menu/                         # Menu resources
-│   │   │   │   ├── values/                       # Strings, colors, etc.
-│   │   │   │   └── values-zh/                    # Chinese localization
-│   │   │   ├── assets/                           # Application assets
-│   │   │   │   ├── fonts/                        # Font files
-│   │   │   │   └── textmate/                     # TextMate syntax configuration
-│   │   │   └── AndroidManifest.xml
-│   ├── build.gradle                              # Module build config
-├── gradle/                                       # Gradle wrapper files
-└── build.gradle.kts                              # Project build config
+│ ├── src/
+│ │ ├── main/
+│ │ │ ├── java/com/acc_ide/
+│ │ │ │ ├── adapter/                          # RecyclerView Adapter
+│ │ │ │ │ └── FileListAdapter.kt              # File list adapter
+│ │ │ │ ├── completion/                       # Code completion system
+│ │ │ │ │ ├── core/                           # Completion core components
+│ │ │ │ │ ├── framework/                      # Completion framework
+│ │ │ │ │ ├── languages/                      # Language-specific completion support
+│ │ │ │ │ ├── providers/                      # Completion providers
+│ │ │ │ │ ├── services/                       # Completion services
+│ │ │ │ ├── data/
+│ │ │ │ │ ├── model/                          # Data models
+│ │ │ │ │ └── repository/                     # Data repository
+│ │ │ │ ├── dialog/                           # Dialog components
+│ │ │ │ ├── ui/                               # UI components
+│ │ │ │ ├── util/                             # Utility classes
+│ │ │ │ └── view/                             # Custom views
+│ │ │ ├── cpp/
+│ │ │ │ ├── core/                             # Tree-sitter core
+│ │ │ │ ├── languages/                        # Language processors
+│ │ │ │ └── TreeSitterJNI.cpp                 # JNI interface
+│ │ │ ├── res/                                
+│ │ │ ├── assets/                             
+│ │ │ ├── jniLibs/                            
+│ │ │ └── AndroidManifest.xml                 
+│ ├── build.gradle                            
+├── gradle/                                   
+├── build.gradle.kts                          
+└── settings.gradle.kts                       
 ```
 
 ### Interaction Flow
@@ -80,16 +82,13 @@ flowchart TD
 ## Implemented Features
 
 ### Editor Capabilities
-- **Syntax highlighting**: Use textmate for syntax highlighting
-- **Code Completion**: Simple code completion for common keywords and functions
+- **Syntax highlighting**: Use `textmate` for syntax highlighting
+- **Code completion**: Code completion based on `CST (tree-siiter)`
 - **Theme Support**: Dark and light modes with appropriate syntax coloring
 - **Gesture Controls**: Adjust font size through zoom gestures
 - **Line Numbers and Block Indentation**: Visual aids for code structure
-- **Symbol Panel**: Minimalist, mobile-friendly panel for easy input of common programming symbols
-- **Undo and Redo**: Support for code editing undo and redo operations
 
 ### File Management
-- **Create, Open, Save Files**: Basic file operations through an intuitive interface
 - **File Browser**: Side drawer with a list of available files
 - **Rename and Delete**: File management tools with confirmation dialogs
 - **Automatic Saving**: Changes are automatically saved to prevent data loss, with temporary files stored at `/storage/emulated/0/Android/data/com.acc_ide/files` and templates at `/template`
@@ -111,8 +110,8 @@ flowchart TD
 
 ### Improvements to Existing Features
 - **Enhanced GitHub Action**: Better support for Java and Python compilation and execution
-- **Code Completion**: More comprehensive code completion functionality
 - **Android Error Lens**: Highlight compilation errors directly in the editor
+- **LSP**: Plan to use `tree-sitter+LSP` solution for precise syntax highlighting and semantic level code completion
 
 ### competitive-companion Integration
 - Android version of competitive-companion
@@ -123,12 +122,10 @@ flowchart TD
   - Luogu
   - Niuke
 
-### Local Compiler Integration
-- Integration with C/C++, Java, and Python compilers
+### Compiler Native Integration
 - Local compilation and execution
-- Support for different compiler versions
-- Compilation progress indicators
-- Compilation error highlighting in the editor
+- Support different compiler versions
+- Highlight compilation errors in the editor
 
 ## Installation
 
@@ -137,13 +134,10 @@ flowchart TD
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+If you find any problems or feature requests during use, you are welcome to submit an `issue` or a `pull request`.
 
 ## Acknowledgements
 
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) for the code editing capabilities
 - [VSCode TextMate](https://github.com/microsoft/vscode-textmate) for syntax highlighting support
-
----
-
-ACC IDE - Enhancing your OJ experience on Android. 
+- [Tree-sitter](https://github.com/tree-sitter/tree-sitter) provides build support for `CST`
