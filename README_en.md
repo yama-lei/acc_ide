@@ -54,31 +54,6 @@ acc_ide/
 └── settings.gradle.kts                       
 ```
 
-### Interaction Flow
-
-```mermaid
-flowchart TD
-    U["User"]
-    APP["ACC IDE (Android App)"]
-    GHA["GitHub Action<br/>code-execution.yml"]
-    JUDGE["Compilation/Execution<br/>Environment"]
-    RESULT["Evaluation Results"]
-
-    U -- "Write/Submit code,<br/>input, expected output" --> APP
-    APP -- "Trigger GitHub Action<br/>via API/Network" --> GHA
-    GHA -- "Setup evaluation environment<br/>Write code/input/output files" --> JUDGE
-    JUDGE -- "Compile/Run/Compare outputs" --> GHA
-    GHA -- "Generate results<br/>(AC/WA/CE/RE/TLE/RS)" --> RESULT
-    RESULT -- "Return evaluation<br/>results to APP" --> APP
-    APP -- "Display results<br/>to user" --> U
-
-    style U fill:#f9f,stroke:#333,stroke-width:2
-    style APP fill:#bbf,stroke:#333,stroke-width:2
-    style GHA fill:#ffd,stroke:#333,stroke-width:2
-    style JUDGE fill:#bfb,stroke:#333,stroke-width:2
-    style RESULT fill:#fc9,stroke:#333,stroke-width:2
-```
-
 ## Implemented Features
 
 ### Editor Capabilities
