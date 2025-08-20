@@ -1,0 +1,66 @@
+{
+  "cpp_templates": {
+    "dsu": {
+      "name": "DSU (Disjoint Set Union)",
+      "keywords": ["dsu", "union", "find", "disjoint"],
+      "code": "class DSU {\n    vector<int> parent, rank;\npublic:\n    DSU(int n) : parent(n), rank(n, 0) {\n        iota(parent.begin(), parent.end(), 0);\n    }\n    \n    int find(int x) {\n        return parent[x] == x ? x : parent[x] = find(parent[x]);\n    }\n    \n    bool unite(int x, int y) {\n        x = find(x), y = find(y);\n        if (x == y) return false;\n        if (rank[x] < rank[y]) swap(x, y);\n        parent[y] = x;\n        if (rank[x] == rank[y]) rank[x]++;\n        return true;\n    }\n    \n    bool connected(int x, int y) {\n        return find(x) == find(y);\n    }\n};"
+    },
+    "dijkstra": {
+      "name": "Dijkstra's Algorithm",
+      "keywords": ["dijkstra", "shortest", "path"],
+      "code": "vector<int> dijkstra(int start, const vector<vector<pair<int, int>>>& graph) {\n    int n = graph.size();\n    vector<int> dist(n, INT_MAX);\n    priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;\n    \n    dist[start] = 0;\n    pq.push({0, start});\n    \n    while (!pq.empty()) {\n        auto [d, u] = pq.top();\n        pq.pop();\n        \n        if (d > dist[u]) continue;\n        \n        for (auto [v, w] : graph[u]) {\n            if (dist[u] + w < dist[v]) {\n                dist[v] = dist[u] + w;\n                pq.push({dist[v], v});\n            }\n        }\n    }\n    \n    return dist;\n}"
+    },
+    "dfs": {
+      "name": "DFS Template",
+      "keywords": ["dfs", "depth", "first", "search"],
+      "code": "void dfs(int u, vector<vector<int>>& graph, vector<bool>& visited) {\n    visited[u] = true;\n    \n    // Process node u\n    \n    for (int v : graph[u]) {\n        if (!visited[v]) {\n            dfs(v, graph, visited);\n        }\n    }\n}"
+    },
+    "bfs": {
+      "name": "BFS Template",
+      "keywords": ["bfs", "breadth", "first", "search"],
+      "code": "void bfs(int start, const vector<vector<int>>& graph) {\n    int n = graph.size();\n    vector<bool> visited(n, false);\n    queue<int> q;\n    \n    visited[start] = true;\n    q.push(start);\n    \n    while (!q.empty()) {\n        int u = q.front();\n        q.pop();\n        \n        // Process node u\n        \n        for (int v : graph[u]) {\n            if (!visited[v]) {\n                visited[v] = true;\n                q.push(v);\n            }\n        }\n    }\n}"
+    },
+    "gcd": {
+      "name": "GCD and LCM",
+      "keywords": ["gcd", "lcm", "euclidean"],
+      "code": "long long gcd(long long a, long long b) {\n    return b == 0 ? a : gcd(b, a % b);\n}\n\nlong long lcm(long long a, long long b) {\n    return a / gcd(a, b) * b;\n}"
+    },
+    "sieve": {
+      "name": "Sieve of Eratosthenes",
+      "keywords": ["sieve", "prime", "eratosthenes"],
+      "code": "vector<bool> sieve(int n) {\n    vector<bool> is_prime(n + 1, true);\n    is_prime[0] = is_prime[1] = false;\n    \n    for (int i = 2; i * i <= n; i++) {\n        if (is_prime[i]) {\n            for (int j = i * i; j <= n; j += i) {\n                is_prime[j] = false;\n            }\n        }\n    }\n    \n    return is_prime;\n}"
+    },
+    "sort_template": {
+      "name": "Sorting Template",
+      "keywords": ["sort", "sorting", "quicksort"],
+      "code": "// Sort vector\nsort(vec.begin(), vec.end());\n\n// Sort with custom comparator\nsort(vec.begin(), vec.end(), [](const auto& a, const auto& b) {\n    return a < b;\n});\n\n// Sort array\nsort(arr, arr + n);"
+    },
+    "fast_io": {
+      "name": "Fast I/O Template",
+      "keywords": ["fast", "io", "input", "output"],
+      "code": "ios_base::sync_with_stdio(false);\ncin.tie(NULL);\ncout.tie(NULL);"
+    }
+  },
+  "java_templates": {
+    "scanner": {
+      "name": "Scanner Input Template",
+      "keywords": ["scanner", "input", "read"],
+      "code": "Scanner sc = new Scanner(System.in);\nint n = sc.nextInt();"
+    },
+    "main": {
+      "name": "Main Method Template",
+      "keywords": ["main", "method"],
+      "code": "public static void main(String[] args) {\n    Scanner sc = new Scanner(System.in);\n    \n    // Your code here\n    \n    sc.close();\n}"
+    },
+    "quicksort": {
+      "name": "Quick Sort Implementation",
+      "keywords": ["quicksort", "sort"],
+      "code": "public static void quickSort(int[] arr, int low, int high) {\n    if (low < high) {\n        int pi = partition(arr, low, high);\n        quickSort(arr, low, pi - 1);\n        quickSort(arr, pi + 1, high);\n    }\n}\n\npublic static int partition(int[] arr, int low, int high) {\n    int pivot = arr[high];\n    int i = (low - 1);\n    \n    for (int j = low; j < high; j++) {\n        if (arr[j] < pivot) {\n            i++;\n            swap(arr, i, j);\n        }\n    }\n    \n    swap(arr, i + 1, high);\n    return i + 1;\n}\n\npublic static void swap(int[] arr, int i, int j) {\n    int temp = arr[i];\n    arr[i] = arr[j];\n    arr[j] = temp;\n}"
+    },
+    "binary_search": {
+      "name": "Binary Search",
+      "keywords": ["binary", "search", "bisect"],
+      "code": "public static int binarySearch(int[] arr, int target) {\n    int left = 0, right = arr.length - 1;\n    \n    while (left <= right) {\n        int mid = left + (right - left) / 2;\n        \n        if (arr[mid] == target) {\n            return mid;\n        } else if (arr[mid] < target) {\n            left = mid + 1;\n        } else {\n            right = mid - 1;\n        }\n    }\n    \n    return -1;\n}"
+    }
+  }
+}

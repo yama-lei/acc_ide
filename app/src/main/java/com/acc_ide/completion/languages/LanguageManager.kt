@@ -1,0 +1,83 @@
+package com.acc_ide.completion.languages
+
+import android.content.Context
+import io.github.rosemoe.sora.lang.EmptyLanguage
+import io.github.rosemoe.sora.lang.Language
+import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
+import com.acc_ide.util.TextMateManager
+import com.acc_ide.completion.languages.cpp.CppLanguageSupport
+import com.acc_ide.completion.languages.java.JavaLanguageSupport
+import com.acc_ide.completion.languages.python.PythonLanguageSupport
+
+/**
+ * 语言管理器，用于管理和切换不同编程语言
+ * 现在集成了TreeSitter支持的多语言：C++、Java、Python
+ */
+object LanguageManager {
+    
+    private var isInitialized = false
+    private var isTextMateEnabledValue = true
+    
+    /**
+     * 初始化LanguageManager
+     */
+    fun initialize(context: Context) {
+        if (!isInitialized) {
+            // 初始化TextMate支持
+            TextMateManager.initialize(context)
+            isInitialized = true
+        }
+    }
+    
+    
+    /**
+     * 根据文件名和扩展名获取Language实例
+     * 这是EditorFragment调用的主要方法
+     */
+    fun getLanguageForFile(@Suppress("UNUSED_PARAMETER") fileName: String, fileExtension: String): Language {
+        return when (fileExtension.lowercase()) {
+            "cpp", "c++", "cc", "cxx", "h", "hpp" -> {
+                createTextMateLanguage("source.cpp")
+            }
+            "java" -> {
+                createTextMateLanguage("source.java")
+            }
+            "py", "python" -> {
+                createTextMateLanguage("source.python")
+            }
+            else -> {
+                createTextMateLanguage("text.plain")
+            }
+        }
+    }
+    
+    /**
+     * 创建语言实例（集成TextMate和补全系统）
+     */
+    private fun createTextMateLanguage(scopeName: String): Language {
+        return if (isTextMateEnabled()) {
+            when (scopeName) {
+                "source.cpp" -> CppLanguageSupport(scopeName)
+                "source.java" -> JavaLanguageSupport(scopeName)
+                "source.python" -> PythonLanguageSupport(scopeName)
+                else -> CppLanguageSupport(scopeName) // 默认使用C++支持
+            }
+        } else {
+            EmptyLanguage()
+        }
+    }
+    
+    
+    
+    
+    /**
+     * 检查TextMate是否启用
+     */
+    fun isTextMateEnabled(): Boolean {
+        return isTextMateEnabledValue
+    }
+    
+    
+    
+}

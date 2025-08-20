@@ -54,49 +54,33 @@ class TemplateManager(private val context: Context) {
     
     // Default Java template
     private val DEFAULT_JAVA_TEMPLATE = """
-        import java.util.*;
         import java.io.*;
-        
+        import java.util.*;
+
         public class Main {
-            static class FastReader {
-                BufferedReader br;
+            static class FastScanner {
+                BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
                 StringTokenizer st;
-                
-                public FastReader() {
-                    br = new BufferedReader(new InputStreamReader(System.in));
-                }
-                
-                String next() {
-                    while (st == null || !st.hasMoreElements()) {
-                        try {
-                            st = new StringTokenizer(br.readLine());
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
+                String next() throws IOException {
+                    while (st == null || !st.hasMoreTokens())
+                        st = new StringTokenizer(br.readLine());
                     return st.nextToken();
                 }
-                
-                int nextInt() { return Integer.parseInt(next()); }
-                long nextLong() { return Long.parseLong(next()); }
-                double nextDouble() { return Double.parseDouble(next()); }
-                
-                String nextLine() {
-                    String str = "";
-                    try {
-                        str = br.readLine();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    return str;
-                }
+                int nextInt() throws IOException { return Integer.parseInt(next()); }
+                long nextLong() throws IOException { return Long.parseLong(next()); }
+                double nextDouble() throws IOException { return Double.parseDouble(next()); }
+                String nextLine() throws IOException { return br.readLine(); }
             }
-            
-            public static void main(String[] args) {
-                FastReader in = new FastReader();
-                
-                
-                
+
+            public static void main(String[] args) throws Exception {
+                FastScanner in = new FastScanner();
+                PrintWriter out = new PrintWriter(System.out);
+
+                int n = in.nextInt();
+                long x = in.nextLong();
+                out.println(n + " " + x);
+
+                out.flush();
             }
         }
     """.trimIndent()

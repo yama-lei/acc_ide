@@ -24,6 +24,7 @@ import com.acc_ide.ui.iopanel.IOPanelFragment
 import com.acc_ide.ui.settings.SettingsFragment
 import com.acc_ide.util.TextMateManager
 import com.acc_ide.view.SymbolPanelView
+import com.acc_ide.completion.languages.LanguageManager
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -651,16 +652,26 @@ class EditorFragment : Fragment() {
             // Update current language scope
             currentLanguageScopeName = scopeName
 
-            // Use cache to get TextMateLanguage instance (this should be fast due to preloading)
-            val textMateLanguage = EditorFragment.getOrCreateLanguage(scopeName)
+            // Initialize LanguageManager if not already done
+            if (!::editor.isInitialized) return
+            
+            try {
+                LanguageManager.initialize(requireContext())
+            } catch (e: Exception) {
+                android.util.Log.w("EditorFragment", "LanguageManager already initialized")
+            }
 
-            // Apply TextMate color scheme only if needed
-            if (editor.colorScheme !is io.github.rosemoe.sora.langs.textmate.TextMateColorScheme) {
+            // Get the appropriate language implementation based on user preferences
+            val languageInstance = LanguageManager.getLanguageForFile(fileName, fileExtension)
+
+            // Apply TextMate color scheme only if TextMate is enabled
+            if (LanguageManager.isTextMateEnabled() && 
+                editor.colorScheme !is io.github.rosemoe.sora.langs.textmate.TextMateColorScheme) {
                 editor.colorScheme = getOrCreateColorScheme()
             }
 
             // Set language
-            editor.setEditorLanguage(textMateLanguage)
+            editor.setEditorLanguage(languageInstance)
 
             // Configure auto-completion component colors
             configureAutoCompletionColors()
@@ -670,7 +681,7 @@ class EditorFragment : Fragment() {
 
             android.util.Log.d(
                 "EditorFragment",
-                "Set up ${specifiedLanguage ?: this.language} language support (TextMate: $scopeName)"
+                "Set up ${specifiedLanguage ?: this.language} language support (Mode: Hybrid, Scope: $scopeName)"
             )
         } catch (e: Exception) {
             e.printStackTrace()

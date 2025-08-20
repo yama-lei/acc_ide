@@ -116,7 +116,7 @@
     <string name="toggle_symbol_panel">Toggle symbol panel</string>
     <string name="symbol_panel_shown">Symbol panel shown</string>
     <string name="symbol_panel_hidden">Symbol panel hidden</string>
-    <string name="auto_completion_switch_label">Auto-completion</string>
+    <string name="auto_completion_switch_label">Auto completion</string>
     <string name="symbol_panel_switch_label">Symbol panel</string>
 
     <!-- GitHub Action Settings -->
