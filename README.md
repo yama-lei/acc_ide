@@ -1,4 +1,4 @@
-![展示1](img/Display1.png)
+![展示1](img/Display_cn.png)
 
 # ACC IDE
 
