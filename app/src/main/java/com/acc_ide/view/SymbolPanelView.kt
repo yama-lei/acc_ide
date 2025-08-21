@@ -14,6 +14,10 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import android.widget.TextView
 import android.view.Gravity
 import android.util.TypedValue
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.Build
+import android.view.inputmethod.EditorInfo
 
 /**
  * Symbol panel custom view for providing programming symbol input functionality
@@ -229,6 +233,35 @@ class SymbolPanelView @JvmOverloads constructor(
     }
     
     /**
+     * Provide haptic feedback when button is pressed
+     * 按钮按下时提供触觉反馈
+     */
+    private fun performHapticFeedback() {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            
+            vibrator?.let { vib ->
+                if (vib.hasVibrator()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vib.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vib.vibrate(50)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SymbolPanelView", "Failed to provide haptic feedback: ${e.message}")
+        }
+    }
+    
+    /**
      * Add symbol button to parent layout with click handling
      * 添加符号按钮
      */
@@ -238,7 +271,7 @@ class SymbolPanelView @JvmOverloads constructor(
             setTextAppearance(R.style.SymbolTextStyle)
             gravity = Gravity.CENTER
             minHeight = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 36f, resources.displayMetrics
+                TypedValue.COMPLEX_UNIT_DIP, 34f, resources.displayMetrics
             ).toInt()
             setPadding(0, 0, 0, 0)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -249,6 +282,7 @@ class SymbolPanelView @JvmOverloads constructor(
             foreground = typedArray.getDrawable(0)
             typedArray.recycle()
             setOnClickListener {
+                performHapticFeedback()
                 when (value) {
                     "LEFT" -> moveCursor(-1, 0)
                     "RIGHT" -> moveCursor(1, 0)
@@ -263,22 +297,131 @@ class SymbolPanelView @JvmOverloads constructor(
     
     
     /**
-     * Insert text at current cursor position
-     * 插入文本
+     * Insert text at current cursor position using keyboard simulation
+     * 通过模拟键盘输入插入文本，以触发自动补全
      */
     private fun insertText(text: String) {
+        try {
+            editor?.let { editor ->
+                // Use keyboard simulation to trigger auto-completion
+                simulateKeyboardInput(text)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SymbolPanelView", "Failed to insert text: ${e.message}")
+        }
+    }
+    
+    /**
+     * Simulate keyboard input to trigger auto-completion
+     * 模拟键盘输入以触发自动补全
+     */
+    private fun simulateKeyboardInput(text: String) {
+        try {
+            editor?.let { editor ->
+                // Method 1: Use input connection to simulate typing
+                try {
+                    val editorInfo = EditorInfo()
+                    val inputConnection = editor.onCreateInputConnection(editorInfo)
+                    inputConnection?.let { ic ->
+                        // Simulate typing the character
+                        ic.commitText(text, 1)
+                        android.util.Log.d("SymbolPanelView", "Successfully inserted '$text' via input connection")
+                        return
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.d("SymbolPanelView", "Input connection method failed: ${e.message}")
+                }
+                
+                // Method 2: Check if bracket characters need auto-completion handling
+                if (isBracketCharacter(text)) {
+                    insertBracketWithAutoCompletion(text)
+                    return
+                }
+                
+                // Method 3: Fallback to direct insertion for other characters
+                fallbackInsertText(text)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SymbolPanelView", "Failed to simulate keyboard input: ${e.message}")
+            // Fallback to direct insertion if simulation fails
+            fallbackInsertText(text)
+        }
+    }
+    
+    /**
+     * Check if character needs auto-completion
+     * 检查字符是否需要自动补全
+     */
+    private fun isBracketCharacter(text: String): Boolean {
+        return text.length == 1 && text[0] in setOf('(', '[', '{', ')', ']', '}', '"', '\'')
+    }
+    
+    /**
+     * Insert bracket/quote with auto-completion handling
+     * 插入括号/引号并处理自动补全
+     */
+    private fun insertBracketWithAutoCompletion(bracket: String) {
+        try {
+            editor?.let { editor ->
+                val cursor = editor.cursor
+                val line = cursor.leftLine
+                val column = cursor.leftColumn
+                
+                // Determine closing character
+                val closingChar = when (bracket) {
+                    "(" -> ")"
+                    "[" -> "]"
+                    "{" -> "}"
+                    "\"" -> "\""
+                    "'" -> "'"
+                    else -> null
+                }
+                
+                if (closingChar != null && !isClosingCharacter(bracket)) {
+                    // Insert opening and closing characters
+                    editor.text.insert(line, column, bracket + closingChar)
+                    // Move cursor between the pair
+                    editor.setSelection(line, column + 1)
+                    android.util.Log.d("SymbolPanelView", "Auto-completed pair: $bracket$closingChar")
+                } else {
+                    // For closing characters or when no auto-completion needed, just insert them
+                    editor.text.insert(line, column, bracket)
+                    android.util.Log.d("SymbolPanelView", "Inserted character: $bracket")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SymbolPanelView", "Failed to insert bracket with auto-completion: ${e.message}")
+            fallbackInsertText(bracket)
+        }
+    }
+    
+    /**
+     * Check if character is a closing character
+     * 检查字符是否为闭合字符
+     */
+    private fun isClosingCharacter(char: String): Boolean {
+        return char.length == 1 && char[0] in setOf(')', ']', '}')
+    }
+    
+
+    
+    /**
+     * Fallback method for direct text insertion
+     * 直接插入文本的后备方法
+     */
+    private fun fallbackInsertText(text: String) {
         try {
             editor?.let { editor ->
                 // Get current cursor position
                 val cursor = editor.cursor
                 
-                // Insert text
+                // Insert text directly
                 val line = cursor.leftLine
                 val column = cursor.leftColumn
                 editor.text.insert(line, column, text)
             }
         } catch (e: Exception) {
-            android.util.Log.e("SymbolPanelView", "Failed to insert text: ${e.message}")
+            android.util.Log.e("SymbolPanelView", "Failed to insert text directly: ${e.message}")
         }
     }
     
@@ -289,21 +432,40 @@ class SymbolPanelView @JvmOverloads constructor(
     private fun moveCursor(deltaX: Int, deltaY: Int) {
         try {
             editor?.let { editor ->
-                // Get current cursor position
                 val cursor = editor.cursor
+                val text = editor.text
                 
-                // Simple cursor movement
                 if (deltaY != 0) {
-                    val newLine = cursor.leftLine + deltaY
-                    if (newLine >= 0 && newLine < editor.text.lineCount) {
-                        editor.setSelection(newLine, cursor.leftColumn)
+                    val currentLine = cursor.leftLine
+                    val currentColumn = cursor.leftColumn
+                    val newLine = currentLine + deltaY
+                    
+                    if (newLine >= 0 && newLine < text.lineCount) {
+                        val targetLineLength = text.getColumnCount(newLine)
+                        val newColumn = minOf(currentColumn, targetLineLength)
+                        editor.setSelection(newLine, newColumn)
                     }
-                }
-                
-                if (deltaX != 0) {
-                    val newColumn = cursor.leftColumn + deltaX
-                    if (newColumn >= 0) {
-                        editor.setSelection(cursor.leftLine, newColumn)
+                } else if (deltaX != 0) {
+                    val currentLine = cursor.leftLine
+                    val currentColumn = cursor.leftColumn
+                    val newColumn = currentColumn + deltaX
+                    val lineLength = text.getColumnCount(currentLine)
+                    
+                    when {
+                        newColumn < 0 -> {
+                            if (currentLine > 0) {
+                                val prevLineLength = text.getColumnCount(currentLine - 1)
+                                editor.setSelection(currentLine - 1, prevLineLength)
+                            }
+                        }
+                        newColumn > lineLength -> {
+                            if (currentLine < text.lineCount - 1) {
+                                editor.setSelection(currentLine + 1, 0)
+                            }
+                        }
+                        else -> {
+                            editor.setSelection(currentLine, newColumn)
+                        }
                     }
                 }
             }
