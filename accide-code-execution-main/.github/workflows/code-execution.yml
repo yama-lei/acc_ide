@@ -1,0 +1,413 @@
+name: ACC-IDE Code Judge
+
+on:
+  workflow_dispatch:
+    inputs:
+      # 从App接收要评测的代码
+      source_code:
+        description: 'The source code to be judged'
+        required: true
+      # 从App接收标准输入
+      std_input:
+        description: 'Standard input for the code'
+        required: false
+        default: ''
+      # 从App接收预期输出
+      expected_output:
+        description: 'Expected output for comparison'
+        required: false
+        default: ''
+      # App传来的语言类型，用于选择编译器
+      language:
+        description: 'The programming language (cpp, python, java)'
+        required: true
+        default: 'cpp'
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 根据语言，将接收到的代码和输入写入文件
+      - name: Prepare execution files
+        run: |
+          # 禁用错误导致的脚本终止
+          set +e
+          
+          # 创建一个结果目录
+          mkdir -p results || true
+
+          # 设置 UTF-8 环境变量
+          export LC_ALL=C.UTF-8 || true
+          export LANG=C.UTF-8 || true
+          
+          # 将输入写入文件，使用 echo -e 确保转义序列被正确处理
+          echo -e "${{ github.event.inputs.std_input }}" > input.txt || true
+          echo -e "${{ github.event.inputs.expected_output }}" > expected.txt || true
+          
+          # 检查预期输出是否为空，设置一个标志
+          if [ ! -s expected.txt ] || [ "$(cat expected.txt | tr -d '[:space:]')" = "" ]; then
+            echo "EXPECTED_EMPTY=true" >> $GITHUB_ENV || true
+            echo "预期输出为空，设置 EXPECTED_EMPTY=true" || true
+          else
+            echo "EXPECTED_EMPTY=false" >> $GITHUB_ENV || true
+            echo "预期输出不为空，设置 EXPECTED_EMPTY=false" || true
+          fi
+          
+          # 显示预期输出内容
+          echo "=== Expected Output Content ===" || true
+          cat expected.txt || true
+          echo "===============================" || true
+          
+          # 根据语言确定源文件名
+          if [ "${{ github.event.inputs.language }}" = "java" ]; then
+            SOURCE_FILE="Main.java"
+          else
+            SOURCE_FILE="main.${{ github.event.inputs.language }}"
+          fi
+          
+          # 使用 base64 解码确保源代码中的空格和特殊字符被正确保留
+          # 首先将源代码写入临时文件，然后检查并确保文件格式正确
+          echo "${{ github.event.inputs.source_code }}" > source_code_temp.txt || true
+          
+          # 显示处理前的源代码
+          echo "=== Source Code (Before Processing) ===" || true
+          cat source_code_temp.txt || true
+          echo "=====================================" || true
+          
+          # 修复可能的空格问题，将连续的 << 后面的空格保留
+          sed -i 's/<<  *;/<< " ";/g' source_code_temp.txt || true
+          sed -i 's/<<  *)/<< " ")/g' source_code_temp.txt || true
+          sed -i 's/<<  *,/<< " ",/g' source_code_temp.txt || true
+          sed -i 's/<<  *$/<< " "/g' source_code_temp.txt || true
+          sed -i 's/<<  *\]/<< " "]/g' source_code_temp.txt || true
+          sed -i 's/<<  *}/<< " "}/g' source_code_temp.txt || true
+          sed -i 's/<<  *>/<< " ">/g' source_code_temp.txt || true
+          
+          # 处理 >> 运算符周围的空格
+          sed -i 's/>>  *;/>> " ";/g' source_code_temp.txt || true
+          sed -i 's/>>  *)/>> " ")/g' source_code_temp.txt || true
+          sed -i 's/>>  *,/>> " ",/g' source_code_temp.txt || true
+          sed -i 's/>>  *$/>> " "/g' source_code_temp.txt || true
+          sed -i 's/>>  *\]/>> " "]/g' source_code_temp.txt || true
+          sed -i 's/>>  *}/>> " "}/g' source_code_temp.txt || true
+          sed -i 's/>>  *>/>> " ">/g' source_code_temp.txt || true
+          
+          # 显示处理后的源代码
+          echo "=== Source Code (After Processing) ===" || true
+          cat source_code_temp.txt || true
+          echo "====================================" || true
+          
+          # 将处理后的源代码写入最终文件
+          cat source_code_temp.txt > $SOURCE_FILE || true
+          
+          # 确保源代码文件是 UTF-8 编码
+          echo "=== Converting to UTF-8 ===" || true
+          iconv -f ISO-8859-1 -t UTF-8 $SOURCE_FILE -o $SOURCE_FILE.utf8 || true
+          mv $SOURCE_FILE.utf8 $SOURCE_FILE || true
+          echo "=========================" || true
+          
+          echo "SOURCE_FILE=$SOURCE_FILE" >> $GITHUB_ENV || true
+          
+          # 显示源代码文件内容以进行调试
+          echo "=== Final Source Code ===" || true
+          cat $SOURCE_FILE || true
+          echo "========================" || true
+          
+          # 检查文件编码
+          echo "=== File Encoding ===" || true
+          file -i $SOURCE_FILE || true
+          echo "====================" || true
+        
+      - name: Compile C++ Code
+        if: github.event.inputs.language == 'cpp'
+        id: compile_cpp
+        run: |
+          set +e
+          g++ --version || true
+          
+          # 创建编译日志目录
+          mkdir -p ./results || true
+          
+          # 尝试编译代码
+          g++ main.cpp -o main_exec -O2 -std=c++17 -Wall -Wextra -fdiagnostics-color=always > ./results/compile.log 2>&1
+          COMPILE_RESULT=$?
+          
+          # 输出编译日志
+          echo "=== Compilation Log ===" || true
+          cat ./results/compile.log || true
+          echo "=======================" || true
+          
+          if [ $COMPILE_RESULT -ne 0 ]; then
+            echo "Compilation failed with exit code: $COMPILE_RESULT" || true
+            echo '{"status": "CE", "message": "Compilation Error", "execution_time": 0}' > ./results/result.json || true
+            echo "JUDGE_STATUS=CE" >> $GITHUB_ENV || true
+          else
+            echo "Compilation successful" || true
+          fi
+
+      - name: Run and Judge C++ Code
+        if: success() && env.JUDGE_STATUS != 'CE' && github.event.inputs.language == 'cpp'
+        run: |
+          set +e
+          
+          # 检查预期输出是否为空
+          if [ ! -s expected.txt ] || [ "$(cat expected.txt | tr -d '[:space:]')" = "" ]; then
+            EXPECTED_EMPTY=true
+          else
+            EXPECTED_EMPTY=false
+          fi
+          
+          # 计时脚本
+          cat > time_wrapper.sh << 'EOF'
+          #!/bin/bash
+          start_time=$(date +%s%N)
+          "$@"
+          exit_code=$?
+          end_time=$(date +%s%N)
+          execution_time=$((($end_time - $start_time) / 1000000))
+          echo $execution_time > execution_time.txt
+          exit $exit_code
+          EOF
+          
+          chmod +x time_wrapper.sh
+          
+          # 运行文件并限制时间和内存
+          # TLE: 2 seconds, MLE: 256 MB
+          timeout 2s ./time_wrapper.sh ./main_exec < input.txt > ./results/actual.txt 2> ./results/stderr.log || true
+          EXIT_CODE=$?
+          
+          # 获取执行时间
+          EXECUTION_TIME=0
+          if [ -f execution_time.txt ]; then
+            EXECUTION_TIME=$(cat execution_time.txt)
+          fi
+          
+          if [ $EXIT_CODE -eq 124 ]; then
+            STATUS="TLE"
+            MESSAGE="Time Limit Exceeded"
+          elif [ $EXIT_CODE -ne 0 ]; then
+            STATUS="RE"
+            MESSAGE="Runtime Error (Exit Code: $EXIT_CODE)"
+          else
+            # 检查预期是否为空，空则"RS"(Run Successful)
+            if [ "$EXPECTED_EMPTY" = "true" ]; then
+              STATUS="RS"
+              MESSAGE="Run Successful"
+            else
+              # 使用 diff 命令比较输出。
+              # -i 忽略大小写, -w 忽略所有空格, -B 忽略空行
+              diff -i -w -B ./results/actual.txt expected.txt > /dev/null
+              DIFF_RESULT=$?
+              if [ $DIFF_RESULT -ne 0 ]; then
+                STATUS="WA"
+                MESSAGE="Wrong Answer"
+                
+                echo "=== Expected Output ===" > ./results/diff.txt
+                cat expected.txt >> ./results/diff.txt
+                echo -e "\n=== Actual Output ===" >> ./results/diff.txt
+                cat ./results/actual.txt >> ./results/diff.txt
+              else
+                STATUS="AC"
+                MESSAGE="Accepted"
+              fi
+            fi
+          fi
+          
+          echo "{\"status\": \"$STATUS\", \"message\": \"$MESSAGE\", \"execution_time\": $EXECUTION_TIME}" > ./results/result.json
+
+          # 输出调试信息
+          echo "=== DEBUG INFO (C++) ===" || true
+          echo "Input:" || true
+          cat input.txt || true
+          echo -e "\nExpected Output:" || true
+          cat expected.txt || true
+          echo -e "\nActual Output:" || true
+          cat ./results/actual.txt || true
+          echo -e "\nStatus: $STATUS (EXPECTED_EMPTY=$EXPECTED_EMPTY)" || true
+          echo "===========================" || true
+
+      - name: Run Python Code
+        if: always() && github.event.inputs.language == 'python'
+        run: |
+          set +e
+          
+          echo "=== PYTHON STEP STARTED ===" || true
+          echo "Language: ${{ github.event.inputs.language }}" || true
+          
+          # 创建结果目录
+          mkdir -p ./results || true
+
+          if [ ! -s expected.txt ] || [ "$(cat expected.txt | tr -d '[:space:]')" = "" ]; then
+            EXPECTED_EMPTY=true
+          else
+            EXPECTED_EMPTY=false
+          fi
+          
+          cat > time_wrapper.sh << 'EOF'
+          #!/bin/bash
+          start_time=$(date +%s%N)
+          "$@"
+          exit_code=$?
+          end_time=$(date +%s%N)
+          execution_time=$((($end_time - $start_time) / 1000000))
+          echo $execution_time > execution_time.txt
+          exit $exit_code
+          EOF
+          
+          chmod +x time_wrapper.sh
+          
+          timeout 2s ./time_wrapper.sh python3 main.py < input.txt > ./results/actual.txt 2> ./results/stderr.log || true
+          EXIT_CODE=$?
+          
+          EXECUTION_TIME=0
+          if [ -f execution_time.txt ]; then
+            EXECUTION_TIME=$(cat execution_time.txt)
+          fi
+          
+          if [ $EXIT_CODE -eq 124 ]; then
+            STATUS="TLE"
+            MESSAGE="Time Limit Exceeded"
+          elif [ $EXIT_CODE -ne 0 ]; then
+            STATUS="RE"
+            MESSAGE="Runtime Error (Exit Code: $EXIT_CODE)"
+          else
+            if [ "$EXPECTED_EMPTY" = "true" ]; then
+              STATUS="RS"
+              MESSAGE="Run Successful"
+            else
+              diff -i -w -B ./results/actual.txt expected.txt > /dev/null
+              DIFF_RESULT=$?
+              if [ $DIFF_RESULT -ne 0 ]; then
+                STATUS="WA"
+                MESSAGE="Wrong Answer"
+                
+                echo "=== Expected Output ===" > ./results/diff.txt
+                cat expected.txt >> ./results/diff.txt
+                echo -e "\n=== Actual Output ===" >> ./results/diff.txt
+                cat ./results/actual.txt >> ./results/diff.txt
+              else
+                STATUS="AC"
+                MESSAGE="Accepted"
+              fi
+            fi
+          fi
+          
+          echo "{\"status\": \"$STATUS\", \"message\": \"$MESSAGE\", \"execution_time\": $EXECUTION_TIME}" > ./results/result.json
+
+          echo "=== DEBUG INFO (Python) ===" || true
+          echo "Input:" || true
+          cat input.txt || true
+          echo -e "\nExpected Output:" || true
+          cat expected.txt || true
+          echo -e "\nActual Output:" || true
+          cat ./results/actual.txt || true
+          echo -e "\nStatus: $STATUS (EXPECTED_EMPTY=$EXPECTED_EMPTY)" || true
+          echo "===========================" || true
+
+
+      - name: Compile Java Code
+        if: github.event.inputs.language == 'java'
+        id: compile_java
+        run: |
+          set +e
+          
+          javac Main.java -d . &> ./results/compile.log || true
+          COMPILE_RESULT=$?
+          
+          echo "=== Compilation Log ===" || true
+          cat ./results/compile.log || true
+          echo "=======================" || true
+          
+          if [ $COMPILE_RESULT -ne 0 ]; then
+            echo "Compilation failed with exit code: $COMPILE_RESULT" || true
+            echo '{"status": "CE", "message": "Compilation Error", "execution_time": 0}' > ./results/result.json || true
+            echo "JUDGE_STATUS=CE" >> $GITHUB_ENV || true
+          else
+            echo "Compilation successful" || true
+          fi
+
+      - name: Run Java Code
+        if: success() && env.JUDGE_STATUS != 'CE' && github.event.inputs.language == 'java'
+        run: |
+          set +e
+          
+          if [ ! -s expected.txt ] || [ "$(cat expected.txt | tr -d '[:space:]')" = "" ]; then
+            EXPECTED_EMPTY=true
+          else
+            EXPECTED_EMPTY=false
+          fi
+          
+          cat > time_wrapper.sh << 'EOF'
+          #!/bin/bash
+          start_time=$(date +%s%N)
+          "$@"
+          exit_code=$?
+          end_time=$(date +%s%N)
+          execution_time=$((($end_time - $start_time) / 1000000))
+          echo $execution_time > execution_time.txt
+          exit $exit_code
+          EOF
+          
+          chmod +x time_wrapper.sh
+          
+          timeout 2s ./time_wrapper.sh java Main < input.txt > ./results/actual.txt 2> ./results/stderr.log || true
+          EXIT_CODE=$?
+          
+          EXECUTION_TIME=0
+          if [ -f execution_time.txt ]; then
+            EXECUTION_TIME=$(cat execution_time.txt)
+          fi
+          
+          if [ $EXIT_CODE -eq 124 ]; then
+            STATUS="TLE"
+            MESSAGE="Time Limit Exceeded"
+          elif [ $EXIT_CODE -ne 0 ]; then
+            STATUS="RE"
+            MESSAGE="Runtime Error (Exit Code: $EXIT_CODE)"
+          else
+            if [ "$EXPECTED_EMPTY" = "true" ]; then
+              STATUS="RS" 
+              MESSAGE="Run Successful"
+            else
+              diff -i -w -B ./results/actual.txt expected.txt > /dev/null
+              DIFF_RESULT=$?
+              if [ $DIFF_RESULT -ne 0 ]; then
+                STATUS="WA"
+                MESSAGE="Wrong Answer"
+                
+                echo "=== Expected Output ===" > ./results/diff.txt
+                cat expected.txt >> ./results/diff.txt
+                echo -e "\n=== Actual Output ===" >> ./results/diff.txt
+                cat ./results/actual.txt >> ./results/diff.txt
+              else
+                STATUS="AC"
+                MESSAGE="Accepted"
+              fi
+            fi
+          fi
+          
+          echo "{\"status\": \"$STATUS\", \"message\": \"$MESSAGE\", \"execution_time\": $EXECUTION_TIME}" > ./results/result.json
+
+          echo "=== DEBUG INFO (Java) ===" || true
+          echo "Input:" || true
+          cat input.txt || true
+          echo -e "\nExpected Output:" || true
+          cat expected.txt || true
+          echo -e "\nActual Output:" || true
+          cat ./results/actual.txt || true
+          echo -e "\nStatus: $STATUS (EXPECTED_EMPTY=$EXPECTED_EMPTY)" || true
+          echo "===========================" || true
+
+      # 上传结果文件
+      - name: Upload judgment result
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: judge-result
+          path: ./results/
+          if-no-files-found: warn 
