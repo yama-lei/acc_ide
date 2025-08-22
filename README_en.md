@@ -76,7 +76,7 @@ acc_ide/
 
 ### Input/Output Panel
 - **Input/Output Panel**: For manual input and output viewing
-- **GitHub Action Backend**: Free runtime environment through GitHub Actions [repository link](https://github.com/META-Xiao/accide-code-execution), supporting compilation and execution of C/C++, Java, and Python (currently only C/C++ has been tested successfully 😾)
+- **GitHub Action Backend**: Free runtime environment through GitHub Actions [repository link](https://github.com/META-Xiao/accide-code-execution), supporting compilation and execution of C/C++, Java, and Python
 - **Compilation Progress Indicator**: Shows compilation progress and results upon completion
 - **Memory and Time Limits**: Restricts code execution time (2s) and memory (512MB) through the GitHub Action backend
 - **Execution Status Display**: Shows code execution status and runtime, including AC, WA, TLE, MLE, RE, CE, RS (Run Successful, indicated when user hasn't input an expected output)

@@ -78,7 +78,7 @@ acc_ide/
 
 ### 输入/输出面板
 - **输入/输出面板**：用于手动输入和查看输出
-- **Github Action的运行后端**： 通过 Github Action 提供的免费运行后端[仓库地址](https://github.com/META-Xiao/accide-code-execution)，支持 C/C++、Java 和 Python 的在线编译和执行（目前只测试成功对c/cpp的编译运行😾）
+- **Github Action的运行后端**： 通过 Github Action 提供的免费运行后端[仓库地址](https://github.com/META-Xiao/accide-code-execution)，支持 C/C++、Java 和 Python 的在线编译和执行
 - **编译进度指示器**：显示编译进度，并在编译完成后显示结果
 - **限制运行内存和时间**： 通过Github Action的运行后端限制代码运行时间（2s）和内存（512MB）
 - **运行状态显示**： 显示代码运行状态和运行时间，AC、WA、TLE、MLE、RE、CE、RS（Run successful，当用户未输入`答案输出`时运行成功的标志）
