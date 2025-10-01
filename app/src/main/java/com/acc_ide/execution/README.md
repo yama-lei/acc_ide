@@ -248,16 +248,16 @@ IOCacheManager.update(
 ### LocalExecutor 本地执行器
 
 **C++支持方案：**
-1. ✅ 集成TCC编译器.so库（轻量级）
+1. ⏳ 集成TCC编译器.so库（轻量级）
 2. ⏳ 集成Clang工具链（完整支持）
 3. ⏳ 使用Cling C++解释器
 
 **Python支持方案：**
-- ✅ 集成Chaquopy（官方推荐）
+- ⏳ 集成Chaquopy（官方推荐）
 
 **Java支持方案：**
-- ✅ 集成ECJ（Eclipse Compiler for Java）
-- ✅ 使用DexClassLoader动态加载
+- ⏳ 集成ECJ（Eclipse Compiler for Java）
+- ⏳ 使用DexClassLoader动态加载
 
 ### 其他改进
 - [ ] 添加执行队列（支持多任务）
