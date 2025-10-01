@@ -34,6 +34,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
+import android.util.Base64
 
 /**
  * IO panel fragment for code execution and testing
@@ -309,7 +310,9 @@ class IOPanelFragment : Fragment() {
             
             // Input parameters
             val inputs = JSONObject().apply {
-                put("source_code", code)
+                // Use Base64 encoding to preserve special characters like quotes
+                val encodedCode = Base64.encodeToString(code.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                put("source_code", encodedCode)
                 put("std_input", input)
                 put("expected_output", expected)
                 put("language", language)
