@@ -116,12 +116,22 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
     ) {
         val startTime = System.currentTimeMillis()
         val outputBuilder = StringBuilder()
+        var execTimeMs = 0 // C++ 程序实际执行时间（从 WASM 获取）
         
         executor.execute(
             code = code,
             input = input,
             onOutput = { output ->
-                outputBuilder.append(output)
+                // 解析执行时间标记 [EXEC_TIME_MS:10]
+                val timePattern = """\[EXEC_TIME_MS:(\d+)\]""".toRegex()
+                val match = timePattern.find(output)
+                if (match != null) {
+                    execTimeMs = match.groupValues[1].toIntOrNull() ?: 0
+                    // 不添加这个标记到输出中
+                } else {
+                    // 正常输出
+                    outputBuilder.append(output)
+                }
             },
             onError = { error ->
                 val executionTime = (System.currentTimeMillis() - startTime).toInt()
@@ -134,7 +144,8 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
                 isRunning = false
             },
             onComplete = { exitCode ->
-                val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                // 使用程序实际执行时间（如果有），否则使用总时间
+                val executionTime = if (execTimeMs > 0) execTimeMs else (System.currentTimeMillis() - startTime).toInt()
                 val actualOutput = outputBuilder.toString()
                 
                 val status = if (exitCode != 0) {

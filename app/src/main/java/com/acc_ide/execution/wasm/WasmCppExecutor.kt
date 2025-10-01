@@ -10,7 +10,8 @@ import android.webkit.WebViewClient
 
 /**
  * C++ WASM Executor using wasm-clang
- * 使用wasm-clang的C++ WASM执行器
+ * 使用wasm-clang的C++ WASM执行器 - 完整的C++编译器支持
+ * 基于 https://github.com/binji/wasm-clang
  */
 class WasmCppExecutor(private val context: Context) : WasmExecutorInterface {
     
@@ -22,8 +23,15 @@ class WasmCppExecutor(private val context: Context) : WasmExecutorInterface {
     private var onErrorCallback: ((String) -> Unit)? = null
     private var onCompleteCallback: ((Int) -> Unit)? = null
     
+    private var readyCallback: (() -> Unit)? = null
+    private var errorCallback: ((String) -> Unit)? = null
+    
     override fun initialize(onReady: () -> Unit, onError: (String) -> Unit) {
-        Log.d(TAG, "Initializing WASM C++ executor...")
+        Log.d(TAG, "Initializing wasm-clang C++ executor...")
+        
+        // 保存回调，等待JavaScript通知
+        this.readyCallback = onReady
+        this.errorCallback = onError
         
         try {
             webView = WebView(context).apply {
@@ -44,45 +52,17 @@ class WasmCppExecutor(private val context: Context) : WasmExecutorInterface {
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         Log.d(TAG, "WebView page loaded: $url")
-                        // 页面加载完成，初始化WASM
-                        initializeWasm(onReady, onError)
+                        // 页面加载完成后，JavaScript会自动初始化并调用onWasmReady
+                        Log.d(TAG, "Waiting for wasm-clang initialization callback...")
                     }
                 }
                 
-                // 加载WASM编译器HTML
-                loadUrl("file:///android_asset/wasm/cpp_compiler.html")
+                // 加载WASM编译器HTML（使用 v2 版本，包含原项目的 shared.js）
+                loadUrl("file:///android_asset/wasm/cpp_compiler_v2.html")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize WebView", e)
             onError("Failed to initialize WASM: ${e.message}")
-        }
-    }
-    
-    private fun initializeWasm(onReady: () -> Unit, onError: (String) -> Unit) {
-        webView?.evaluateJavascript("""
-            (function() {
-                if (typeof initializeClang === 'function') {
-                    initializeClang()
-                        .then(() => {
-                            AndroidBridge.onWasmReady();
-                            return 'WASM initialized';
-                        })
-                        .catch(err => {
-                            AndroidBridge.onWasmError(err.toString());
-                            return 'WASM init failed: ' + err;
-                        });
-                } else {
-                    return 'initializeClang not found';
-                }
-            })()
-        """) { result ->
-            Log.d(TAG, "WASM initialization result: $result")
-            if (result.contains("initialized")) {
-                isInitialized = true
-                onReady()
-            } else {
-                onError("WASM initialization failed: $result")
-            }
         }
     }
     
@@ -125,12 +105,17 @@ class WasmCppExecutor(private val context: Context) : WasmExecutorInterface {
     
     override fun isReady(): Boolean = isInitialized
     
-    override fun getExecutorName(): String = "WASM C++ Compiler (Clang)"
+    override fun getExecutorName(): String = "C++ Compiler (wasm-clang)"
     
     override fun cleanup() {
         webView?.destroy()
         webView = null
         isInitialized = false
+        readyCallback = null
+        errorCallback = null
+        onOutputCallback = null
+        onErrorCallback = null
+        onCompleteCallback = null
     }
     
     private fun escapeForJs(text: String): String {
@@ -153,15 +138,20 @@ class WasmCppExecutor(private val context: Context) : WasmExecutorInterface {
         
         @JavascriptInterface
         fun onWasmReady() {
-            Log.d(TAG, "WASM runtime is ready")
+            Log.d(TAG, "wasm-clang C++ compiler is ready")
             isInitialized = true
+            mainHandler.post {
+                readyCallback?.invoke()
+                readyCallback = null // 清空，只调用一次
+            }
         }
         
         @JavascriptInterface
         fun onWasmError(error: String) {
             Log.e(TAG, "WASM error: $error")
             mainHandler.post {
-                onErrorCallback?.invoke(error)
+                errorCallback?.invoke(error)
+                errorCallback = null // 清空
             }
         }
         
