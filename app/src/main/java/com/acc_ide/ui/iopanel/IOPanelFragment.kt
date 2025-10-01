@@ -1,14 +1,9 @@
 package com.acc_ide.ui.iopanel
 
-import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Spannable
 import android.text.SpannableString
-import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,65 +11,47 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.preference.PreferenceManager
 import com.acc_ide.R
+import com.acc_ide.execution.AnsiTextParser
+import com.acc_ide.execution.ExecutionResult
+import com.acc_ide.execution.ExecutionStatus
+import com.acc_ide.execution.ExecutorFactory
+import com.acc_ide.execution.ICodeExecutor
+import com.acc_ide.execution.IOCacheManager
 import com.acc_ide.ui.main.MainActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
-import java.io.BufferedInputStream
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.util.concurrent.TimeUnit
-import java.util.zip.ZipInputStream
-import android.util.Base64
 
 /**
  * IO panel fragment for code execution and testing
  * IO面板Fragment - 用于代码执行和测试
+ * 
+ * Refactored version with clean architecture:
+ * - Supports both cloud (GitHub) and local execution
+ * - Modular design with clear separation of concerns
+ * - Easy to extend with new execution engines
  */
 class IOPanelFragment : Fragment() {
+    
+    // UI Components
     private lateinit var runCodeButton: MaterialButton
     private lateinit var runStatus: TextView
+    private lateinit var btnCloudMode: MaterialButton
+    private lateinit var btnLocalMode: MaterialButton
     private lateinit var inputText: TextInputEditText
     private lateinit var actualOutputText: TextInputEditText
     private lateinit var expectedOutputText: TextInputEditText
     
+    // Fragment arguments
     private var fileName: String = ""
     private var language: String = ""
-    private var isGitHubRunning = false
-    private var pollingJob: Job? = null
+    
+    // Code executor
+    private var executor: ICodeExecutor? = null
 
-    // Cache for storing IO instances
     companion object {
         private const val ARG_FILENAME = "filename"
         private const val ARG_LANGUAGE = "language"
-        
-        // Cache IO instances for each file
-        private val ioCache = mutableMapOf<String, IOInstance>()
-
-        // GitHub related constants
-        private const val GITHUB_API_BASE = "https://api.github.com"
-        private const val PREF_GITHUB_REPO_URL = "github_repo_url"
-        private const val PREF_GITHUB_PAT = "github_pat"
-        
-        // Language mapping
-        private val LANGUAGE_MAP = mapOf(
-            "cpp" to "cpp",
-            "python" to "py",
-            "java" to "java"
-        )
 
         @JvmStatic
         fun newInstance(fileName: String, language: String) =
@@ -84,145 +61,11 @@ class IOPanelFragment : Fragment() {
                     putString(ARG_LANGUAGE, language)
                 }
             }
-        
-        /**
-         * Convert ANSI escape codes to Android Spannable text with colors
-         * 将 ANSI 转义码转换为带颜色的 Android Spannable 文本
-         */
-        private fun parseAnsiText(text: String): SpannableStringBuilder {
-            val builder = SpannableStringBuilder()
-            
-            // First, find and process all ANSI sequences
-            // Pattern matches: \x1B[...any letter or \x1B[...m or standalone [...]m or [K etc.
-            val ansiPattern = Regex("""\x1B\[[0-9;]*[a-zA-Z]|\[[0-9;]*m|\[K|\[m""")
-            
-            var currentColor = Color.WHITE
-            var currentBold = false
-            var lastIndex = 0
-            
-            // Find all ANSI codes
-            ansiPattern.findAll(text).forEach { match ->
-                // Add text before this ANSI code with current style
-                val textBeforeCode = text.substring(lastIndex, match.range.first)
-                if (textBeforeCode.isNotEmpty()) {
-                    val start = builder.length
-                    builder.append(textBeforeCode)
-                    
-                    // Apply current color
-                    if (currentColor != Color.WHITE) {
-                        builder.setSpan(
-                            ForegroundColorSpan(currentColor),
-                            start,
-                            builder.length,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        )
-                    }
-                    
-                    // Apply bold style
-                    if (currentBold) {
-                        builder.setSpan(
-                            StyleSpan(Typeface.BOLD),
-                            start,
-                            builder.length,
-                            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                        )
-                    }
-                }
-                
-                // Parse ANSI code to update current style (only for SGR codes ending with 'm')
-                val matchText = match.value
-                if (matchText.endsWith("m")) {
-                    // Extract code numbers
-                    val codeStr = matchText.removePrefix("\u001B[").removePrefix("[").removeSuffix("m")
-                    if (codeStr.isNotEmpty()) {
-                        val codes = codeStr.split(";").mapNotNull { it.toIntOrNull() }
-                        
-                        for (ansiCode in codes) {
-                            when (ansiCode) {
-                                0 -> { // Reset
-                                    currentColor = Color.WHITE
-                                    currentBold = false
-                                }
-                                1 -> currentBold = true // Bold
-                                22 -> currentBold = false // Normal intensity
-                                30 -> currentColor = Color.BLACK
-                                31 -> currentColor = Color.rgb(220, 50, 47) // Red
-                                32 -> currentColor = Color.rgb(133, 153, 0) // Green
-                                33 -> currentColor = Color.rgb(181, 137, 0) // Yellow
-                                34 -> currentColor = Color.rgb(38, 139, 210) // Blue
-                                35 -> currentColor = Color.rgb(211, 54, 130) // Magenta
-                                36 -> currentColor = Color.rgb(42, 161, 152) // Cyan
-                                37 -> currentColor = Color.WHITE
-                                39 -> currentColor = Color.WHITE // Default foreground
-                                90 -> currentColor = Color.GRAY // Bright black
-                                91 -> currentColor = Color.rgb(255, 100, 100) // Bright red
-                                92 -> currentColor = Color.rgb(100, 255, 100) // Bright green
-                                93 -> currentColor = Color.rgb(255, 255, 100) // Bright yellow
-                                94 -> currentColor = Color.rgb(100, 100, 255) // Bright blue
-                                95 -> currentColor = Color.rgb(255, 100, 255) // Bright magenta
-                                96 -> currentColor = Color.rgb(100, 255, 255) // Bright cyan
-                                97 -> currentColor = Color.WHITE // Bright white
-                            }
-                        }
-                    } else {
-                        // Empty code like [m means reset
-                        currentColor = Color.WHITE
-                        currentBold = false
-                    }
-                }
-                // For other ANSI codes like [K (clear line), just skip them
-                
-                lastIndex = match.range.last + 1
-            }
-            
-            // Add remaining text
-            val remainingText = text.substring(lastIndex)
-            if (remainingText.isNotEmpty()) {
-                val start = builder.length
-                builder.append(remainingText)
-                
-                if (currentColor != Color.WHITE) {
-                    builder.setSpan(
-                        ForegroundColorSpan(currentColor),
-                        start,
-                        builder.length,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
-                
-                if (currentBold) {
-                    builder.setSpan(
-                        StyleSpan(Typeface.BOLD),
-                        start,
-                        builder.length,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                }
-            }
-            
-            // If no ANSI codes found, return original text
-            if (builder.isEmpty()) {
-                builder.append(text)
-            }
-            
-            return builder
-        }
     }
-    
-    /**
-     * IO instance data class for caching input/output data
-     * IO实例数据类 - 用于缓存输入/输出数据
-     */
-    data class IOInstance(
-        var input: String = "",
-        var actualOutput: String = "",
-        var expectedOutput: String = "",
-        var status: String = "",
-        var executionTime: Int = 0
-    )
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
+        inflater: LayoutInflater,
+        container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_io_panel, container, false)
@@ -234,578 +77,321 @@ class IOPanelFragment : Fragment() {
         }
         
         // Initialize views
-        runCodeButton = view.findViewById(R.id.run_code_button)
-        runStatus = view.findViewById(R.id.run_status)
-        inputText = view.findViewById(R.id.input_text)
-        actualOutputText = view.findViewById(R.id.actual_output_text)
-        expectedOutputText = view.findViewById(R.id.expected_output_text)
+        initializeViews(view)
         
-        // Set initial state
-        runStatus.text = ""
-        
-        // Load data from cache
+        // Load cached data
         loadFromCache()
         
-        // Set event listeners
+        // Set up event listeners
         setupListeners()
         
         return view
     }
     
     /**
-     * Set up event listeners for UI components
-     * 设置UI组件的事件监听器
+     * Initialize UI components
+     * 初始化UI组件
+     */
+    private fun initializeViews(view: View) {
+        runCodeButton = view.findViewById(R.id.run_code_button)
+        runStatus = view.findViewById(R.id.run_status)
+        btnCloudMode = view.findViewById(R.id.btn_cloud_mode)
+        btnLocalMode = view.findViewById(R.id.btn_local_mode)
+        inputText = view.findViewById(R.id.input_text)
+        actualOutputText = view.findViewById(R.id.actual_output_text)
+        expectedOutputText = view.findViewById(R.id.expected_output_text)
+        
+        runStatus.text = ""
+        
+        // Set initial execution mode button style
+        updateExecutionModeButtons(ExecutorFactory.getExecutionMode(requireContext()))
+    }
+    
+    /**
+     * Set up event listeners
+     * 设置事件监听器
      */
     private fun setupListeners() {
-        // Run code button
         runCodeButton.setOnClickListener {
-            // Run code on GitHub
-            runCodeOnGitHub()
+            executeCode()
+        }
+        
+        // Cloud mode button listener
+        btnCloudMode.setOnClickListener {
+            switchExecutionMode(ExecutorFactory.MODE_CLOUD)
+        }
+        
+        // Local mode button listener
+        btnLocalMode.setOnClickListener {
+            switchExecutionMode(ExecutorFactory.MODE_LOCAL)
         }
     }
     
     /**
-     * Load data from cache and populate UI fields
-     * 从缓存加载数据并填充UI字段
+     * Switch execution mode
+     * 切换执行模式
+     */
+    private fun switchExecutionMode(mode: String) {
+        val currentMode = ExecutorFactory.getExecutionMode(requireContext())
+        
+        // Only switch if different from current mode
+        if (mode != currentMode) {
+            ExecutorFactory.setExecutionMode(requireContext(), mode)
+            
+            // Reset executor to use new mode
+            executor = null
+            
+            // Update button styles
+            updateExecutionModeButtons(mode)
+            
+            // Show toast
+            val message = when (mode) {
+                ExecutorFactory.MODE_LOCAL -> getString(R.string.local_compiler_enabled)
+                else -> getString(R.string.cloud_compiler_enabled)
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * Update execution mode button styles
+     * 更新执行模式按钮样式
+     */
+    private fun updateExecutionModeButtons(mode: String) {
+        // Get theme colors
+        val typedValue = android.util.TypedValue()
+        val theme = requireContext().theme
+        
+        // Get blue color for buttons (same as run button)
+        val blueColor = ContextCompat.getColorStateList(requireContext(), R.color.blue_500)
+        val whiteColor = ContextCompat.getColor(requireContext(), android.R.color.white)
+        
+        // Get surface color for inactive button background
+        theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+        val surfaceColor = ContextCompat.getColorStateList(requireContext(), typedValue.resourceId)
+        
+        when (mode) {
+            ExecutorFactory.MODE_LOCAL -> {
+                // Local mode active (filled blue style)
+                btnLocalMode.backgroundTintList = blueColor
+                btnLocalMode.setTextColor(whiteColor)
+                btnLocalMode.iconTint = ContextCompat.getColorStateList(requireContext(), android.R.color.white)
+                btnLocalMode.strokeWidth = 0
+                
+                // Cloud mode inactive (outlined style with surface background)
+                btnCloudMode.backgroundTintList = surfaceColor
+                btnCloudMode.setTextColor(ContextCompat.getColor(requireContext(), R.color.blue_500))
+                btnCloudMode.iconTint = blueColor
+                btnCloudMode.strokeWidth = 2
+                btnCloudMode.strokeColor = blueColor
+            }
+            else -> {
+                // Cloud mode active (filled blue style)
+                btnCloudMode.backgroundTintList = blueColor
+                btnCloudMode.setTextColor(whiteColor)
+                btnCloudMode.iconTint = ContextCompat.getColorStateList(requireContext(), android.R.color.white)
+                btnCloudMode.strokeWidth = 0
+                
+                // Local mode inactive (outlined style with surface background)
+                btnLocalMode.backgroundTintList = surfaceColor
+                btnLocalMode.setTextColor(ContextCompat.getColor(requireContext(), R.color.blue_500))
+                btnLocalMode.iconTint = blueColor
+                btnLocalMode.strokeWidth = 2
+                btnLocalMode.strokeColor = blueColor
+            }
+        }
+    }
+    
+    /**
+     * Load cached IO data
+     * 加载缓存的IO数据
      */
     private fun loadFromCache() {
-        // Load data from cache
-        val cachedInstance = ioCache[fileName]
-        if (cachedInstance != null) {
+        val cachedInstance = IOCacheManager.get(fileName) ?: return
+        
             inputText.setText(cachedInstance.input)
-            // Parse ANSI color codes when loading from cache
-            val styledOutput = parseAnsiText(cachedInstance.actualOutput)
+        
+        // Parse ANSI codes in output
+        val styledOutput = AnsiTextParser.parseAnsiText(cachedInstance.actualOutput)
             actualOutputText.setText(styledOutput)
+        
             expectedOutputText.setText(cachedInstance.expectedOutput)
+        
+        // Display status if available
             if (cachedInstance.status.isNotEmpty()) {
-                // Display status and execution time (if available)
-                if (cachedInstance.executionTime > 0) {
-                    // Set status text
-                    runStatus.text = getString(R.string.execution_status_with_time, cachedInstance.status, cachedInstance.executionTime)
-                    
-                    // Set color for status part
-                    setStatusColor(cachedInstance.status)
-                    
-                    // Set gray color for execution time part
-                    val spannable = SpannableString(runStatus.text)
-                    spannable.setSpan(
-                        ForegroundColorSpan(ContextCompat.getColor(requireContext(), android.R.color.darker_gray)),
-                        cachedInstance.status.length, // Start from after status
-                        runStatus.text.length, // To end of text
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                    runStatus.text = spannable
-                } else {
-                runStatus.text = cachedInstance.status
-                setStatusColor(cachedInstance.status)
-                }
-            }
+            displayStatus(cachedInstance.status, cachedInstance.executionTime)
         }
     }
     
     /**
      * Save current data to cache
-     * 将当前数据保存到缓存
+     * 保存当前数据到缓存
      */
     private fun saveToCache(executionTime: Int = 0) {
-        // Save data to cache
-        val statusText = runStatus.text.toString()
-        // Extract status code (first 2-3 characters, like AC, WA, TLE, etc.)
-        val status = if (statusText.length >= 2) {
-            when {
-                statusText.startsWith("AC") -> "AC"
-                statusText.startsWith("WA") -> "WA"
-                statusText.startsWith("CE") -> "CE"
-                statusText.startsWith("TLE") -> "TLE"
-                statusText.startsWith("MLE") -> "MLE"
-                statusText.startsWith("RE") -> "RE"
-                statusText.startsWith("RS") -> "RS"
-                else -> statusText
-            }
-        } else {
-            statusText
-        }
-        
-        ioCache[fileName] = IOInstance(
+        IOCacheManager.update(
+            fileName = fileName,
             input = inputText.text.toString(),
             actualOutput = actualOutputText.text.toString(),
             expectedOutput = expectedOutputText.text.toString(),
-            status = status, // Save only status code, not execution time
+            status = extractStatusCode(runStatus.text.toString()),
             executionTime = executionTime
         )
     }
     
     /**
-     * Run code on GitHub using GitHub Actions workflow
-     * 在GitHub上使用GitHub Actions工作流运行代码
+     * Extract status code from status text
+     * 从状态文本中提取状态码
      */
-    private fun runCodeOnGitHub() {
-        // Check if there's already a running workflow
-        if (isGitHubRunning) {
+    private fun extractStatusCode(statusText: String): String {
+        return when {
+            statusText.startsWith("AC") -> ExecutionStatus.ACCEPTED
+            statusText.startsWith("WA") -> ExecutionStatus.WRONG_ANSWER
+            statusText.startsWith("CE") -> ExecutionStatus.COMPILE_ERROR
+            statusText.startsWith("TLE") -> ExecutionStatus.TIME_LIMIT_EXCEEDED
+            statusText.startsWith("MLE") -> ExecutionStatus.MEMORY_LIMIT_EXCEEDED
+            statusText.startsWith("RE") -> ExecutionStatus.RUNTIME_ERROR
+            statusText.startsWith("RS") -> ExecutionStatus.RUNNING
+            else -> statusText
+        }
+    }
+    
+    /**
+     * Execute code using selected executor
+     * 使用选定的执行器执行代码
+     */
+    private fun executeCode() {
+        // Create executor if needed
+        if (executor == null) {
+            executor = ExecutorFactory.createExecutor(requireContext())
+        }
+        
+        // Check if already running
+        if (executor?.isExecuting() == true) {
             Toast.makeText(context, getString(R.string.already_running), Toast.LENGTH_SHORT).show()
             return
         }
         
-        // Get GitHub settings
-        val prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
-        val repoUrl = prefs.getString(PREF_GITHUB_REPO_URL, "") ?: ""
-        val pat = prefs.getString(PREF_GITHUB_PAT, "") ?: ""
-        
-        if (repoUrl.isEmpty() || pat.isEmpty()) {
-            Toast.makeText(context, getString(R.string.no_github_settings), Toast.LENGTH_LONG).show()
-            return
-        }
-        
-        // Parse repository owner and name
-        val regex = "https://github.com/([^/]+)/([^/]+)".toRegex()
-        val match = regex.find(repoUrl)
-        
-        if (match == null || match.groupValues.size < 3) {
-            Toast.makeText(context, getString(R.string.invalid_repo_url), Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        val owner = match.groupValues[1]
-        val repo = match.groupValues[2].removeSuffix(".git")
-        
-        // Get input, code and expected output
-        val input = inputText.text.toString()
-        val expected = expectedOutputText.text.toString()
-        
-        // Get code
-        val mainActivity = activity as MainActivity
-        val code = mainActivity.files[fileName] ?: ""
+        // Get code from main activity
+        val mainActivity = activity as? MainActivity
+        val code = mainActivity?.files?.get(fileName) ?: ""
         
         if (code.isBlank()) {
             Toast.makeText(context, getString(R.string.code_empty), Toast.LENGTH_SHORT).show()
             return
         }
         
-        // Map language format
-        val mappedLanguage = LANGUAGE_MAP[language] ?: "cpp"
+        // Get input and expected output
+        val input = inputText.text.toString()
+        val expected = expectedOutputText.text.toString()
         
-        // Disable run button, show progress
+        // Update UI to show running state
         runCodeButton.isEnabled = false
         runStatus.text = getString(R.string.code_running)
         runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
         actualOutputText.setText(getString(R.string.code_running_on_github))
-        isGitHubRunning = true
         
-        // Use coroutines to execute GitHub API calls in background
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Call GitHub API to trigger workflow
-                val runId = triggerGitHubWorkflow(owner, repo, pat, code, input, expected, mappedLanguage)
-                
-                if (runId > 0) {
-                    // Start polling workflow status
-                    pollWorkflowStatus(owner, repo, pat, runId)
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, getString(R.string.workflow_trigger_failed), Toast.LENGTH_SHORT).show()
-                        resetRunState()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, getString(R.string.workflow_error, e.message), Toast.LENGTH_LONG).show()
-                    resetRunState()
-                }
+        // Execute code
+        executor?.executeCode(
+            code = code,
+            language = language,
+            input = input,
+            expectedOutput = expected,
+            onProgress = { progress ->
+                actualOutputText.setText(progress)
+            },
+            onComplete = { result ->
+                handleExecutionComplete(result)
+            },
+            onError = { error ->
+                handleExecutionError(error)
             }
-        }
+        )
     }
     
     /**
-     * Trigger GitHub workflow through API
-     * 通过API触发GitHub工作流
+     * Handle execution completion
+     * 处理执行完成
      */
-    private suspend fun triggerGitHubWorkflow(
-        owner: String,
-        repo: String,
-        pat: String,
-        code: String,
-        input: String,
-        expected: String,
-        language: String
-    ): Long = withContext(Dispatchers.IO) {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .build()
+    private fun handleExecutionComplete(result: ExecutionResult) {
+        // Parse ANSI codes in output
+        val styledOutput = AnsiTextParser.parseAnsiText(result.actualOutput)
+        actualOutputText.setText(styledOutput)
         
-        // Prepare request body
-        val jsonBody = JSONObject().apply {
-            put("ref", "main") // Assume workflow is on main branch
-            
-            // Input parameters
-            val inputs = JSONObject().apply {
-                // Use Base64 encoding to preserve special characters like quotes
-                val encodedCode = Base64.encodeToString(code.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                put("source_code", encodedCode)
-                put("std_input", input)
-                put("expected_output", expected)
-                put("language", language)
-            }
-            
-            put("inputs", inputs)
-        }
+        // Display status
+        displayStatus(result.status, result.executionTime)
         
-        val mediaType = "application/json; charset=utf-8".toMediaType()
-        val requestBody = jsonBody.toString().toRequestBody(mediaType)
+        // Save to cache
+        saveToCache(result.executionTime)
         
-        // Build API request - correct workflow file path
-        val workflowFileName = "code-execution.yml"
-        val request = Request.Builder()
-            .url("$GITHUB_API_BASE/repos/$owner/$repo/actions/workflows/$workflowFileName/dispatches")
-            .header("Authorization", "token $pat")
-            .header("Accept", "application/vnd.github.v3+json")
-            .post(requestBody)
-            .build()
-        
-        // Execute request
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                throw IOException("GitHub API error: $errorBody")
-            }
-            
-            // Get latest workflow run ID
-            // Since GitHub API doesn't directly return run ID when triggering workflow,
-            // we need to query recent workflow runs separately
-            delay(2000) // Give GitHub some time (2s) to create workflow run
-            getLatestWorkflowRunId(owner, repo, pat)
-        }
+        // Reset button state
+        runCodeButton.isEnabled = true
     }
     
     /**
-     * Get latest workflow run ID
-     * 获取最新的工作流运行ID
+     * Handle execution error
+     * 处理执行错误
      */
-    private suspend fun getLatestWorkflowRunId(
-        owner: String,
-        repo: String,
-        pat: String
-    ): Long = withContext(Dispatchers.IO) {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .build()
-        
-        val request = Request.Builder()
-            .url("$GITHUB_API_BASE/repos/$owner/$repo/actions/runs?per_page=1")
-            .header("Authorization", "token $pat")
-            .header("Accept", "application/vnd.github.v3+json")
-            .build()
-        
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                throw IOException("Failed to get workflow run ID: $errorBody")
-            }
-            
-            val responseBody = response.body?.string() ?: "{}"
-            val jsonResponse = JSONObject(responseBody)
-            val workflowRuns = jsonResponse.getJSONArray("workflow_runs")
-            
-            if (workflowRuns.length() > 0) {
-                val latestRun = workflowRuns.getJSONObject(0)
-                latestRun.getLong("id")
-            } else {
-                -1L
-            }
-        }
+    private fun handleExecutionError(error: String) {
+        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+        runStatus.text = "Error"
+        runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark))
+        actualOutputText.setText(error)
+        runCodeButton.isEnabled = true
     }
     
     /**
-     * Poll workflow status until completion
-     * 轮询工作流状态直到完成
+     * Display execution status
+     * 显示执行状态
      */
-    private fun pollWorkflowStatus(owner: String, repo: String, pat: String, runId: Long) {
-        // Cancel any ongoing polling
-        pollingJob?.cancel()
-        
-        pollingJob = CoroutineScope(Dispatchers.IO).launch {
-            var isCompleted = false
-            var attempts = 0
-            
-            while (!isCompleted && attempts < 60) { // Maximum 60 attempts
-                delay(2000) // Check every 2 seconds
-                attempts++
-                
-                try {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(10, TimeUnit.SECONDS)
-                        .readTimeout(10, TimeUnit.SECONDS)
-                        .build()
-                    
-                    val request = Request.Builder()
-                        .url("$GITHUB_API_BASE/repos/$owner/$repo/actions/runs/$runId")
-                        .header("Authorization", "token $pat")
-                        .header("Accept", "application/vnd.github.v3+json")
-                        .build()
-                    
-                    client.newCall(request).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val responseBody = response.body?.string() ?: "{}"
-                            val jsonResponse = JSONObject(responseBody)
-                            val status = jsonResponse.getString("status")
-                            
-                            withContext(Dispatchers.Main) {
-                                val progressText = getString(R.string.code_running_time, attempts * 2)
-                                actualOutputText.setText(progressText)
-                            }
-                            
-                            if (status == "completed") {
-                                isCompleted = true
-                                // Get workflow results
-                                downloadAndProcessArtifacts(owner, repo, pat, runId)
-                            }
-                        } else {
-                            val errorBody = response.body?.string() ?: "Unknown error"
-                            throw IOException("Failed to check workflow status: $errorBody")
-                        }
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, getString(R.string.workflow_polling_error, e.message), Toast.LENGTH_SHORT).show()
-                    }
-                    break
-                }
-            }
-            
-            if (!isCompleted) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, getString(R.string.workflow_timeout), Toast.LENGTH_SHORT).show()
-                    resetRunState()
-                }
-            }
-        }
-    }
-    
-    /**
-     * Download and process workflow artifacts
-     * 下载并处理工作流产物
-     */
-    private suspend fun downloadAndProcessArtifacts(
-        owner: String,
-        repo: String,
-        pat: String,
-        runId: Long
-    ) = withContext(Dispatchers.IO) {
-        try {
-            // 1. Get Artifacts list
-            val client = OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .build()
-            
-            val listRequest = Request.Builder()
-                .url("$GITHUB_API_BASE/repos/$owner/$repo/actions/runs/$runId/artifacts")
-                .header("Authorization", "token $pat")
-                .header("Accept", "application/vnd.github.v3+json")
-                .build()
-            
-            client.newCall(listRequest).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val errorBody = response.body?.string() ?: "Unknown error"
-                    throw IOException(getString(R.string.result_processing_error, "Failed to get Artifacts: $errorBody"))
-                }
-                
-                val responseBody = response.body?.string() ?: "{}"
-                val jsonResponse = JSONObject(responseBody)
-                val artifacts = jsonResponse.getJSONArray("artifacts")
-                
-                if (artifacts.length() == 0) {
-                    throw IOException(getString(R.string.artifact_not_found) + " - Workflow execution may not have generated results")
-                }
-                
-                // Find judge-result artifact
-                var artifactId = -1L
-                var artifactName = ""
-                
-                for (i in 0 until artifacts.length()) {
-                    val artifact = artifacts.getJSONObject(i)
-                    val name = artifact.getString("name")
-                    if (name == "judge-result") {
-                        artifactId = artifact.getLong("id")
-                        artifactName = name
-                        break
-                    }
-                }
-                
-                if (artifactId == -1L) {
-                    // List all available artifact names for debugging
-                    val availableArtifacts = (0 until artifacts.length())
-                        .map { artifacts.getJSONObject(it).getString("name") }
-                        .joinToString(", ")
-                    
-                    throw IOException(getString(R.string.artifact_not_found) + 
-                        " - Available artifacts: $availableArtifacts")
-                }
-                
-                // 2. Download Artifact
-                val downloadRequest = Request.Builder()
-                    .url("$GITHUB_API_BASE/repos/$owner/$repo/actions/artifacts/$artifactId/zip")
-                    .header("Authorization", "token $pat")
-                    .header("Accept", "application/vnd.github.v3+json")
-                    .build()
-                
-                client.newCall(downloadRequest).execute().use { downloadResponse ->
-                    if (!downloadResponse.isSuccessful) {
-                        val errorBody = downloadResponse.body?.string() ?: "Unknown error"
-                        throw IOException(getString(R.string.result_processing_error, "Download failed (${downloadResponse.code}): $errorBody"))
-                    }
-                    
-                    // Save ZIP file to temporary directory
-                    val zipFile = File(requireContext().cacheDir, "$artifactName.zip")
-                    val inputStream = downloadResponse.body?.byteStream()
-                        ?: throw IOException(getString(R.string.result_processing_error, "Download response is empty"))
-                    
-                    FileOutputStream(zipFile).use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
-                    
-                    // 3. Extract and process results
-                    val resultsDir = File(requireContext().cacheDir, "judge-results")
-                    if (!resultsDir.exists()) {
-                        resultsDir.mkdirs()
-                    } else {
-                        resultsDir.listFiles()?.forEach { it.delete() }
-                    }
-                    
-                    unzipFile(zipFile, resultsDir)
-                    
-                    // List all extracted files for debugging
-                    val extractedFiles = resultsDir.listFiles()?.map { it.name } ?: listOf()
-                    Log.d("IOPanelFragment", "Extracted files: ${extractedFiles.joinToString()}")
-                    
-                    // 4. Read results
-                    val resultFile = File(resultsDir, "result.json")
-                    val actualOutputFile = File(resultsDir, "actual.txt")
-                    
-                    if (resultFile.exists()) {
-                        val resultJson = JSONObject(resultFile.readText())
-                        val status = resultJson.getString("status")
-                        val executionTime = resultJson.optInt("execution_time", 0)
-                        
-                        var actualOutput = getString(R.string.no_output)
-                        if (actualOutputFile.exists()) {
-                            actualOutput = actualOutputFile.readText()
-                        } else {
-                            // If actual.txt doesn't exist, but there's compile error log, show compile error
-                            val compileErrorFile = File(resultsDir, "compile.log")
-                            if (compileErrorFile.exists() && status == "CE") {
-                                actualOutput = compileErrorFile.readText()
-                            }
-                        }
-                        
-                        // Update UI
-                        withContext(Dispatchers.Main) {
-                            // Display status and execution time
-                            if (executionTime > 0 && status != "CE") {
+    private fun displayStatus(status: String, executionTime: Int) {
+        if (executionTime > 0 && status != ExecutionStatus.COMPILE_ERROR) {
+            // Show status with execution time
                                 runStatus.text = getString(R.string.execution_status_with_time, status, executionTime)
                                 setStatusColor(status)
+            
+            // Make execution time gray
                                 val spannable = SpannableString(runStatus.text)
                                 spannable.setSpan(
                                     ForegroundColorSpan(ContextCompat.getColor(requireContext(), android.R.color.darker_gray)),
-                                    status.length, // Start from after status
-                                    runStatus.text.length, // To end of text
+                status.length,
+                runStatus.text.length,
                                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                                 )
                                 runStatus.text = spannable
                             } else {
+            // Show status only
                                 runStatus.text = status
                                 setStatusColor(status)
-                            }
-                            // Parse ANSI color codes and apply to output text
-                            val styledOutput = parseAnsiText(actualOutput)
-                            actualOutputText.setText(styledOutput)
-                            // Save execution time to cache
-                            saveToCache(executionTime)
-                            resetRunState()
-                        }
-                    } else {
-                        throw IOException(getString(R.string.artifact_not_found) + 
-                            " - result.json file not found. Extracted files: ${extractedFiles.joinToString()}")
-                    }
-                    
-                    // Clean up temporary files
-                    zipFile.delete()
-                }
-            }
-        } catch (e: Exception) {
-            withContext(Dispatchers.Main) {
-                Toast.makeText(context, getString(R.string.result_processing_error, e.message), Toast.LENGTH_LONG).show()
-                resetRunState()
-            }
         }
     }
     
     /**
-     * Extract ZIP file to destination directory
-     * 解压ZIP文件到目标目录
-     */
-    private fun unzipFile(zipFile: File, destinationDir: File) {
-        ZipInputStream(BufferedInputStream(zipFile.inputStream())).use { zipInputStream ->
-            var entry = zipInputStream.nextEntry
-            val buffer = ByteArray(1024)
-            
-            while (entry != null) {
-                val file = File(destinationDir, entry.name)
-
-                if (!file.parentFile?.exists()!!) {
-                    file.parentFile?.mkdirs()
-                }
-
-                if (entry.isDirectory) {
-                    file.mkdirs()
-                } else {
-                    // Write file content
-                    FileOutputStream(file).use { fileOutputStream ->
-                        var len: Int
-                        while (zipInputStream.read(buffer).also { len = it } > 0) {
-                            fileOutputStream.write(buffer, 0, len)
-                        }
-                    }
-                }
-                
-                zipInputStream.closeEntry()
-                entry = zipInputStream.nextEntry
-            }
-        }
-    }
-    
-    /**
-     * Reset running state to allow new executions
-     * 重置运行状态以允许新的执行
-     */
-    private fun resetRunState() {
-        runCodeButton.isEnabled = true
-        isGitHubRunning = false
-    }
-    
-    /**
-     * Set color for status text based on status type
-     * 根据状态类型设置状态文本的颜色
+     * Set status text color based on status type
+     * 根据状态类型设置状态文本颜色
      */
     private fun setStatusColor(status: String) {
-        when (status) {
-            "CE" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark))
-            "AC" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_green_dark))
-            "WA" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_light))
-            "TLE" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_orange_dark))
-            "MLE" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_orange_light))
-            "RE" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_purple))
-            "RS" -> runStatus.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_light))
+        val color = when (status) {
+            ExecutionStatus.COMPILE_ERROR -> android.R.color.holo_red_dark
+            ExecutionStatus.ACCEPTED -> android.R.color.holo_green_dark
+            ExecutionStatus.WRONG_ANSWER -> android.R.color.holo_red_light
+            ExecutionStatus.TIME_LIMIT_EXCEEDED -> android.R.color.holo_orange_dark
+            ExecutionStatus.MEMORY_LIMIT_EXCEEDED -> android.R.color.holo_orange_light
+            ExecutionStatus.RUNTIME_ERROR -> android.R.color.holo_purple
+            ExecutionStatus.RUNNING -> android.R.color.holo_blue_light
+            else -> android.R.color.darker_gray
         }
+        runStatus.setTextColor(ContextCompat.getColor(requireContext(), color))
     }
     
     override fun onPause() {
         super.onPause()
-        // Save to cache
+        // Save to cache when pausing
         saveToCache()
-        
-        // Cancel polling task
-        pollingJob?.cancel()
     }
-} 
+    
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // Cancel any running execution
+        executor?.cancelExecution()
+    }
+}
