@@ -99,26 +99,17 @@ class SplashActivity : AppCompatActivity() {
                 // Set TextMate status
                 updateLoadingText(getString(R.string.initializing_syntax_highlighting))
                 logInfo(getString(R.string.log_start_init_textmate))
-                // Since TextMateManager doesn't have loadLanguageIfNeeded method, directly show completion message
                 logInfo(getString(R.string.log_textmate_init_complete))
-                
-                // Pre-warm C++ WASM compiler for better first-run performance
-                // 预热C++ WASM编译器以提升首次运行性能
-                updateLoadingText("Initializing C++ compiler...")
-                logInfo("Starting C++ compiler pre-warming...")
+                updateLoadingText(getString(R.string.initializing_cpp_compiler))
+                logInfo(getString(R.string.log_start_cpp_prewarm))
                 WasmPrewarmManager.prewarmCppExecutor(
                     context = this@SplashActivity,
-                    onProgress = { progress ->
-                        CoroutineScope(Dispatchers.Main).launch {
-                            logInfo(progress)
-                        }
-                    },
                     onComplete = { success ->
                         CoroutineScope(Dispatchers.Main).launch {
                             if (success) {
-                                logInfo("✓ C++ compiler ready (saves ~700ms on first run)")
+                                logInfo(getString(R.string.log_cpp_compiler_ready))
                             } else {
-                                logInfo("⚠ C++ compiler pre-warming skipped (will load on demand)")
+                                logInfo(getString(R.string.log_cpp_prewarm_skipped))
                             }
                         }
                     }

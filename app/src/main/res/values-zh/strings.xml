@@ -88,6 +88,10 @@
     <string name="log_error">错误: %1$s</string>
     <string name="log_textmate_init_in_progress">正在初始化TextMate...</string>
     <string name="log_preloading_common_languages">正在预加载常用语言...</string>
+    <string name="initializing_cpp_compiler">初始化 C++ 编译器...</string>
+    <string name="log_start_cpp_prewarm">开始预热 C++ 编译器...</string>
+    <string name="log_cpp_compiler_ready">C++ 编译器已就绪</string>
+    <string name="log_cpp_prewarm_skipped">C++ 编译器预热已跳过</string>
     
     <!-- 存储权限字符串 -->
     <string name="storage_permission_title">需要存储权限</string>

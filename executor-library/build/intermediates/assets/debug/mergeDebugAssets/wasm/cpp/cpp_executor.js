@@ -107,7 +107,7 @@ async function compileAndRun(sourceCode, input) {
     
     let programOutput = '';
     let allCompilerOutput = '';
-    let executionTimeMs = 0;  // 从编译器输出中提取的实际执行时间
+    let executionTimeMs = 0;
     let isExecuting = false;
     let compilationSucceeded = false;
     let originalHostWrite = null;
@@ -140,12 +140,10 @@ async function compileAndRun(sourceCode, input) {
                 allCompilerOutput += text;
             }
             
-            // 提取实际执行时间：格式为 (instantiate_time/execution_time)
-            // 例如: (0.00s/0.01s) 表示 instantiate 0秒，执行 0.01秒
+            // (instantiate_time/execution_time)
             if (isExecuting && cleanText.match(/\(\d+\.\d+s\/\d+\.\d+s\)/)) {
                 const timeMatch = cleanText.match(/\((\d+\.\d+)s\/(\d+\.\d+)s\)/);
                 if (timeMatch) {
-                    // 第二个数字是实际执行时间（秒），转换为毫秒
                     executionTimeMs = Math.round(parseFloat(timeMatch[2]) * 1000);
                     console.log('Extracted execution time:', executionTimeMs, 'ms');
                 }
@@ -173,7 +171,6 @@ async function compileAndRun(sourceCode, input) {
         const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
         
         if (typeof AndroidBridge !== 'undefined') {
-            // 发送实际执行时间（从编译器输出中提取）
             AndroidBridge.onOutput(`[EXEC_TIME_MS:${executionTimeMs}]`);
             
             if (cleanOutput) {

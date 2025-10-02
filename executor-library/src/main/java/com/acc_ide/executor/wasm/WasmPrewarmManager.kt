@@ -90,7 +90,6 @@ object WasmPrewarmManager {
         }
         
         Log.d(TAG, "Starting C++ executor pre-warming...")
-        onProgress?.invoke("Initializing C++ compiler...")
         
         try {
             val executor = WasmCppExecutor(context)
@@ -100,18 +99,15 @@ object WasmPrewarmManager {
                     Log.d(TAG, "C++ executor pre-warming completed successfully")
                     prewarmedCppExecutor = executor
                     isCppPrewarmed = true
-                    onProgress?.invoke("C++ compiler ready")
                     onComplete?.invoke(true)
                 },
                 onError = { error ->
                     Log.e(TAG, "C++ executor pre-warming failed: $error")
-                    onProgress?.invoke("C++ compiler initialization failed")
                     onComplete?.invoke(false)
                 }
             )
         } catch (e: Exception) {
             Log.e(TAG, "Exception during C++ pre-warming", e)
-            onProgress?.invoke("C++ compiler error: ${e.message}")
             onComplete?.invoke(false)
         }
     }
@@ -142,7 +138,6 @@ object WasmPrewarmManager {
         }
         
         Log.d(TAG, "Starting Python executor pre-warming...")
-        onProgress?.invoke("Loading Python interpreter (Pyodide)...")
         
         try {
             val executor = WasmPythonExecutor(context)
@@ -152,18 +147,15 @@ object WasmPrewarmManager {
                     Log.d(TAG, "Python executor pre-warming completed successfully")
                     prewarmedPythonExecutor = executor
                     isPythonPrewarmed = true
-                    onProgress?.invoke("Python interpreter ready")
                     onComplete?.invoke(true)
                 },
                 onError = { error ->
                     Log.e(TAG, "Python executor pre-warming failed: $error")
-                    onProgress?.invoke("Python initialization failed (may need internet)")
                     onComplete?.invoke(false)
                 }
             )
         } catch (e: Exception) {
             Log.e(TAG, "Exception during Python pre-warming", e)
-            onProgress?.invoke("Python error: ${e.message}")
             onComplete?.invoke(false)
         }
     }
