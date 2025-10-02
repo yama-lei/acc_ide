@@ -126,7 +126,7 @@
     <!-- 执行模式设置 -->
     <string name="execution_mode">执行模式</string>
     <string name="use_local_compiler">使用本地编译器（实验性功能）</string>
-    <string name="local_compiler_enabled">已启用本地编译器（注意：尚未完全实现）</string>
+    <string name="local_compiler_enabled">已启用本地编译器（WebAssembly）</string>
     <string name="cloud_compiler_enabled">已启用云端编译器（GitHub Actions）</string>
     <string name="cloud_execution">云端</string>
     <string name="local_execution">本地</string>

@@ -126,7 +126,7 @@
     <!-- Execution Mode Settings -->
     <string name="execution_mode">Execution Mode</string>
     <string name="use_local_compiler">Use local compiler (experimental)</string>
-    <string name="local_compiler_enabled">Local compiler enabled (Note: Not fully implemented yet)</string>
+    <string name="local_compiler_enabled">Local compiler enabled (WebAssembly)</string>
     <string name="cloud_compiler_enabled">Cloud compiler enabled (GitHub Actions)</string>
     <string name="cloud_execution">Cloud</string>
     <string name="local_execution">Local</string>
