@@ -146,9 +146,16 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
                 val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
                                        error.contains("Compilation Error:", ignoreCase = true)
                 
+                // 将错误信息也添加到输出中，方便用户查看
+                val fullOutput = if (outputBuilder.isEmpty()) {
+                    error
+                } else {
+                    outputBuilder.toString() + "\n" + error
+                }
+                
                 onComplete(ExecutionResult(
                     status = if (isCompilationError) "CE" else "RE",
-                    actualOutput = outputBuilder.toString(),
+                    actualOutput = fullOutput,
                     executionTime = executionTime,
                     errorMessage = error
                 ))
@@ -230,6 +237,7 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
     ) {
         val startTime = System.currentTimeMillis()
         val outputBuilder = StringBuilder()
+        var hasReportedResult = false // 防止重复报告结果
         
         executor.execute(
             code = code,
@@ -238,16 +246,39 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
                 outputBuilder.append(output)
             },
             onError = { error ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring duplicate error callback")
+                    return@execute
+                }
+                hasReportedResult = true
+                
                 val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                // 判断是否为编译错误：检查是否包含 "Compilation Error:" 前缀
+                val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
+                                       error.contains("Compilation Error:", ignoreCase = true)
+                
+                // 将错误信息也添加到输出中，方便用户查看
+                val fullOutput = if (outputBuilder.isEmpty()) {
+                    error
+                } else {
+                    outputBuilder.toString() + "\n" + error
+                }
+                
                 onComplete(ExecutionResult(
-                    status = "RE",
-                    actualOutput = outputBuilder.toString(),
+                    status = if (isCompilationError) "CE" else "RE",
+                    actualOutput = fullOutput,
                     executionTime = executionTime,
                     errorMessage = error
                 ))
                 isRunning = false
             },
             onComplete = { exitCode ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring onComplete callback because error was already reported")
+                    return@execute
+                }
+                hasReportedResult = true
+                
                 val executionTime = (System.currentTimeMillis() - startTime).toInt()
                 val actualOutput = outputBuilder.toString()
                 
@@ -329,9 +360,16 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
                 val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
                                        error.contains("Compilation Error:", ignoreCase = true)
                 
+                // 将错误信息也添加到输出中，方便用户查看
+                val fullOutput = if (outputBuilder.isEmpty()) {
+                    error
+                } else {
+                    outputBuilder.toString() + "\n" + error
+                }
+                
                 onComplete(ExecutionResult(
                     status = if (isCompilationError) "CE" else "RE",
-                    actualOutput = outputBuilder.toString(),
+                    actualOutput = fullOutput,
                     executionTime = executionTime,
                     errorMessage = error
                 ))

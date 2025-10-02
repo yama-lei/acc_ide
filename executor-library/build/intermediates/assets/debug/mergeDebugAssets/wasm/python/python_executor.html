@@ -13,6 +13,47 @@
     <script>
         let pyodide = null;
         
+        /**
+         * 为 Python traceback 添加 ANSI 颜色代码
+         * 使其显示效果与 C++ 编译器错误一致
+         */
+        function colorizeTraceback(errorStr) {
+            // ANSI 颜色代码
+            const RED = '\x1b[0;1;31m';      // 红色粗体（错误类型）
+            const YELLOW = '\x1b[0;1;33m';   // 黄色粗体（文件路径）
+            const CYAN = '\x1b[0;1;36m';     // 青色粗体（行号）
+            const GREEN = '\x1b[0;1;32m';    // 绿色粗体（错误指示符 ^）
+            const RESET = '\x1b[0m';         // 重置颜色
+            
+            let colored = errorStr;
+            
+            // 1. 高亮错误类型（SyntaxError, NameError, etc.）
+            colored = colored.replace(
+                /^(\w+Error):/gm, 
+                RED + '$1:' + RESET
+            );
+            
+            // 2. 高亮文件路径和行号 (File "...", line N)
+            colored = colored.replace(
+                /File "(.*?)", line (\d+)/g,
+                'File ' + YELLOW + '"$1"' + RESET + ', line ' + CYAN + '$2' + RESET
+            );
+            
+            // 3. 高亮 Traceback 标题
+            colored = colored.replace(
+                /^(Traceback \(most recent call last\):)/gm,
+                CYAN + '$1' + RESET
+            );
+            
+            // 4. 高亮错误指示符 (^)
+            colored = colored.replace(
+                /^(\s*\^+\s*)$/gm,
+                GREEN + '$1' + RESET
+            );
+            
+            return colored;
+        }
+        
         // 初始化Pyodide
         async function loadPyodideAndPackages() {
             try {
@@ -113,16 +154,36 @@
                         _output_capture.get_output()
                     `);
                     
+                    // 检测是否为编译时错误（语法错误）
+                    const errorStr = pythonError.toString();
+                    const isSyntaxError = errorStr.includes('SyntaxError') || 
+                                         errorStr.includes('IndentationError') || 
+                                         errorStr.includes('TabError');
+                    
+                    // 为错误信息添加 ANSI 颜色代码，与 C++ 编译器保持一致的显示效果
+                    let errorMessage = errorOutput ? errorOutput + '\n' : '';
+                    if (isSyntaxError) {
+                        // 语法错误 = 编译错误（红色高亮）
+                        errorMessage = '\x1b[0;1;31mCompilation Error:\x1b[0m\n' + 
+                                      errorMessage + 
+                                      colorizeTraceback(errorStr);
+                    } else {
+                        // 其他错误 = 运行时错误（红色高亮）
+                        errorMessage = '\x1b[0;1;31mRuntime Error:\x1b[0m\n' + 
+                                      errorMessage + 
+                                      colorizeTraceback(errorStr);
+                    }
+                    
                     document.getElementById('status').textContent = 'Python Error';
-                    AndroidBridge.onError(errorOutput + '\n' + pythonError.toString());
-                    AndroidBridge.onComplete(1);
+                    AndroidBridge.onError(errorMessage);
+                    // 不调用 onComplete，避免覆盖错误状态
                 }
                 
             } catch (error) {
                 console.error('Execution error:', error);
                 document.getElementById('status').textContent = 'Error: ' + error.message;
                 AndroidBridge.onError(error.toString());
-                AndroidBridge.onComplete(1);
+                // 不调用 onComplete，避免覆盖错误状态
             }
         }
         
