@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM Python Executor</title>
+    <!-- Pyodide CDN -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</head>
+<body>
+    <div id="status">Loading Python...</div>
+    
+    <script>
+        let pyodide = null;
+        
+        // 初始化Pyodide
+        async function loadPyodideAndPackages() {
+            try {
+                console.log('Starting Pyodide initialization...');
+                document.getElementById('status').textContent = 'Loading Pyodide...';
+                
+                pyodide = await loadPyodide({
+                    indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
+                });
+                
+                console.log('Pyodide loaded, setting up output capture...');
+                
+                // 重定向stdout
+                await pyodide.runPythonAsync(`
+                    import sys
+                    import io
+                    
+                    class OutputCapture:
+                        def __init__(self):
+                            self.output = []
+                        
+                        def write(self, text):
+                            self.output.append(text)
+                        
+                        def flush(self):
+                            pass
+                        
+                        def get_output(self):
+                            return ''.join(self.output)
+                    
+                    _output_capture = OutputCapture()
+                    sys.stdout = _output_capture
+                    sys.stderr = _output_capture
+                `);
+                
+                console.log('Pyodide ready, notifying Android...');
+                document.getElementById('status').textContent = 'Python ready!';
+                
+                // 通知Android Pyodide已就绪
+                if (typeof AndroidBridge !== 'undefined') {
+                    AndroidBridge.onPyodideReady();
+                } else {
+                    console.error('AndroidBridge not found!');
+                }
+                
+            } catch (error) {
+                console.error('Failed to load Pyodide:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                
+                if (typeof AndroidBridge !== 'undefined') {
+                    AndroidBridge.onPyodideError(error.toString());
+                } else {
+                    console.error('AndroidBridge not found for error reporting!');
+                }
+            }
+        }
+        
+        // 运行Python代码
+        async function runPythonCode(code, input) {
+            if (!pyodide) {
+                AndroidBridge.onError('Pyodide not loaded');
+                return;
+            }
+            
+            try {
+                document.getElementById('status').textContent = 'Running Python...';
+                
+                // 设置stdin（如果有输入）
+                if (input) {
+                    await pyodide.runPythonAsync(`
+                        import sys
+                        import io
+                        sys.stdin = io.StringIO('''${input}''')
+                    `);
+                }
+                
+                // 清空之前的输出
+                await pyodide.runPythonAsync(`
+                    _output_capture.output = []
+                `);
+                
+                // 执行用户代码
+                try {
+                    await pyodide.runPythonAsync(code);
+                    
+                    // 获取输出
+                    const output = await pyodide.runPythonAsync(`
+                        _output_capture.get_output()
+                    `);
+                    
+                    document.getElementById('status').textContent = 'Done!';
+                    AndroidBridge.onOutput(output || '');
+                    AndroidBridge.onComplete(0);
+                    
+                } catch (pythonError) {
+                    // Python执行错误
+                    const errorOutput = await pyodide.runPythonAsync(`
+                        _output_capture.get_output()
+                    `);
+                    
+                    document.getElementById('status').textContent = 'Python Error';
+                    AndroidBridge.onError(errorOutput + '\n' + pythonError.toString());
+                    AndroidBridge.onComplete(1);
+                }
+                
+            } catch (error) {
+                console.error('Execution error:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                AndroidBridge.onError(error.toString());
+                AndroidBridge.onComplete(1);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', loadPyodideAndPackages);
+    </script>
+</body>
+</html>
+

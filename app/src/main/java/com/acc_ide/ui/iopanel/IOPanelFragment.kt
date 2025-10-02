@@ -12,12 +12,12 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.acc_ide.R
-import com.acc_ide.execution.AnsiTextParser
-import com.acc_ide.execution.ExecutionResult
-import com.acc_ide.execution.ExecutionStatus
-import com.acc_ide.execution.ExecutorFactory
-import com.acc_ide.execution.ICodeExecutor
-import com.acc_ide.execution.IOCacheManager
+import com.acc_ide.executor.AnsiTextParser
+import com.acc_ide.executor.ExecutionResult
+import com.acc_ide.executor.ExecutionStatus
+import com.acc_ide.executor.ExecutorFactory
+import com.acc_ide.executor.ICodeExecutor
+import com.acc_ide.executor.IOCacheManager
 import com.acc_ide.ui.main.MainActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -250,7 +250,7 @@ class IOPanelFragment : Fragment() {
             statusText.startsWith("TLE") -> ExecutionStatus.TIME_LIMIT_EXCEEDED
             statusText.startsWith("MLE") -> ExecutionStatus.MEMORY_LIMIT_EXCEEDED
             statusText.startsWith("RE") -> ExecutionStatus.RUNTIME_ERROR
-            statusText.startsWith("RS") -> ExecutionStatus.RUNNING
+            statusText.startsWith("RS") -> ExecutionStatus.RUNNING_SUCCESS
             else -> statusText
         }
     }
@@ -377,7 +377,7 @@ class IOPanelFragment : Fragment() {
             ExecutionStatus.TIME_LIMIT_EXCEEDED -> android.R.color.holo_orange_dark
             ExecutionStatus.MEMORY_LIMIT_EXCEEDED -> android.R.color.holo_orange_light
             ExecutionStatus.RUNTIME_ERROR -> android.R.color.holo_purple
-            ExecutionStatus.RUNNING -> android.R.color.holo_blue_light
+            ExecutionStatus.RUNNING_SUCCESS -> android.R.color.holo_blue_light
             else -> android.R.color.darker_gray
         }
         runStatus.setTextColor(ContextCompat.getColor(requireContext(), color))

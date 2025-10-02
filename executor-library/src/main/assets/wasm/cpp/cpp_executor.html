@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C++ Compiler (wasm-clang)</title>
+    <!-- 使用原项目的完整实现 -->
+    <script src="../common/shared.js"></script>
+</head>
+<body>
+    <div id="status">Initializing C++ compiler...</div>
+    
+    <script>
+        // 使用 shared.js 的 API 类实现完整的 C++ 编译功能
+        
+        let api = null;
+        let isReady = false;
+        
+        // 使用 XMLHttpRequest 加载 assets 文件
+        async function loadAssetFile(filename) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', filename, true);
+                xhr.responseType = 'arraybuffer';
+                
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(new Error(`Failed to load ${filename}: ${xhr.status}`));
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    reject(new Error(`Network error loading ${filename}`));
+                };
+                
+                xhr.send();
+            });
+        }
+        
+        // 初始化编译器
+        async function initializeCompiler() {
+            try {
+                console.log('Initializing wasm-clang with shared.js API...');
+                document.getElementById('status').textContent = 'Loading compiler...';
+                
+                // 创建 API 实例
+                api = new API({
+                    // 读取文件函数
+                    readBuffer: async (filename) => {
+                        console.log(`Loading ${filename}...`);
+                        return await loadAssetFile(filename);
+                    },
+                    
+                    // 编译 WASM 函数
+                    compileStreaming: async (filename) => {
+                        console.log(`Compiling ${filename}...`);
+                        const bytes = await loadAssetFile(filename);
+                        return await WebAssembly.compile(bytes);
+                    },
+                    
+                    // 输出回调
+                    hostWrite: (text) => {
+                        console.log('[Compiler Output]', text);
+                        // 发送到 Android
+                        if (typeof AndroidBridge !== 'undefined') {
+                            AndroidBridge.onOutput(text);
+                        }
+                    },
+                    
+                    // 文件名配置
+                    clang: 'clang',
+                    lld: 'lld',
+                    memfs: 'memfs',
+                    sysroot: 'sysroot.tar',
+                    
+                    // 显示时间统计
+                    showTiming: true
+                });
+                
+                console.log('Waiting for API initialization...');
+                document.getElementById('status').textContent = 'Initializing compiler (loading memfs and sysroot)...';
+                
+                // 等待初始化完成（会加载 memfs 和解压 sysroot.tar）
+                await api.ready;
+                
+                console.log('C++ compiler ready!');
+                document.getElementById('status').textContent = 'C++ compiler ready with full STL support!';
+                
+                isReady = true;
+                
+                // 通知 Android
+                if (typeof AndroidBridge !== 'undefined') {
+                    AndroidBridge.onWasmReady();
+                }
+                
+            } catch (error) {
+                console.error('Failed to initialize compiler:', error);
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                
+                if (typeof AndroidBridge !== 'undefined') {
+                    AndroidBridge.onWasmError(error.toString());
+                }
+            }
+        }
+        
+        // 编译并运行 C++ 代码
+        async function compileAndRun(sourceCode, input) {
+            if (!isReady || !api) {
+                const error = 'Compiler not ready. Please wait for initialization.';
+                console.error(error);
+                if (typeof AndroidBridge !== 'undefined') {
+                    AndroidBridge.onExecutionError(error);
+                    AndroidBridge.onExecutionComplete(1);
+                }
+                return;
+            }
+            
+            try {
+                console.log('Starting compilation...');
+                document.getElementById('status').textContent = 'Compiling...';
+                
+                // 设置 stdin 输入
+                if (input && input.trim()) {
+                    console.log('Setting stdin input:', input);
+                    api.memfs.setStdinStr(input);
+                }
+                
+                // 捕获输出
+                let programOutput = '';      // 程序的实际输出
+                let compileErrors = '';      // 编译错误
+                let executionStartTime = 0;  // 程序执行开始时间
+                let executionEndTime = 0;    // 程序执行结束时间
+                let isExecuting = false;     // 是否在执行程序
+                
+                // 临时替换 hostWrite 以分离编译信息和程序输出
+                const originalHostWrite = api.hostWrite;
+                api.hostWrite = (text) => {
+                    console.log('[Compiler]', text);
+                    
+                    // 移除 ANSI 颜色代码
+                    const cleanText = text.replace(/\x1b\[[0-9;]*m/g, '');
+                    
+                    // 检测编译错误
+                    if (cleanText.includes('error:') || cleanText.includes('Error:')) {
+                        compileErrors += cleanText;
+                    }
+                    
+                    // 检测程序开始执行（看到 "> test.wasm" 后的内容就是程序输出）
+                    if (cleanText.includes('> test.wasm')) {
+                        isExecuting = true;
+                        executionStartTime = performance.now();
+                        return; // 跳过这一行
+                    }
+                    
+                    // 检测执行时间行，如 "(0.00s/0.01s)"
+                    if (isExecuting && cleanText.match(/\(\d+\.\d+s\/\d+\.\d+s\)/)) {
+                        executionEndTime = performance.now();
+                        isExecuting = false;
+                        return; // 跳过时间统计行
+                    }
+                    
+                    // 如果正在执行，捕获程序输出
+                    if (isExecuting) {
+                        programOutput += text;
+                    }
+                };
+                
+                console.log('Calling api.compileLinkRun()...');
+                document.getElementById('status').textContent = 'Compiling and linking...';
+                
+                // 编译、链接并运行
+                await api.compileLinkRun(sourceCode);
+                
+                // 恢复原始 hostWrite
+                api.hostWrite = originalHostWrite;
+                
+                console.log('Compilation and execution completed successfully!');
+                document.getElementById('status').textContent = 'Done!';
+                
+                // 清理输出（移除 ANSI 颜色代码）
+                const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
+                
+                // 计算执行时间（毫秒）
+                const executionTimeMs = executionEndTime > 0 
+                    ? Math.round(executionEndTime - executionStartTime)
+                    : 0;
+                
+                // 发送到 Android
+                if (typeof AndroidBridge !== 'undefined') {
+                    // 使用特殊标记传递执行时间（毫秒）
+                    AndroidBridge.onOutput(`[EXEC_TIME_MS:${executionTimeMs}]`);
+                    
+                    // 输出程序结果
+                    if (cleanOutput) {
+                        AndroidBridge.onOutput(cleanOutput + '\n');
+                    }
+                    
+                    AndroidBridge.onExecutionComplete(0);
+                }
+                
+            } catch (error) {
+                console.error('Compilation/execution error:', error);
+                
+                // 恢复原始 hostWrite
+                if (api) {
+                    api.hostWrite = originalHostWrite;
+                }
+                
+                let errorMessage = error.message || error.toString();
+                
+                // 移除 ANSI 颜色代码
+                errorMessage = errorMessage.replace(/\x1b\[[0-9;]*m/g, '');
+                
+                // 如果有编译错误，优先显示
+                if (compileErrors) {
+                    errorMessage = 'Compilation Error:\n' + compileErrors;
+                } else if (error.message && error.message.includes('process exited with code')) {
+                    // 运行时错误
+                    const match = error.message.match(/code (\d+)/);
+                    const exitCode = match ? parseInt(match[1]) : 1;
+                    
+                    if (exitCode !== 0) {
+                        errorMessage = `Runtime Error (Exit Code: ${exitCode})`;
+                        // 如果有程序输出，也显示
+                        if (programOutput.trim()) {
+                            const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
+                            errorMessage += '\n\nProgram Output:\n' + cleanOutput;
+                        }
+                    }
+                } else if (errorMessage.includes('error:')) {
+                    errorMessage = 'Compilation Error:\n' + errorMessage;
+                } else {
+                    errorMessage = 'Runtime Error:\n' + errorMessage;
+                }
+                
+                document.getElementById('status').textContent = 'Error';
+                
+                if (typeof AndroidBridge !== 'undefined') {
+                    AndroidBridge.onExecutionError(errorMessage);
+                    AndroidBridge.onExecutionComplete(1);
+                }
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', function() {
+            console.log('Page loaded, initializing C++ compiler with shared.js API...');
+            initializeCompiler();
+        });
+    </script>
+</body>
+</html>
