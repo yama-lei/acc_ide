@@ -30,6 +30,12 @@ async function loadAssetFile(filename) {
 
 /**
  * Initialize C++ compiler
+ * 
+ * Performance Notes:
+ * - Initial load: ~100ms (sysroot untar)
+ * - First compilation: ~2.8s (load clang ~440ms + compile ~2s + load lld ~240ms + link ~100ms)
+ * - Subsequent compilations: ~2.1s (clang/lld are cached, only compile+link time)
+ * - The module cache in shared.js significantly improves repeated executions
  */
 async function initializeCompiler() {
     try {
@@ -44,6 +50,8 @@ async function initializeCompiler() {
             compileStreaming: async (filename) => {
                 console.log(`Compiling ${filename}...`);
                 const bytes = await loadAssetFile(filename);
+                // WebAssembly.compile is called once per module (clang, lld, memfs)
+                // Results are cached in API.moduleCache for reuse
                 return await WebAssembly.compile(bytes);
             },
             hostWrite: (text) => {

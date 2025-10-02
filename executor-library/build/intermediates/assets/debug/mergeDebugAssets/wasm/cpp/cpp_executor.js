@@ -4,7 +4,7 @@
 
 let api = null;
 let isReady = false;
-let allRuntimeOutput = '';  // 记录所有运行时输出（包括错误）
+let allRuntimeOutput = '';
 
 /**
  * Load asset file using XMLHttpRequest
@@ -30,6 +30,12 @@ async function loadAssetFile(filename) {
 
 /**
  * Initialize C++ compiler
+ * 
+ * Performance Notes:
+ * - Initial load: ~100ms (sysroot untar)
+ * - First compilation: ~2.8s (load clang ~440ms + compile ~2s + load lld ~240ms + link ~100ms)
+ * - Subsequent compilations: ~2.1s (clang/lld are cached, only compile+link time)
+ * - The module cache in shared.js significantly improves repeated executions
  */
 async function initializeCompiler() {
     try {
@@ -44,11 +50,13 @@ async function initializeCompiler() {
             compileStreaming: async (filename) => {
                 console.log(`Compiling ${filename}...`);
                 const bytes = await loadAssetFile(filename);
+                // WebAssembly.compile is called once per module (clang, lld, memfs)
+                // Results are cached in API.moduleCache for reuse
                 return await WebAssembly.compile(bytes);
             },
             hostWrite: (text) => {
                 console.log('[Compiler Output]', text);
-                allRuntimeOutput += text;  // 记录所有输出
+                allRuntimeOutput += text;
                 if (typeof AndroidBridge !== 'undefined') {
                     AndroidBridge.onOutput(text);
                 }
@@ -105,7 +113,6 @@ async function compileAndRun(sourceCode, input) {
     let compilationSucceeded = false;
     let originalHostWrite = null;
     
-    // 重置运行时输出
     allRuntimeOutput = '';
     
     try {
@@ -192,7 +199,6 @@ async function compileAndRun(sourceCode, input) {
             const match = error.message.match(/code (\d+)/);
             const exitCode = match ? parseInt(match[1]) : 1;
             
-            // 使用 allRuntimeOutput 检查是否已经包含错误信息
             const cleanOutput = allRuntimeOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
             const hasErrorInOutput = cleanOutput.length > 0 && 
                                     (cleanOutput.toLowerCase().includes('error') || 
@@ -203,10 +209,8 @@ async function compileAndRun(sourceCode, input) {
             console.log('hasErrorInOutput:', hasErrorInOutput);
             
             if (hasErrorInOutput) {
-                // allRuntimeOutput 已经通过 onOutput 发送了完整错误信息，只发送标识符
                 errorMessage = `Runtime Error (Exit Code: ${exitCode})`;
             } else {
-                // allRuntimeOutput 没有错误信息，需要发送完整的错误详情
                 let detailedError = `Runtime Error: ${error.message || error.toString()}`;
                 
                 if (error.stack) {

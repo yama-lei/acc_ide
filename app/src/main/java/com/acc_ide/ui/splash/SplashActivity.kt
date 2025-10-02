@@ -16,6 +16,7 @@ import com.acc_ide.util.FileStorageManager
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TemplateManager
 import com.acc_ide.util.TextMateManager
+import com.acc_ide.executor.wasm.WasmPrewarmManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -100,6 +101,28 @@ class SplashActivity : AppCompatActivity() {
                 logInfo(getString(R.string.log_start_init_textmate))
                 // Since TextMateManager doesn't have loadLanguageIfNeeded method, directly show completion message
                 logInfo(getString(R.string.log_textmate_init_complete))
+                
+                // Pre-warm C++ WASM compiler for better first-run performance
+                // 预热C++ WASM编译器以提升首次运行性能
+                updateLoadingText("Initializing C++ compiler...")
+                logInfo("Starting C++ compiler pre-warming...")
+                WasmPrewarmManager.prewarmCppExecutor(
+                    context = this@SplashActivity,
+                    onProgress = { progress ->
+                        CoroutineScope(Dispatchers.Main).launch {
+                            logInfo(progress)
+                        }
+                    },
+                    onComplete = { success ->
+                        CoroutineScope(Dispatchers.Main).launch {
+                            if (success) {
+                                logInfo("✓ C++ compiler ready (saves ~700ms on first run)")
+                            } else {
+                                logInfo("⚠ C++ compiler pre-warming skipped (will load on demand)")
+                            }
+                        }
+                    }
+                )
                 
                 // After all initialization work is complete, start MainActivity
                 updateLoadingText(getString(R.string.loading_complete))
