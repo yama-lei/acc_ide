@@ -4,42 +4,33 @@
 [![](https://img.shields.io/badge/Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white)]()
 [![](https://img.shields.io/badge/MinSDK-24-green)]()
 
-一个强大的Android代码执行器库，支持本地WASM执行和云端GitHub Actions执行。
+Android 代码执行器库，支持本地 WASM 执行和云端 GitHub Actions 执行。
 
 ## 📋 功能特性
 
 - ✅ **多语言支持**: C++, Python, Java
-- ✅ **本地WASM执行**: 完全离线的本地代码编译和执行
-- ✅ **云端执行**: 基于GitHub Actions的云端代码执行
-- ✅ **统一接口**: 简洁的API设计，易于集成
-- ✅ **ANSI颜色支持**: 终端输出的颜色渲染
+- ✅ **本地 WASM 执行**: 完全离线的本地编译和执行
+- ✅ **云端执行**: 基于 GitHub Actions 的云端执行
+- ✅ **ANSI 颜色支持**: 终端输出的颜色渲染
+- ✅ **统一接口**: 简洁的 API 设计
 
 ## 🚀 快速开始
 
-### 集成到项目
-
-**步骤1: 添加模块**
-
-```kotlin
-// settings.gradle.kts
-include(":app")
-include(":executor-library")
-```
-
-**步骤2: 添加依赖**
+### 集成
 
 ```gradle
+// settings.gradle.kts
+include(":app", ":executor-library")
+
 // app/build.gradle
 dependencies {
     implementation project(':executor-library')
 }
 ```
 
-**步骤3: 使用**
+### 基本使用
 
 ```kotlin
-import com.acc_ide.executor.ExecutorFactory
-
 val executor = ExecutorFactory.createExecutor(context)
 
 executor.executeCode(
@@ -54,29 +45,24 @@ executor.executeCode(
     input = "",
     expectedOutput = "Hello World!",
     onComplete = { result ->
-        println("Output: ${result.actualOutput}")
         println("Status: ${result.status}")
+        println("Output: ${result.actualOutput}")
     },
-    onError = { error ->
-        println("Error: $error")
-    }
+    onError = { error -> println("Error: $error") }
 )
 ```
 
-## 📚 核心API
+## 📚 核心 API
 
 ### ExecutorFactory
 
 ```kotlin
-// 创建执行器（自动选择本地/云端）
+// 创建执行器
 val executor = ExecutorFactory.createExecutor(context)
 
 // 设置执行模式
 ExecutorFactory.setExecutionMode(context, ExecutorFactory.MODE_LOCAL)  // 本地
 ExecutorFactory.setExecutionMode(context, ExecutorFactory.MODE_CLOUD)  // 云端
-
-// 获取当前模式
-val mode = ExecutorFactory.getExecutionMode(context)
 ```
 
 ### ICodeExecutor
@@ -94,7 +80,6 @@ interface ICodeExecutor {
     )
     fun cancelExecution()
     fun isExecuting(): Boolean
-    fun getExecutorName(): String
 }
 ```
 
@@ -102,27 +87,18 @@ interface ICodeExecutor {
 
 ```kotlin
 data class ExecutionResult(
-    val status: String,         // AC, WA, CE, RE, TLE, MLE
-    val actualOutput: String,   // 实际输出
-    val executionTime: Int,     // 执行时间（毫秒）
-    val errorMessage: String    // 错误信息
+    val status: String,         // AC, WA, CE, RE, TLE, MLE, RS
+    val actualOutput: String,
+    val executionTime: Int,     // 毫秒
+    val errorMessage: String
 )
 ```
 
-### 状态码
-
-| 状态码 | 含义 |
-|-------|------|
-| AC | Accepted - 正确答案 |
-| WA | Wrong Answer - 答案错误 |
-| CE | Compile Error - 编译错误 |
-| RE | Runtime Error - 运行时错误 |
-| TLE | Time Limit Exceeded - 超时 |
-| MLE | Memory Limit Exceeded - 内存超限 |
+**状态码**：`AC` (正确) | `WA` (答案错误) | `CE` (编译错误) | `RE` (运行时错误) | `TLE` (超时) | `MLE` (内存超限) | `RS` (运行成功)
 
 ## 💡 使用示例
 
-### 执行C++代码
+### C++ 代码
 
 ```kotlin
 executor.executeCode(
@@ -140,96 +116,52 @@ executor.executeCode(
     expectedOutput = "15",
     onComplete = { result ->
         when (result.status) {
-            "AC" -> println("✅ Success!")
-            "CE" -> println("⚠️ Compile Error: ${result.errorMessage}")
+            "AC" -> println("✅ Accepted")
+            "CE" -> println("⚠️ Compile Error")
             "WA" -> println("❌ Wrong Answer")
         }
-    },
-    onError = { println("Error: $it") }
+    }
 )
 ```
 
-### 执行Python代码
+### Python 代码
 
 ```kotlin
 executor.executeCode(
-    code = """
-        name = input()
-        print(f"Hello, {name}!")
-    """.trimIndent(),
+    code = "print('Hello, World!')",
     language = "python",
-    input = "World",
+    input = "",
     expectedOutput = "Hello, World!",
-    onComplete = { result -> println(result.actualOutput) },
-    onError = { println(it) }
+    onComplete = { println(it.actualOutput) }
 )
 ```
 
-### 执行Java代码
+### Java 代码
 
 ```kotlin
 executor.executeCode(
     code = """
-        import java.util.Scanner;
         public class Main {
             public static void main(String[] args) {
-                Scanner sc = new Scanner(System.in);
-                System.out.println("Hello, " + sc.nextLine());
+                System.out.println("Hello Java");
             }
         }
     """.trimIndent(),
     language = "java",
-    input = "Java",
-    expectedOutput = "Hello, Java",
-    onComplete = { result -> println(result.actualOutput) },
-    onError = { println(it) }
+    input = "",
+    expectedOutput = "Hello Java",
+    onComplete = { println(it.actualOutput) }
 )
-```
-
-### 在Fragment中使用
-
-```kotlin
-class MyFragment : Fragment() {
-    private lateinit var executor: ICodeExecutor
-    
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        executor = ExecutorFactory.createExecutor(requireContext())
-        
-        runButton.setOnClickListener {
-            executor.executeCode(
-                code = codeEditor.text.toString(),
-                language = "cpp",
-                input = inputField.text.toString(),
-                expectedOutput = "",
-                onProgress = { msg -> statusText.text = msg },
-                onComplete = { result -> 
-                    outputText.text = result.actualOutput
-                    statusText.text = result.status
-                },
-                onError = { error -> outputText.text = error }
-            )
-        }
-    }
-    
-    override fun onDestroyView() {
-        super.onDestroyView()
-        if (executor is LocalExecutor) {
-            (executor as LocalExecutor).cleanup()
-        }
-    }
-}
 ```
 
 ## 🔧 工具类
 
 ### AnsiTextParser
 
-解析ANSI颜色代码为Android样式文本：
+解析 ANSI 颜色代码为 Android 样式文本：
 
 ```kotlin
-val coloredText = AnsiTextParser.parseAnsiText(
-    "\u001B[31mError\u001B[0m: undefined reference"
-)
+val coloredText = AnsiTextParser.parseAnsiText("\u001B[31mError\u001B[0m")
 textView.text = coloredText
 ```
 
@@ -238,41 +170,18 @@ textView.text = coloredText
 管理输入输出缓存：
 
 ```kotlin
-// 保存缓存
-IOCacheManager.save(fileName, IOInstance(
-    input = "1 2 3",
-    actualOutput = "6",
-    expectedOutput = "6",
-    status = "AC",
-    executionTime = 50
-))
-
-// 获取缓存
+IOCacheManager.save(fileName, IOInstance(...))
 val cached = IOCacheManager.get(fileName)
-
-// 清除缓存
 IOCacheManager.clear(fileName)
 ```
 
 ## 📦 支持的语言
 
-### C++
-- **编译器**: wasm-clang (完整的Clang/LLVM工具链)
-- **标准**: C++17
-- **特性**: 完整的STL支持
-- **编译时间**: 1-3秒
-
-### Python
-- **解释器**: Pyodide 0.24+
-- **版本**: Python 3.11
-- **特性**: NumPy, Pandas等科学计算库
-- **首次加载**: 10-30秒（后续<1秒）
-
-### Java
-- **运行时**: 简化的Java转译器
-- **版本**: Java 8基本语法
-- **特性**: 常用API支持
-- **编译时间**: <1秒
+| 语言 | 引擎 | 版本 | 特性 |
+|------|------|------|------|
+| **C++** | wasm-clang | C++17 | 完整 STL，编译时间 1-3s |
+| **Python** | Pyodide | 3.11 | NumPy/Pandas 支持，首次加载 10-30s |
+| **Java** | 简化解释器 | Java 8 | 基本语法，<1s |
 
 ## 🏗️ 架构设计
 
@@ -285,94 +194,65 @@ executor-library/
 │   │   ├── LocalExecutor.kt           # 本地执行器
 │   │   ├── GitHubExecutor.kt          # 云端执行器
 │   │   ├── ExecutionResult.kt         # 结果数据类
-│   │   ├── AnsiTextParser.kt          # ANSI解析器
-│   │   ├── IOCacheManager.kt          # IO缓存
-│   │   └── wasm/                      # WASM执行器
+│   │   ├── AnsiTextParser.kt          # ANSI 解析器
+│   │   ├── IOCacheManager.kt          # IO 缓存
+│   │   └── wasm/                      # WASM 执行器
 │   │       ├── WasmExecutorInterface.kt
 │   │       ├── WasmCppExecutor.kt
 │   │       ├── WasmPythonExecutor.kt
 │   │       └── WasmJavaExecutor.kt
-│   └── assets/wasm/                   # WASM资源（按语言分类）
-│       ├── cpp/                       # C++资源（~60MB）
-│       ├── python/                    # Python资源
-│       ├── java/                      # Java资源
-│       └── common/                    # 共享JS资源
+│   └── assets/wasm/                   # WASM 资源
+│       ├── cpp/                       # C++ 资源 (~60MB)
+│       │   ├── lib/                   # wasm-clang 库文件
+│       │   ├── cpp_executor.html
+│       │   ├── cpp_executor.js
+│       │   ├── clang, lld, memfs
+│       │   └── sysroot.tar
+│       ├── python/                    # Python 资源
+│       │   ├── python_executor.html
+│       │   └── python_executor.js
+│       └── java/                      # Java 资源
+│           └── java_executor.html
 └── build.gradle
 ```
 
-详细的目录结构说明请查看 [`src/main/assets/wasm/README.md`](src/main/assets/wasm/README.md)
+详见 [`src/main/assets/wasm/README.md`](src/main/assets/wasm/README.md)
 
 ## ⚙️ 配置要求
 
-### 最低要求
-- Android API 24+ (Android 7.0)
-- Kotlin 1.9+
-- 至少 200MB 存储空间（用于WASM资源）
-
-### 推荐配置
-- Android API 28+ (Android 9.0)
-- 2GB+ RAM
-- 网络连接（首次加载Pyodide时需要）
-
-## 🔐 权限
-
-Library会自动在AndroidManifest中声明以下权限：
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-```
+- **最低**: Android API 24+, Kotlin 1.9+, 200MB 存储
+- **推荐**: Android API 28+, 2GB+ RAM
+- **权限**: `INTERNET`, `ACCESS_NETWORK_STATE`
 
 ## 🎯 常见问题
 
-**Q: 首次运行Python很慢？**
+**Q: 首次运行 Python 很慢？**  
+A: Pyodide 首次需下载资源（10-20MB），约 10-30 秒，后续使用缓存。
 
-A: Pyodide需要从CDN下载资源（10-20MB），首次加载需要10-30秒。后续运行会使用缓存。
+**Q: APK 体积增大？**  
+A: WASM 资源约 60MB，建议使用 Android App Bundle (AAB) 或按需下载。
 
-**Q: APK体积增大了很多？**
+**Q: 只使用本地执行？**  
+A: 直接创建 `LocalExecutor(context)`
 
-A: WASM资源约60MB。建议使用Android App Bundle (AAB)格式，或实现按需下载。
+**Q: 配置 GitHub Actions 执行？**  
+A: 在 SharedPreferences 中设置 `github_repo_url` 和 `github_pat`
 
-**Q: 如何只使用本地执行？**
-
-A: 直接创建LocalExecutor实例：
-```kotlin
-val executor = LocalExecutor(context)
-```
-
-**Q: 如何配置GitHub Actions执行器？**
-
-A: 在SharedPreferences中设置：
-```kotlin
-val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-prefs.edit().apply {
-    putString("github_repo_url", "https://github.com/username/repo")
-    putString("github_pat", "ghp_your_token")
-    apply()
-}
-ExecutorFactory.setExecutionMode(context, ExecutorFactory.MODE_CLOUD)
-```
-
-## 📝 ProGuard配置
-
-如果使用代码混淆，添加以下规则：
+## 📝 ProGuard 配置
 
 ```proguard
 -keep public class com.acc_ide.executor.** { public *; }
 -keep interface com.acc_ide.executor.ICodeExecutor { *; }
--keepclassmembers class com.acc_ide.executor.ExecutionResult { *; }
 ```
 
 ## 📄 License
 
-本library作为ACC IDE项目的一部分，遵循项目的开源协议。
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
+本 library 作为 ACC IDE 项目的一部分开源。
 
 ## 📚 更多文档
 
-- [`CHANGELOG.md`](CHANGELOG.md) - 版本变更记录
-- [`src/main/assets/wasm/README.md`](src/main/assets/wasm/README.md) - WASM资源详细说明
+- [`src/main/assets/wasm/README.md`](src/main/assets/wasm/README.md) - WASM 资源详细说明
 
+---
+
+**更新日期**: 2025-10-02
