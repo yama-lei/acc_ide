@@ -89,7 +89,7 @@ interface ICodeExecutor {
 data class ExecutionResult(
     val status: String,         // AC, WA, CE, RE, TLE, MLE, RS
     val actualOutput: String,
-    val executionTime: Int,     // 毫秒
+    val executionTime: Int,     // ms
     val errorMessage: String
 )
 ```
