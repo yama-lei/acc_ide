@@ -107,8 +107,7 @@ async function compileAndRun(sourceCode, input) {
     
     let programOutput = '';
     let allCompilerOutput = '';
-    let executionStartTime = 0;
-    let executionEndTime = 0;
+    let executionTimeMs = 0;  // 从编译器输出中提取的实际执行时间
     let isExecuting = false;
     let compilationSucceeded = false;
     let originalHostWrite = null;
@@ -130,10 +129,10 @@ async function compileAndRun(sourceCode, input) {
             
             const cleanText = text.replace(/\x1b\[[0-9;]*m/g, '');
             
+            // 检测编译成功标记
             if (cleanText.includes('> test.wasm')) {
                 compilationSucceeded = true;
                 isExecuting = true;
-                executionStartTime = performance.now();
                 return;
             }
             
@@ -141,8 +140,15 @@ async function compileAndRun(sourceCode, input) {
                 allCompilerOutput += text;
             }
             
+            // 提取实际执行时间：格式为 (instantiate_time/execution_time)
+            // 例如: (0.00s/0.01s) 表示 instantiate 0秒，执行 0.01秒
             if (isExecuting && cleanText.match(/\(\d+\.\d+s\/\d+\.\d+s\)/)) {
-                executionEndTime = performance.now();
+                const timeMatch = cleanText.match(/\((\d+\.\d+)s\/(\d+\.\d+)s\)/);
+                if (timeMatch) {
+                    // 第二个数字是实际执行时间（秒），转换为毫秒
+                    executionTimeMs = Math.round(parseFloat(timeMatch[2]) * 1000);
+                    console.log('Extracted execution time:', executionTimeMs, 'ms');
+                }
                 isExecuting = false;
                 return;
             }
@@ -165,11 +171,9 @@ async function compileAndRun(sourceCode, input) {
         document.getElementById('status').textContent = 'Done!';
         
         const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
-        const executionTimeMs = executionEndTime > 0 
-            ? Math.round(executionEndTime - executionStartTime)
-            : 0;
         
         if (typeof AndroidBridge !== 'undefined') {
+            // 发送实际执行时间（从编译器输出中提取）
             AndroidBridge.onOutput(`[EXEC_TIME_MS:${executionTimeMs}]`);
             
             if (cleanOutput) {

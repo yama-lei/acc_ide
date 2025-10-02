@@ -107,8 +107,7 @@ async function compileAndRun(sourceCode, input) {
     
     let programOutput = '';
     let allCompilerOutput = '';
-    let executionStartTime = 0;
-    let executionEndTime = 0;
+    let executionTimeMs = 0;
     let isExecuting = false;
     let compilationSucceeded = false;
     let originalHostWrite = null;
@@ -130,10 +129,10 @@ async function compileAndRun(sourceCode, input) {
             
             const cleanText = text.replace(/\x1b\[[0-9;]*m/g, '');
             
+            // 检测编译成功标记
             if (cleanText.includes('> test.wasm')) {
                 compilationSucceeded = true;
                 isExecuting = true;
-                executionStartTime = performance.now();
                 return;
             }
             
@@ -141,8 +140,13 @@ async function compileAndRun(sourceCode, input) {
                 allCompilerOutput += text;
             }
             
+            // (instantiate_time/execution_time)
             if (isExecuting && cleanText.match(/\(\d+\.\d+s\/\d+\.\d+s\)/)) {
-                executionEndTime = performance.now();
+                const timeMatch = cleanText.match(/\((\d+\.\d+)s\/(\d+\.\d+)s\)/);
+                if (timeMatch) {
+                    executionTimeMs = Math.round(parseFloat(timeMatch[2]) * 1000);
+                    console.log('Extracted execution time:', executionTimeMs, 'ms');
+                }
                 isExecuting = false;
                 return;
             }
@@ -165,9 +169,6 @@ async function compileAndRun(sourceCode, input) {
         document.getElementById('status').textContent = 'Done!';
         
         const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
-        const executionTimeMs = executionEndTime > 0 
-            ? Math.round(executionEndTime - executionStartTime)
-            : 0;
         
         if (typeof AndroidBridge !== 'undefined') {
             AndroidBridge.onOutput(`[EXEC_TIME_MS:${executionTimeMs}]`);
