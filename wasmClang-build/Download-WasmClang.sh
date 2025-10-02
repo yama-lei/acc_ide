@@ -7,17 +7,11 @@ set -e
 echo "Downloading wasm-clang files from GitHub..."
 echo "This will download ~50MB of files"
 
-# 基础 URL
 BASE_URL="https://raw.githubusercontent.com/binji/wasm-clang/master/"
-
-# 目标目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="$SCRIPT_DIR/../app/src/main/assets/wasm"
-
-# 确保目录存在
 mkdir -p "$TARGET_DIR"
 
-# 需要下载的文件
 FILES=(
     "clang"
     "lld"
@@ -27,7 +21,6 @@ FILES=(
     "worker.js"
 )
 
-# 下载文件
 for file in "${FILES[@]}"; do
     url="${BASE_URL}${file}"
     output="$TARGET_DIR/$file"

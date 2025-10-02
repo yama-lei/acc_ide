@@ -10,10 +10,6 @@
 
 ACC IDE 是一个专为算法竞赛设计的，基于 Android 的原生集成开发环境。它旨在增强移动设备上的竞赛编程体验，为编写、测试和提交算法解决方案提供功能丰富的环境😋。
 
-## 概述
-
-ACC IDE 致力于为需要随时随地编码和测试算法的竞赛程序员提供全面的移动解决方案。该应用程序提供语法高亮、代码补全、文件管理等基本功能，专为算法竞赛量身定制。
-
 ## 项目结构
 
 该项目由安卓原生构建，包含以下主要部分：
@@ -22,37 +18,25 @@ ACC IDE 致力于为需要随时随地编码和测试算法的竞赛程序员提
 
 ```
 acc_ide/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/acc_ide/
-│   │   │   │   ├── adapter/                          # RecyclerView 适配器
-│   │   │   │   │   └── FileListAdapter.kt            # 文件列表适配器
-│   │   │   │   ├── completion/                       # 代码补全系统
-│   │   │   │   │   ├── core/                         # 补全核心组件
-│   │   │   │   │   ├── framework/                    # 补全框架
-│   │   │   │   │   ├── languages/                    # 语言特定补全支持
-│   │   │   │   │   ├── providers/                    # 补全提供器
-│   │   │   │   │   ├── services/                     # 补全服务
-│   │   │   │   ├── data/                             
-│   │   │   │   │   ├── model/                        # 数据模型
-│   │   │   │   │   └── repository/                   # 数据仓库
-│   │   │   │   ├── dialog/                           # 对话框组件
-│   │   │   │   ├── ui/                               # UI 组件              
-│   │   │   │   ├── util/                             # 工具类
-│   │   │   │   └── view/                             # 自定义视图
-│   │   │   ├── cpp/                                  
-│   │   │   │   ├── core/                             # Tree-sitter 核心
-│   │   │   │   ├── languages/                        # 语言处理器
-│   │   │   │   └── TreeSitterJNI.cpp                 # JNI 接口
-│   │   │   ├── res/                                  
-│   │   │   ├── assets/                               
-│   │   │   ├── jniLibs/                              
-│   │   │   └── AndroidManifest.xml
-│   ├── build.gradle                                  
-├── gradle/                                           
-├── build.gradle.kts                                  
-└── settings.gradle.kts                               
+├── app/                          # 主应用模块
+│   ├── src/main/
+│   │   ├── java/com/acc_ide/    # Kotlin 源代码
+│   │   │   ├── completion/      # 代码补全系统
+│   │   │   ├── ui/              # UI 组件
+│   │   │   ├── util/            # 工具类
+│   │   │   └── view/            # 自定义视图
+│   │   ├── cpp/                 # Tree-sitter JNI
+│   │   ├── res/                 # 资源文件
+│   │   └── assets/              # 静态资源
+│   └── build.gradle
+├── executor-library/             # 代码执行器库
+│   ├── src/main/
+│   │   ├── java/                # 执行器实现
+│   │   └── assets/wasm/         # WASM 资源
+│   └── build.gradle
+├── treesitter-build/             # Tree-sitter 构建脚本
+├── wasmClang-build/              # WASM Clang 构建脚本
+└── gradle/                       # Gradle 配置
 ```
 
 
@@ -79,18 +63,18 @@ acc_ide/
 ### 输入/输出面板
 - **输入/输出面板**：用于手动输入和查看输出
 - **Github Action的运行后端**： 通过 Github Action 提供的免费运行后端[仓库地址](https://github.com/META-Xiao/accide-code-execution)，支持 C/C++、Java 和 Python 的在线编译和执行
-- **编译进度指示器**：显示编译进度，并在编译完成后显示结果
-- **限制运行内存和时间**： 通过Github Action的运行后端限制代码运行时间（2s）和内存（512MB）
-- **运行状态显示**： 显示代码运行状态和运行时间，AC、WA、TLE、MLE、RE、CE、RS（Run successful，当用户未输入`答案输出`时运行成功的标志）
+- **基于wasm的本地运行环境**： 基于WebAssembly的编译环境，但由于cpp没有预编译好的wsm，所以运行cpp时可能会有些问题
+- **限制运行内存和时间**： 运行后端限制代码运行时间（2s）和内存（512MB）
+- **运行状态显示**： 显示代码运行状态和运行时间，AC、WA、TLE、MLE、RE、CE、RS（Run successful，当用户未输入`答案输出`时运行成功的标志），编译错误等信息也会高亮显示
 
 ## 计划实现功能
 
 ### 完善部分功能
-- **完善Github Action**： 完善对 Java 和 Python 的编译运行支持
 - **安卓版本的Error Lens**： 在编辑器中高亮显示编译错误
 - **LSP**: 计划采用`tree-sitter+LSP`的方案进行精确语法高亮和语义级代码补全  
+- **维护/优化wasm-clang**
 
-### competitive-companion 集成
+### 添加 competitive-companion 
 - Android 版本的 competitive-companion
 - 直接从问题陈述导入测试用例
 - 支持主要竞赛编程平台：
@@ -98,12 +82,6 @@ acc_ide/
   - AtCoder
   - 洛谷
   - 牛客
-
-### 编译器本地集成
-- 本地编译和执行
-- 支持不同编译器版本
-- 在编辑器中高亮显示编译错误
-
 
 ## 安装
 
@@ -120,3 +98,5 @@ acc_ide/
 - [Sora Editor](https://github.com/Rosemoe/sora-editor) 提供代码编辑功能
 - [VSCode TextMate](https://github.com/microsoft/vscode-textmate) 提供语法高亮支持
 - [Tree-sitter](https://github.com/tree-sitter/tree-sitter) 提供`CST`的构建支持  
+- [wasm-clang](https://github.com/binji/wasm-clang) 提供`wasm-clang`demo
+- [pyodide](https://github.com/pyodide/pyodide) 提供开箱即用的`wasm-python`

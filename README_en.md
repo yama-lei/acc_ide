@@ -10,48 +10,34 @@ If you're tired of OJ platforms with their mobile-unfriendly IDEs, or if you've 
 
 ACC IDE is a native Android integrated development environment designed specifically for algorithm competitions. It aims to enhance the competitive programming experience on mobile devices by providing a feature-rich environment for writing, testing, and submitting algorithmic solutions 😋.
 
-## Overview
-
-ACC IDE aims to be a comprehensive mobile solution for competitive programmers who need to code and test algorithms on the go. The application provides syntax highlighting, code completion, file management, and other essential features tailored for competitive programming.
 
 ## Project Structure
 
 The project is built with native Android and includes the following main components:
 
 ### Core Structure
+
 ```
 acc_ide/
-├── app/
-│ ├── src/
-│ │ ├── main/
-│ │ │ ├── java/com/acc_ide/
-│ │ │ │ ├── adapter/                          # RecyclerView Adapter
-│ │ │ │ │ └── FileListAdapter.kt              # File list adapter
-│ │ │ │ ├── completion/                       # Code completion system
-│ │ │ │ │ ├── core/                           # Completion core components
-│ │ │ │ │ ├── framework/                      # Completion framework
-│ │ │ │ │ ├── languages/                      # Language-specific completion support
-│ │ │ │ │ ├── providers/                      # Completion providers
-│ │ │ │ │ ├── services/                       # Completion services
-│ │ │ │ ├── data/
-│ │ │ │ │ ├── model/                          # Data models
-│ │ │ │ │ └── repository/                     # Data repository
-│ │ │ │ ├── dialog/                           # Dialog components
-│ │ │ │ ├── ui/                               # UI components
-│ │ │ │ ├── util/                             # Utility classes
-│ │ │ │ └── view/                             # Custom views
-│ │ │ ├── cpp/
-│ │ │ │ ├── core/                             # Tree-sitter core
-│ │ │ │ ├── languages/                        # Language processors
-│ │ │ │ └── TreeSitterJNI.cpp                 # JNI interface
-│ │ │ ├── res/                                
-│ │ │ ├── assets/                             
-│ │ │ ├── jniLibs/                            
-│ │ │ └── AndroidManifest.xml                 
-│ ├── build.gradle                            
-├── gradle/                                   
-├── build.gradle.kts                          
-└── settings.gradle.kts                       
+├── app/                          # Main application module
+│   ├── src/main/
+│   │   ├── java/com/acc_ide/    # Kotlin source code
+│   │   │   ├── completion/      # Code completion system
+│   │   │   ├── ui/              # UI components
+│   │   │   ├── util/            # Utility classes
+│   │   │   └── view/            # Custom views
+│   │   ├── cpp/                 # Tree-sitter JNI
+│   │   ├── res/                 # Resources
+│   │   └── assets/              # Static assets
+│   └── build.gradle
+├── executor-library/             # Code executor library
+│   ├── src/main/
+│   │   ├── java/                # Executor implementation
+│   │   └── assets/wasm/         # WASM resources
+│   └── build.gradle
+├── treesitter-build/             # Tree-sitter build scripts
+├── wasmClang-build/              # WASM Clang build scripts
+└── gradle/                       # Gradle configuration
 ```
 
 ## Implemented Features
@@ -75,18 +61,18 @@ acc_ide/
 - **Editor Preferences**: Customize editor behavior through settings, such as cursor width and symbol panel display
 
 ### Input/Output Panel
-- **Input/Output Panel**: For manual input and output viewing
-- **GitHub Action Backend**: Free runtime environment through GitHub Actions [repository link](https://github.com/META-Xiao/accide-code-execution), supporting compilation and execution of C/C++, Java, and Python
-- **Compilation Progress Indicator**: Shows compilation progress and results upon completion
-- **Memory and Time Limits**: Restricts code execution time (2s) and memory (512MB) through the GitHub Action backend
-- **Execution Status Display**: Shows code execution status and runtime, including AC, WA, TLE, MLE, RE, CE, RS (Run Successful, indicated when user hasn't input an expected output)
+- **Input/Output Panel**: Manual input and output viewing
+- **GitHub Action Backend**: Free runtime via GitHub Actions [repository](https://github.com/META-Xiao/accide-code-execution), supports C/C++, Java, and Python
+- **WASM-based Local Environment**: WebAssembly-based compilation environment, though C++ may have some issues as there's no pre-compiled WASM
+- **Memory and Time Limits**: Execution time (2s) and memory (512MB) restrictions via backend
+- **Execution Status Display**: Shows code execution status and runtime (AC, WA, TLE, MLE, RE, CE, RS - Run Successful when no expected output provided), with highlighted compilation errors
 
 ## Planned Features
 
-### Improvements to Existing Features
-- **Enhanced GitHub Action**: Better support for Java and Python compilation and execution
-- **Android Error Lens**: Highlight compilation errors directly in the editor
-- **LSP**: Plan to use `tree-sitter+LSP` solution for precise syntax highlighting and semantic level code completion
+### Feature Improvements
+- **Android Error Lens**: Highlight compilation errors in the editor
+- **LSP**: Plan to adopt `tree-sitter+LSP` for precise syntax highlighting and semantic-level code completion
+- **Maintain/Optimize wasm-clang**
 
 ### competitive-companion Integration
 - Android version of competitive-companion
@@ -96,11 +82,6 @@ acc_ide/
   - AtCoder
   - Luogu
   - Niuke
-
-### Compiler Native Integration
-- Local compilation and execution
-- Support different compiler versions
-- Highlight compilation errors in the editor
 
 ## Installation
 
@@ -113,6 +94,8 @@ If you find any problems or feature requests during use, you are welcome to subm
 
 ## Acknowledgements
 
-- [Sora Editor](https://github.com/Rosemoe/sora-editor) for the code editing capabilities
+- [Sora Editor](https://github.com/Rosemoe/sora-editor) for code editing capabilities
 - [VSCode TextMate](https://github.com/microsoft/vscode-textmate) for syntax highlighting support
-- [Tree-sitter](https://github.com/tree-sitter/tree-sitter) provides build support for `CST`
+- [Tree-sitter](https://github.com/tree-sitter/tree-sitter) for `CST` build support
+- [wasm-clang](https://github.com/binji/wasm-clang) for `wasm-clang` demo
+- [pyodide](https://github.com/pyodide/pyodide) for out-of-the-box `wasm-python`
