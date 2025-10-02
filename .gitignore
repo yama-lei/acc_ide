@@ -10,7 +10,7 @@
 .specstory
 .cursorindexingignore
 .DS_Store
-/build
+**/build/
 /captures
 /temp_apk
 .externalNativeBuild
