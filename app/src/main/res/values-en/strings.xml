@@ -90,6 +90,10 @@
     <string name="log_error">Error: %1$s</string>
     <string name="log_textmate_init_in_progress">TextMate initialization in progress</string>
     <string name="log_preloading_common_languages">Preloading common languages</string>
+    <string name="initializing_cpp_compiler">Initializing C++ compiler...</string>
+    <string name="log_start_cpp_prewarm">Starting C++ compiler pre-warming...</string>
+    <string name="log_cpp_compiler_ready">C++ compiler ready</string>
+    <string name="log_cpp_prewarm_skipped">C++ compiler pre-warming skipped</string>
 
     <!-- Storage permission strings -->
     <string name="storage_permission_title">Storage permission required</string>
@@ -120,6 +124,14 @@
     <string name="symbol_panel_hidden">Symbol panel hidden</string>
     <string name="auto_completion_switch_label">Auto Completion</string>
     <string name="symbol_panel_switch_label">Symbol Panel</string>
+
+    <!-- Execution Mode Settings -->
+    <string name="execution_mode">Execution Mode</string>
+    <string name="use_local_compiler">Use local compiler (experimental)</string>
+    <string name="local_compiler_enabled">Local compiler enabled (Note: Not fully implemented yet)</string>
+    <string name="cloud_compiler_enabled">Cloud compiler enabled (GitHub Actions)</string>
+    <string name="cloud_execution">Cloud</string>
+    <string name="local_execution">Local</string>
 
     <!-- GitHub Action Settings -->
     <string name="github_runner_settings">GitHub Action Settings</string>

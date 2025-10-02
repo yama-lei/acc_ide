@@ -88,6 +88,10 @@
     <string name="log_error">错误: %1$s</string>
     <string name="log_textmate_init_in_progress">正在初始化TextMate...</string>
     <string name="log_preloading_common_languages">正在预加载常用语言...</string>
+    <string name="initializing_cpp_compiler">初始化 C++ 编译器...</string>
+    <string name="log_start_cpp_prewarm">开始预热 C++ 编译器...</string>
+    <string name="log_cpp_compiler_ready">C++ 编译器已就绪</string>
+    <string name="log_cpp_prewarm_skipped">C++ 编译器预热已跳过</string>
     
     <!-- 存储权限字符串 -->
     <string name="storage_permission_title">需要存储权限</string>
@@ -118,6 +122,14 @@
     <string name="symbol_panel_hidden">符号面板已隐藏</string>
     <string name="auto_completion_switch_label">自动补全</string>
     <string name="symbol_panel_switch_label">符号面板</string>
+    
+    <!-- 执行模式设置 -->
+    <string name="execution_mode">执行模式</string>
+    <string name="use_local_compiler">使用本地编译器（实验性功能）</string>
+    <string name="local_compiler_enabled">已启用本地编译器（注意：尚未完全实现）</string>
+    <string name="cloud_compiler_enabled">已启用云端编译器（GitHub Actions）</string>
+    <string name="cloud_execution">云端</string>
+    <string name="local_execution">本地</string>
     
     <!-- GitHub Action 设置 -->
     <string name="github_runner_settings">GitHub Action 设置</string>

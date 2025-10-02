@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "acc_ide_android"
 include(":app")
+include(":executor-library")
  

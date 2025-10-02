@@ -1,0 +1,442 @@
+package com.acc_ide.executor
+
+import android.content.Context
+import android.util.Log
+import com.acc_ide.executor.wasm.WasmCppExecutor
+import com.acc_ide.executor.wasm.WasmPythonExecutor
+import com.acc_ide.executor.wasm.WasmJavaExecutor
+import com.acc_ide.executor.wasm.WasmPrewarmManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+/**
+ * Local code executor using WebAssembly
+ * 本地代码执行器 - 使用WebAssembly
+ * 
+ * Implementations:
+ * - WASM Clang for C/C++ (supports pre-warming via WasmPrewarmManager)
+ * - Pyodide for Python (supports pre-warming via WasmPrewarmManager)
+ * - CheerpJ for Java
+ * 
+ * Performance Optimization:
+ * If executors are pre-warmed in SplashActivity, first execution will be faster:
+ * - C++: ~2.8s → ~2.1s (saves ~700ms on first run)
+ * - Python: CDN load time saved on first run
+ */
+class LocalExecutor(private val context: Context) : ICodeExecutor {
+    
+    private val TAG = "LocalExecutor"
+    private var isRunning = false
+    
+    // WASM执行器（优先使用预热实例，否则懒加载）
+    // WASM executors (prefer pre-warmed instances, otherwise lazy load)
+    private var wasmCpp: WasmCppExecutor? = null
+    private var wasmPython: WasmPythonExecutor? = null
+    private var wasmJava: WasmJavaExecutor? = null
+    
+    override fun executeCode(
+        code: String,
+        language: String,
+        input: String,
+        expectedOutput: String,
+        onProgress: ((String) -> Unit)?,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (isRunning) {
+            onError("Already executing code")
+            return
+        }
+        
+        isRunning = true
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                when (language.lowercase()) {
+                    "cpp", "c" -> {
+                        executeCppWithWasm(code, input, expectedOutput, onProgress, onComplete, onError)
+                    }
+                    "python", "py" -> {
+                        executePythonWithWasm(code, input, expectedOutput, onProgress, onComplete, onError)
+                    }
+                    "java" -> {
+                        executeJavaWithWasm(code, input, expectedOutput, onProgress, onComplete, onError)
+                    }
+                    else -> {
+                        onError("Unsupported language: $language")
+                        isRunning = false
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Execution error", e)
+                onError(e.message ?: "Unknown error occurred")
+                isRunning = false
+            }
+        }
+    }
+    
+    private fun executeCppWithWasm(
+        code: String,
+        input: String,
+        expectedOutput: String,
+        onProgress: ((String) -> Unit)?,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        onProgress?.invoke("Initializing C++ compiler...")
+        
+        // 优先使用预热的执行器实例，可以节省约700ms
+        // Use pre-warmed executor instance if available, saves ~700ms
+        if (wasmCpp == null) {
+            wasmCpp = WasmPrewarmManager.getCppExecutor(context)
+            
+            // 如果执行器已经预热，记录日志
+            if (WasmPrewarmManager.isCppReady()) {
+                Log.d(TAG, "Using pre-warmed C++ executor (saves ~700ms)")
+            }
+        }
+        
+        val executor = wasmCpp!!
+        
+        if (!executor.isReady()) {
+            onProgress?.invoke("Loading WASM C++ compiler (first time may take a while)...")
+            
+            executor.initialize(
+                onReady = {
+                    Log.d(TAG, "WASM C++ ready, executing code")
+                    onProgress?.invoke("Compiling and running...")
+                    runCppCode(executor, code, input, expectedOutput, onComplete, onError)
+                },
+                onError = { error ->
+                    Log.e(TAG, "WASM C++ initialization failed: $error")
+                    onError("Failed to initialize C++ compiler: $error")
+                    isRunning = false
+                }
+            )
+        } else {
+            onProgress?.invoke("Compiling and running...")
+            runCppCode(executor, code, input, expectedOutput, onComplete, onError)
+        }
+    }
+    
+    private fun runCppCode(
+        executor: WasmCppExecutor,
+        code: String,
+        input: String,
+        expectedOutput: String,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val startTime = System.currentTimeMillis()
+        val outputBuilder = StringBuilder()
+        var execTimeMs = 0 // C++ 程序实际执行时间（从 WASM 获取）
+        var hasReportedResult = false // 防止重复报告结果
+        
+        executor.execute(
+            code = code,
+            input = input,
+            onOutput = { output ->
+                // 解析执行时间标记 [EXEC_TIME_MS:10]
+                val timePattern = """\[EXEC_TIME_MS:(\d+)\]""".toRegex()
+                val match = timePattern.find(output)
+                if (match != null) {
+                    execTimeMs = match.groupValues[1].toIntOrNull() ?: 0
+                    // 不添加这个标记到输出中
+                } else {
+                    // 正常输出
+                    outputBuilder.append(output)
+                }
+            },
+            onError = { error ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring duplicate error callback")
+                    return@execute
+                }
+                hasReportedResult = true
+                
+                val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                // 判断是否为编译错误：检查是否包含 "Compilation Error:" 前缀
+                val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
+                                       error.contains("Compilation Error:", ignoreCase = true)
+                
+                // 将错误信息也添加到输出中，方便用户查看
+                val fullOutput = if (outputBuilder.isEmpty()) {
+                    error
+                } else {
+                    outputBuilder.toString() + "\n" + error
+                }
+                
+                onComplete(ExecutionResult(
+                    status = if (isCompilationError) "CE" else "RE",
+                    actualOutput = fullOutput,
+                    executionTime = executionTime,
+                    errorMessage = error
+                ))
+                isRunning = false
+            },
+            onComplete = { exitCode ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring onComplete callback because error was already reported")
+                    return@execute
+                }
+                hasReportedResult = true
+                
+                // 使用程序实际执行时间（如果有），否则使用总时间
+                val executionTime = if (execTimeMs > 0) execTimeMs else (System.currentTimeMillis() - startTime).toInt()
+                val actualOutput = outputBuilder.toString()
+                
+                val status = when {
+                    exitCode != 0 -> "RE"  // 运行时错误
+                    expectedOutput.isEmpty() -> "RS"  // 没有期望输出，返回运行成功
+                    actualOutput.trim() == expectedOutput.trim() -> "AC"  // 输出匹配
+                    else -> "WA"  // 输出不匹配
+                }
+                
+                onComplete(ExecutionResult(
+                    status = status,
+                    actualOutput = actualOutput,
+                    executionTime = executionTime,
+                    errorMessage = if (exitCode != 0) "Exit code: $exitCode" else ""
+                ))
+                isRunning = false
+            }
+        )
+    }
+    
+    private fun executePythonWithWasm(
+        code: String,
+        input: String,
+        expectedOutput: String,
+        onProgress: ((String) -> Unit)?,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        onProgress?.invoke("Initializing Python interpreter...")
+        
+        // 优先使用预热的执行器实例
+        // Use pre-warmed executor instance if available
+        if (wasmPython == null) {
+            wasmPython = WasmPrewarmManager.getPythonExecutor(context)
+            
+            // 如果执行器已经预热，记录日志
+            if (WasmPrewarmManager.isPythonReady()) {
+                Log.d(TAG, "Using pre-warmed Python executor")
+            }
+        }
+        
+        val executor = wasmPython!!
+        
+        if (!executor.isReady()) {
+            onProgress?.invoke("Loading Pyodide (this may take 10-30 seconds on first run)...")
+            
+            executor.initialize(
+                onReady = {
+                    Log.d(TAG, "Pyodide ready, executing code")
+                    onProgress?.invoke("Running Python code...")
+                    runPythonCode(executor, code, input, expectedOutput, onComplete, onError)
+                },
+                onError = { error ->
+                    Log.e(TAG, "Pyodide initialization failed: $error")
+                    onError("Failed to initialize Python: $error\n\nNote: Pyodide requires internet connection on first load.")
+                    isRunning = false
+                }
+            )
+        } else {
+            onProgress?.invoke("Running Python code...")
+            runPythonCode(executor, code, input, expectedOutput, onComplete, onError)
+        }
+    }
+    
+    private fun runPythonCode(
+        executor: WasmPythonExecutor,
+        code: String,
+        input: String,
+        expectedOutput: String,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val startTime = System.currentTimeMillis()
+        val outputBuilder = StringBuilder()
+        var hasReportedResult = false // 防止重复报告结果
+        
+        executor.execute(
+            code = code,
+            input = input,
+            onOutput = { output ->
+                outputBuilder.append(output)
+            },
+            onError = { error ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring duplicate error callback")
+                    return@execute
+                }
+                hasReportedResult = true
+                
+                val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                // 判断是否为编译错误：检查是否包含 "Compilation Error:" 前缀
+                val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
+                                       error.contains("Compilation Error:", ignoreCase = true)
+                
+                // 将错误信息也添加到输出中，方便用户查看
+                val fullOutput = if (outputBuilder.isEmpty()) {
+                    error
+                } else {
+                    outputBuilder.toString() + "\n" + error
+                }
+                
+                onComplete(ExecutionResult(
+                    status = if (isCompilationError) "CE" else "RE",
+                    actualOutput = fullOutput,
+                    executionTime = executionTime,
+                    errorMessage = error
+                ))
+                isRunning = false
+            },
+            onComplete = { exitCode ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring onComplete callback because error was already reported")
+                    return@execute
+                }
+                hasReportedResult = true
+                
+                val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                val actualOutput = outputBuilder.toString()
+                
+                val status = when {
+                    exitCode != 0 -> "RE"  // 运行时错误
+                    expectedOutput.isEmpty() -> "RS"  // 没有期望输出，返回运行成功
+                    actualOutput.trim() == expectedOutput.trim() -> "AC"  // 输出匹配
+                    else -> "WA"  // 输出不匹配
+                }
+                
+                onComplete(ExecutionResult(
+                    status = status,
+                    actualOutput = actualOutput,
+                    executionTime = executionTime,
+                    errorMessage = ""
+                ))
+                isRunning = false
+            }
+        )
+    }
+    
+    private fun executeJavaWithWasm(
+        code: String,
+        input: String,
+        expectedOutput: String,
+        onProgress: ((String) -> Unit)?,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        onProgress?.invoke("Initializing Java runtime...")
+        
+        if (wasmJava == null) {
+            wasmJava = WasmJavaExecutor(context)
+        }
+        
+        val executor = wasmJava!!
+        
+        if (!executor.isReady()) {
+            onProgress?.invoke("Loading Java executor (first time may take a while)...")
+            
+            executor.initialize(
+                onReady = {
+                    Log.d(TAG, "Java executor ready, executing code")
+                    onProgress?.invoke("Compiling and running Java code...")
+                    runJavaCode(executor, code, input, expectedOutput, onComplete, onError)
+                },
+                onError = { error ->
+                    Log.e(TAG, "Java executor initialization failed: $error")
+                    onError("Failed to initialize Java: $error")
+                    isRunning = false
+                }
+            )
+        } else {
+            onProgress?.invoke("Compiling and running Java code...")
+            runJavaCode(executor, code, input, expectedOutput, onComplete, onError)
+        }
+    }
+    
+    private fun runJavaCode(
+        executor: WasmJavaExecutor,
+        code: String,
+        input: String,
+        expectedOutput: String,
+        onComplete: (ExecutionResult) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val startTime = System.currentTimeMillis()
+        val outputBuilder = StringBuilder()
+        
+        executor.execute(
+            code = code,
+            input = input,
+            onOutput = { output ->
+                outputBuilder.append(output)
+            },
+            onError = { error ->
+                val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                // 判断是否为编译错误：检查是否包含 "Compilation Error:" 前缀
+                val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
+                                       error.contains("Compilation Error:", ignoreCase = true)
+                
+                // 将错误信息也添加到输出中，方便用户查看
+                val fullOutput = if (outputBuilder.isEmpty()) {
+                    error
+                } else {
+                    outputBuilder.toString() + "\n" + error
+                }
+                
+                onComplete(ExecutionResult(
+                    status = if (isCompilationError) "CE" else "RE",
+                    actualOutput = fullOutput,
+                    executionTime = executionTime,
+                    errorMessage = error
+                ))
+                isRunning = false
+            },
+            onComplete = { exitCode ->
+                val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                val actualOutput = outputBuilder.toString()
+                
+                val status = when {
+                    exitCode != 0 -> "RE"  // 运行时错误
+                    expectedOutput.isEmpty() -> "RS"  // 没有期望输出，返回运行成功
+                    actualOutput.trim() == expectedOutput.trim() -> "AC"  // 输出匹配
+                    else -> "WA"  // 输出不匹配
+                }
+                
+                onComplete(ExecutionResult(
+                    status = status,
+                    actualOutput = actualOutput,
+                    executionTime = executionTime,
+                    errorMessage = ""
+                ))
+                isRunning = false
+            }
+        )
+    }
+    
+    override fun cancelExecution() {
+        isRunning = false
+        // WASM执行器目前不支持中断，但可以标记为取消
+    }
+    
+    override fun isExecuting(): Boolean = isRunning
+    
+    override fun getExecutorName(): String = "Local WASM Compiler"
+    
+    /**
+     * 清理资源
+     */
+    fun cleanup() {
+        wasmCpp?.cleanup()
+        wasmPython?.cleanup()
+        wasmJava?.cleanup()
+        wasmCpp = null
+        wasmPython = null
+        wasmJava = null
+    }
+}
+

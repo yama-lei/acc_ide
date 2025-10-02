@@ -16,6 +16,7 @@ import com.acc_ide.util.FileStorageManager
 import com.acc_ide.util.LocaleHelper
 import com.acc_ide.util.TemplateManager
 import com.acc_ide.util.TextMateManager
+import com.acc_ide.executor.wasm.WasmPrewarmManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,8 +99,21 @@ class SplashActivity : AppCompatActivity() {
                 // Set TextMate status
                 updateLoadingText(getString(R.string.initializing_syntax_highlighting))
                 logInfo(getString(R.string.log_start_init_textmate))
-                // Since TextMateManager doesn't have loadLanguageIfNeeded method, directly show completion message
                 logInfo(getString(R.string.log_textmate_init_complete))
+                updateLoadingText(getString(R.string.initializing_cpp_compiler))
+                logInfo(getString(R.string.log_start_cpp_prewarm))
+                WasmPrewarmManager.prewarmCppExecutor(
+                    context = this@SplashActivity,
+                    onComplete = { success ->
+                        CoroutineScope(Dispatchers.Main).launch {
+                            if (success) {
+                                logInfo(getString(R.string.log_cpp_compiler_ready))
+                            } else {
+                                logInfo(getString(R.string.log_cpp_prewarm_skipped))
+                            }
+                        }
+                    }
+                )
                 
                 // After all initialization work is complete, start MainActivity
                 updateLoadingText(getString(R.string.loading_complete))
