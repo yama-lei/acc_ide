@@ -112,10 +112,19 @@
                 console.error(error);
                 if (typeof AndroidBridge !== 'undefined') {
                     AndroidBridge.onExecutionError(error);
-                    AndroidBridge.onExecutionComplete(1);
+                    // 不调用 onExecutionComplete，只报告错误
                 }
                 return;
             }
+            
+            // 在 try 块外部定义变量，确保 catch 块可以访问
+            let programOutput = '';         // 程序的实际输出
+            let allCompilerOutput = '';     // 所有编译器输出（用于检测错误）
+            let executionStartTime = 0;     // 程序执行开始时间
+            let executionEndTime = 0;       // 程序执行结束时间
+            let isExecuting = false;        // 是否在执行程序
+            let compilationSucceeded = false; // 编译是否成功（是否看到了 > test.wasm）
+            let originalHostWrite = null;   // 保存原始的 hostWrite
             
             try {
                 console.log('Starting compilation...');
@@ -127,38 +136,32 @@
                     api.memfs.setStdinStr(input);
                 }
                 
-                // 捕获输出
-                let programOutput = '';      // 程序的实际输出
-                let compileErrors = '';      // 编译错误
-                let executionStartTime = 0;  // 程序执行开始时间
-                let executionEndTime = 0;    // 程序执行结束时间
-                let isExecuting = false;     // 是否在执行程序
-                
                 // 临时替换 hostWrite 以分离编译信息和程序输出
-                const originalHostWrite = api.hostWrite;
+                originalHostWrite = api.hostWrite;
                 api.hostWrite = (text) => {
                     console.log('[Compiler]', text);
                     
-                    // 移除 ANSI 颜色代码
+                    // 移除 ANSI 颜色代码后检测
                     const cleanText = text.replace(/\x1b\[[0-9;]*m/g, '');
                     
-                    // 检测编译错误
-                    if (cleanText.includes('error:') || cleanText.includes('Error:')) {
-                        compileErrors += cleanText;
-                    }
-                    
-                    // 检测程序开始执行（看到 "> test.wasm" 后的内容就是程序输出）
+                    // 检测程序开始执行（看到 "> test.wasm" 说明编译成功）
                     if (cleanText.includes('> test.wasm')) {
+                        compilationSucceeded = true;
                         isExecuting = true;
                         executionStartTime = performance.now();
                         return; // 跳过这一行
                     }
                     
-                    // 检测执行时间行，如 "(0.00s/0.01s)"
+                    // 如果还没开始执行，积累所有编译器输出
+                    if (!isExecuting) {
+                        allCompilerOutput += text;
+                    }
+                    
+                    // 检测执行时间行
                     if (isExecuting && cleanText.match(/\(\d+\.\d+s\/\d+\.\d+s\)/)) {
                         executionEndTime = performance.now();
                         isExecuting = false;
-                        return; // 跳过时间统计行
+                        return;
                     }
                     
                     // 如果正在执行，捕获程序输出
@@ -174,7 +177,9 @@
                 await api.compileLinkRun(sourceCode);
                 
                 // 恢复原始 hostWrite
-                api.hostWrite = originalHostWrite;
+                if (originalHostWrite) {
+                    api.hostWrite = originalHostWrite;
+                }
                 
                 console.log('Compilation and execution completed successfully!');
                 document.getElementById('status').textContent = 'Done!';
@@ -187,7 +192,6 @@
                     ? Math.round(executionEndTime - executionStartTime)
                     : 0;
                 
-                // 发送到 Android
                 if (typeof AndroidBridge !== 'undefined') {
                     // 使用特殊标记传递执行时间（毫秒）
                     AndroidBridge.onOutput(`[EXEC_TIME_MS:${executionTimeMs}]`);
@@ -202,44 +206,50 @@
                 
             } catch (error) {
                 console.error('Compilation/execution error:', error);
+                console.log('Compilation succeeded:', compilationSucceeded);
                 
                 // 恢复原始 hostWrite
-                if (api) {
+                if (api && originalHostWrite) {
                     api.hostWrite = originalHostWrite;
                 }
                 
                 let errorMessage = error.message || error.toString();
                 
-                // 移除 ANSI 颜色代码
-                errorMessage = errorMessage.replace(/\x1b\[[0-9;]*m/g, '');
-                
-                // 如果有编译错误，优先显示
-                if (compileErrors) {
-                    errorMessage = 'Compilation Error:\n' + compileErrors;
-                } else if (error.message && error.message.includes('process exited with code')) {
-                    // 运行时错误
+                // 判断错误类型：根据是否看到了 "> test.wasm"
+                if (!compilationSucceeded) {
+                    // 编译失败 - 没有看到 "> test.wasm"
+                    console.log('Compilation failed, treating as CE');
+                    
+                    // 清理编译器输出中的 ANSI 颜色代码
+                    const cleanCompilerOutput = allCompilerOutput.replace(/\x1b\[[0-9;]*m/g, '');
+                    
+                    errorMessage = 'Compilation Error:\n' + cleanCompilerOutput;
+                    
+                } else {
+                    // 编译成功但运行失败 - 运行时错误
+                    console.log('Compilation succeeded but execution failed, treating as RE');
+                    
+                    // 移除 ANSI 颜色代码
+                    errorMessage = errorMessage.replace(/\x1b\[[0-9;]*m/g, '');
+                    
                     const match = error.message.match(/code (\d+)/);
                     const exitCode = match ? parseInt(match[1]) : 1;
                     
-                    if (exitCode !== 0) {
-                        errorMessage = `Runtime Error (Exit Code: ${exitCode})`;
-                        // 如果有程序输出，也显示
-                        if (programOutput.trim()) {
-                            const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
-                            errorMessage += '\n\nProgram Output:\n' + cleanOutput;
-                        }
+                    errorMessage = `Runtime Error (Exit Code: ${exitCode})`;
+                    
+                    // 如果有程序输出，也显示
+                    if (programOutput.trim()) {
+                        const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
+                        errorMessage += '\n\nProgram Output:\n' + cleanOutput;
                     }
-                } else if (errorMessage.includes('error:')) {
-                    errorMessage = 'Compilation Error:\n' + errorMessage;
-                } else {
-                    errorMessage = 'Runtime Error:\n' + errorMessage;
                 }
                 
                 document.getElementById('status').textContent = 'Error';
                 
                 if (typeof AndroidBridge !== 'undefined') {
                     AndroidBridge.onExecutionError(errorMessage);
-                    AndroidBridge.onExecutionComplete(1);
+                    // 不要同时调用 onExecutionComplete，因为它会在 LocalExecutor 中覆盖错误状态
+                    // Don't call onExecutionComplete here as it would override the error status in LocalExecutor
                 }
             }
         }

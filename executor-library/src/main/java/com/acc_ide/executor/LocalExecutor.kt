@@ -117,6 +117,7 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
         val startTime = System.currentTimeMillis()
         val outputBuilder = StringBuilder()
         var execTimeMs = 0 // C++ 程序实际执行时间（从 WASM 获取）
+        var hasReportedResult = false // 防止重复报告结果
         
         executor.execute(
             code = code,
@@ -134,9 +135,19 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
                 }
             },
             onError = { error ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring duplicate error callback")
+                    return@execute
+                }
+                hasReportedResult = true
+                
                 val executionTime = (System.currentTimeMillis() - startTime).toInt()
+                // 判断是否为编译错误：检查是否包含 "Compilation Error:" 前缀
+                val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
+                                       error.contains("Compilation Error:", ignoreCase = true)
+                
                 onComplete(ExecutionResult(
-                    status = if (error.contains("compil", ignoreCase = true)) "CE" else "RE",
+                    status = if (isCompilationError) "CE" else "RE",
                     actualOutput = outputBuilder.toString(),
                     executionTime = executionTime,
                     errorMessage = error
@@ -144,6 +155,12 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
                 isRunning = false
             },
             onComplete = { exitCode ->
+                if (hasReportedResult) {
+                    Log.w(TAG, "Ignoring onComplete callback because error was already reported")
+                    return@execute
+                }
+                hasReportedResult = true
+                
                 // 使用程序实际执行时间（如果有），否则使用总时间
                 val executionTime = if (execTimeMs > 0) execTimeMs else (System.currentTimeMillis() - startTime).toInt()
                 val actualOutput = outputBuilder.toString()
@@ -308,13 +325,12 @@ class LocalExecutor(private val context: Context) : ICodeExecutor {
             },
             onError = { error ->
                 val executionTime = (System.currentTimeMillis() - startTime).toInt()
-                val status = if (error.contains("Compilation Error", ignoreCase = true)) {
-                    "CE"
-                } else {
-                    "RE"
-                }
+                // 判断是否为编译错误：检查是否包含 "Compilation Error:" 前缀
+                val isCompilationError = error.startsWith("Compilation Error:", ignoreCase = true) ||
+                                       error.contains("Compilation Error:", ignoreCase = true)
+                
                 onComplete(ExecutionResult(
-                    status = status,
+                    status = if (isCompilationError) "CE" else "RE",
                     actualOutput = outputBuilder.toString(),
                     executionTime = executionTime,
                     errorMessage = error
