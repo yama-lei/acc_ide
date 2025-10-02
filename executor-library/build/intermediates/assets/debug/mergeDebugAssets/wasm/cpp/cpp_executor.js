@@ -4,6 +4,7 @@
 
 let api = null;
 let isReady = false;
+let allRuntimeOutput = '';  // 记录所有运行时输出（包括错误）
 
 /**
  * Load asset file using XMLHttpRequest
@@ -47,6 +48,7 @@ async function initializeCompiler() {
             },
             hostWrite: (text) => {
                 console.log('[Compiler Output]', text);
+                allRuntimeOutput += text;  // 记录所有输出
                 if (typeof AndroidBridge !== 'undefined') {
                     AndroidBridge.onOutput(text);
                 }
@@ -102,6 +104,9 @@ async function compileAndRun(sourceCode, input) {
     let isExecuting = false;
     let compilationSucceeded = false;
     let originalHostWrite = null;
+    
+    // 重置运行时输出
+    allRuntimeOutput = '';
     
     try {
         console.log('Starting compilation...');
@@ -183,16 +188,36 @@ async function compileAndRun(sourceCode, input) {
             errorMessage = 'Compilation Error:\n' + cleanCompilerOutput;
         } else {
             console.log('Compilation succeeded but execution failed, treating as RE');
-            errorMessage = errorMessage.replace(/\x1b\[[0-9;]*m/g, '');
             
             const match = error.message.match(/code (\d+)/);
             const exitCode = match ? parseInt(match[1]) : 1;
             
-            errorMessage = `Runtime Error (Exit Code: ${exitCode})`;
+            // 使用 allRuntimeOutput 检查是否已经包含错误信息
+            const cleanOutput = allRuntimeOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
+            const hasErrorInOutput = cleanOutput.length > 0 && 
+                                    (cleanOutput.toLowerCase().includes('error') || 
+                                     cleanOutput.toLowerCase().includes('runtimeerror'));
             
-            if (programOutput.trim()) {
-                const cleanOutput = programOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
-                errorMessage += '\n\nProgram Output:\n' + cleanOutput;
+            console.log('allRuntimeOutput length:', allRuntimeOutput.length);
+            console.log('cleanOutput length:', cleanOutput.length);
+            console.log('hasErrorInOutput:', hasErrorInOutput);
+            
+            if (hasErrorInOutput) {
+                // allRuntimeOutput 已经通过 onOutput 发送了完整错误信息，只发送标识符
+                errorMessage = `Runtime Error (Exit Code: ${exitCode})`;
+            } else {
+                // allRuntimeOutput 没有错误信息，需要发送完整的错误详情
+                let detailedError = `Runtime Error: ${error.message || error.toString()}`;
+                
+                if (error.stack) {
+                    detailedError += '\n' + error.stack;
+                }
+                
+                if (cleanOutput) {
+                    detailedError += '\n\nProgram Output:\n' + cleanOutput;
+                }
+                
+                errorMessage = `Runtime Error (Exit Code: ${exitCode})\n\n${detailedError}`;
             }
         }
         
