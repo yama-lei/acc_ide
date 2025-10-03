@@ -1,0 +1,70 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
+}
+
+android {
+    namespace 'com.acc_ide.completion'
+    compileSdk 33
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 33
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = '17'
+        apiVersion = '2.1'
+        languageVersion = '2.1'
+    }
+}
+
+dependencies {
+    // Core dependencies
+    implementation 'androidx.core:core-ktx:1.10.1'
+    
+    // TreeSitter Core - our base library
+    api project(':treesitter-core')
+    
+    // Sora Editor - for completion API
+    implementation platform("io.github.rosemoe:editor-bom:0.23.7")
+    implementation 'io.github.rosemoe:editor'
+    implementation 'io.github.rosemoe:language-textmate'
+    
+    // Testing
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+// Maven publishing configuration for JitPack
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                
+                groupId = 'com.github.acc_ide'
+                artifactId = 'completion-library'
+                version = '1.0.0'
+            }
+        }
+    }
+}
+
