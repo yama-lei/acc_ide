@@ -218,7 +218,7 @@ class PythonLanguageProcessor : AbstractTreeSitterProcessor() {
     private fun cleanTypeName(dataType: String): String {
         return dataType
             .replace("@", "")           // 移除装饰器标记
-            .replace("__", "")          // 移除特殊方法标记
+            // NOTE: DO NOT remove "__" - Python dunder methods (__init__, __str__, etc.) need them
             .trim()
     }
     

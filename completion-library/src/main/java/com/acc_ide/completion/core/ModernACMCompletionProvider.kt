@@ -34,26 +34,26 @@ class ModernACMCompletionProvider {
         publisher: CompletionPublisher,
         extraArguments: Bundle
     ) {
+        // 从extraArguments中获取语言类型，或从文件名推断
+        val language = extraArguments.getString("language") 
+            ?: detectLanguageFromContent(content) 
+            ?: "cpp" // 默认C++
+        
         try {
-            // 从extraArguments中获取语言类型，或从文件名推断
-            val language = extraArguments.getString("language") 
-                ?: detectLanguageFromContent(content) 
-                ?: "cpp" // 默认C++
-            
             Log.d(TAG, "requireAutoComplete called for language: $language")
             
             // 使用统一的补全管理器
             completionManager.requireAutoComplete(content, position, publisher, language)
             
         } catch (e: Exception) {
-            Log.e(TAG, "Modern completion failed", e)
+            Log.e(TAG, "Modern completion failed for language: $language", e)
             
-            // 降级到最基本的补全
+            // 降级到最基本的补全 - 使用原始检测到的语言，而不是硬编码
             try {
-                val language = "cpp"
+                Log.d(TAG, "Attempting fallback completion with language: $language")
                 completionManager.requireAutoComplete(content, position, publisher, language)
             } catch (fallbackError: Exception) {
-                Log.e(TAG, "Fallback completion also failed", fallbackError)
+                Log.e(TAG, "Fallback completion also failed for language: $language", fallbackError)
             }
         }
     }

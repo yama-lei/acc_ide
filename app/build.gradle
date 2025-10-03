@@ -71,10 +71,7 @@ android {
 }
 
 dependencies {
-    // Executor Library - 代码执行器模块
     implementation project(':executor-library')
-    
-    // Completion Library - 智能补全模块 (包含 treesitter-core)
     implementation project(':completion-library')
     
     implementation 'androidx.core:core-ktx:1.10.1'

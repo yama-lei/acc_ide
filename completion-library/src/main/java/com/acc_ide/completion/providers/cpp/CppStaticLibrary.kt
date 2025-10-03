@@ -437,7 +437,8 @@ class CppStaticLibrary {
         "printf" to IOFunction("int printf(const char* format, ...)", "Formatted output"),
         "scanf" to IOFunction("int scanf(const char* format, ...)", "Formatted input"),
         "puts" to IOFunction("int puts(const char* str)", "Write string to stdout"),
-        "gets" to IOFunction("char* gets(char* str)", "Read string from stdin"),
+        // "gets" - REMOVED: Deprecated in C11, unsafe (buffer overflow risk). Use fgets() instead.
+        "fgets" to IOFunction("char* fgets(char* str, int n, FILE* stream)", "Read string safely from stream"),
         "getchar" to IOFunction("int getchar()", "Read character"),
         "putchar" to IOFunction("int putchar(int ch)", "Write character"),
         

@@ -144,7 +144,8 @@ class UniversalCompletionEngine {
             }.thenBy { 
                 calculateRelevanceScore(it.label.toString(), prefix) 
             }.thenByDescending {
-                usageFrequency[it.label.toString()] ?: 0
+                // Use prefix for frequency lookup to match updateUsageFrequency()
+                usageFrequency[prefix] ?: 0
             }.thenBy { 
                 it.label.toString() 
             }
