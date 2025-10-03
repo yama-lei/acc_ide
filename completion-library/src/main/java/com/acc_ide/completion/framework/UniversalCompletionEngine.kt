@@ -9,30 +9,19 @@ import io.github.rosemoe.sora.text.ContentReference
 import com.acc_ide.completion.core.*
 
 /**
- * Universal Completion Engine Implementation
- * 
- * Manages multiple language processors and provides unified completion interface
+ * Universal completion engine managing multiple language processors
  */
 class UniversalCompletionEngine {
     
     private val TAG = "UniversalCompletionEngine"
-    
-    // Language processor registry
     private val processors = mutableMapOf<String, LanguageProcessor>()
     private val usageFrequency = mutableMapOf<String, Int>()
     
-    /**
-     * Register language processor
-     */
     fun registerProcessor(processor: LanguageProcessor) {
         processors[processor.getLanguageId()] = processor
         Log.d(TAG, "Registered processor for language: ${processor.getLanguageId()}")
     }
     
-    
-    /**
-     * Get language processor
-     */
     private fun getProcessor(language: String): LanguageProcessor? {
         return processors[language.lowercase()]
     }
@@ -125,18 +114,12 @@ class UniversalCompletionEngine {
         return processors.values.any { it.isAvailable() }
     }
     
-    /**
-     * Update usage frequency
-     */
     private fun updateUsageFrequency(prefix: String) {
         if (prefix.isNotEmpty()) {
             usageFrequency[prefix] = (usageFrequency[prefix] ?: 0) + 1
         }
     }
     
-    /**
-     * Sort completion items
-     */
     private fun sortCompletionItems(items: List<CompletionItem>, prefix: String): List<CompletionItem> {
         return items.sortedWith(
             compareByDescending<CompletionItem> { 
@@ -152,9 +135,6 @@ class UniversalCompletionEngine {
         )
     }
     
-    /**
-     * Calculate relevance score
-     */
     private fun calculateRelevanceScore(suggestion: String, prefix: String): Int {
         return when {
             suggestion.equals(prefix, ignoreCase = true) -> 0
@@ -164,9 +144,6 @@ class UniversalCompletionEngine {
         }
     }
     
-    /**
-     * Completion item with priority
-     */
     class PriorityCompletionItem(
         label: CharSequence,
         desc: CharSequence,

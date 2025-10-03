@@ -8,12 +8,7 @@ import com.acc_ide.completion.core.*
 import com.acc_ide.completion.services.TreeSitterService
 
 /**
- * Abstract TreeSitter Processor for Completion Library
- * 
- * Provides base implementation for all TreeSitter-based language processors.
- * Handles Content and ContentReference creation and management.
- * 
- * This class uses the TreeSitter bridge to communicate with treesitter-core.
+ * Base implementation for TreeSitter-based language processors
  */
 abstract class AbstractTreeSitterProcessor : LanguageProcessor() {
     
@@ -21,10 +16,6 @@ abstract class AbstractTreeSitterProcessor : LanguageProcessor() {
     
     protected val treeSitterService = TreeSitterService()
     
-    /**
-     * Create ContentReference from string code
-     * Uses sora-editor's actual API
-     */
     protected fun createContentReference(code: String): ContentReference {
         return try {
             val content = Content(code)
@@ -35,11 +26,6 @@ abstract class AbstractTreeSitterProcessor : LanguageProcessor() {
         }
     }
     
-    /**
-     * Parse code from string and return parse result
-     * 
-     * Converts string to ContentReference then uses TreeSitter to parse
-     */
     override fun parseCode(code: String): ParseResult? {
         return try {
             Log.d(TAG, "Parsing ${getLanguageId()} code with TreeSitter")
@@ -59,9 +45,6 @@ abstract class AbstractTreeSitterProcessor : LanguageProcessor() {
         }
     }
     
-    /**
-     * Get symbols at specific position using TreeSitter
-     */
     override fun getSymbolsAtPosition(
         contentRef: ContentReference,
         line: Int,
@@ -75,18 +58,10 @@ abstract class AbstractTreeSitterProcessor : LanguageProcessor() {
         }
     }
     
-    /**
-     * Check if TreeSitter processor is available
-     */
     override fun isAvailable(): Boolean {
         return treeSitterService.isAvailable()
     }
     
-    /**
-     * Get language-specific symbols
-     * 
-     * Subclasses can override to provide language-specific symbol retrieval logic
-     */
     protected open fun getLanguageSpecificSymbols(
         contentRef: ContentReference,
         position: CharPosition,

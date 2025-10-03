@@ -6,12 +6,7 @@ import com.acc_ide.completion.core.*
 import com.acc_ide.completion.bridge.TreeSitterBridge
 
 /**
- * Tree-sitter Service Adapter for Completion Library
- * 
- * This service adapts the core TreeSitterService (String-based)
- * to work with Sora Editor's ContentReference API.
- * 
- * All actual parsing is delegated to treesitter-core library.
+ * Adapter that wraps treesitter-core for ContentReference-based API
  */
 class TreeSitterService {
     

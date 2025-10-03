@@ -7,83 +7,22 @@ import com.acc_ide.completion.core.SymbolInfo
 import com.acc_ide.completion.core.ParseResult
 
 /**
- * Language Processor Abstract Base Class
- * 
- * Each language inherits this class to implement specific parsing and completion logic
+ * Base class for language-specific processors
  */
 abstract class LanguageProcessor {
     
-    /**
-     * Language identifier (e.g. "cpp", "java", "python")
-     */
     abstract fun getLanguageId(): String
-    
-    /**
-     * Language display name
-     */
     abstract fun getLanguageName(): String
-    
-    /**
-     * Supported file extensions
-     */
     abstract fun getSupportedExtensions(): Set<String>
-    
-    /**
-     * Parse code to get symbol information
-     */
     abstract fun parseCode(code: String): ParseResult?
-    
-    /**
-     * Get visible symbols at specific position
-     */
-    abstract fun getSymbolsAtPosition(
-        contentRef: ContentReference,
-        line: Int,
-        column: Int
-    ): List<SymbolInfo>
-    
-    /**
-     * Provide regular completion suggestions
-     */
-    abstract fun provideRegularCompletions(
-        contentRef: ContentReference,
-        position: CharPosition,
-        prefix: String
-    ): List<CompletionItem>
-    
-    /**
-     * Provide member access completions
-     */
-    abstract fun provideMemberCompletions(
-        contentRef: ContentReference,
-        position: CharPosition,
-        contextVar: String,
-        prefix: String
-    ): List<CompletionItem>
-    
-    /**
-     * Get language keywords
-     */
+    abstract fun getSymbolsAtPosition(contentRef: ContentReference, line: Int, column: Int): List<SymbolInfo>
+    abstract fun provideRegularCompletions(contentRef: ContentReference, position: CharPosition, prefix: String): List<CompletionItem>
+    abstract fun provideMemberCompletions(contentRef: ContentReference, position: CharPosition, contextVar: String, prefix: String): List<CompletionItem>
     abstract fun getKeywords(): Set<String>
-    
-    /**
-     * Get standard library types/functions
-     */
     abstract fun getStandardLibraryItems(): Map<String, List<String>>
-    
-    /**
-     * Check if a type is primitive
-     */
     abstract fun isPrimitiveType(dataType: String): Boolean
-    
-    /**
-     * Check if a type is from standard library
-     */
     abstract fun isStandardLibraryType(dataType: String): Boolean
     
-    /**
-     * Extract member access context
-     */
     open fun extractMemberAccessContext(
         contentRef: ContentReference,
         position: CharPosition,

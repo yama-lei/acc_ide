@@ -10,10 +10,7 @@ import com.acc_ide.completion.languages.java.JavaLanguageProcessor
 import com.acc_ide.completion.languages.python.PythonLanguageProcessor
 
 /**
- * Completion Manager
- * 
- * Manages multi-language completion system and provides simple API
- * Automatically registers all available language processors
+ * Manages multi-language completion system
  */
 class CompletionManager private constructor() {
     
@@ -36,25 +33,11 @@ class CompletionManager private constructor() {
         initializeLanguageProcessors()
     }
     
-    /**
-     * Initialize all language processors
-     */
     private fun initializeLanguageProcessors() {
         try {
-            // Register C++ processor (full implementation)
-            val cppProcessor = CppLanguageProcessor()
-            engine.registerProcessor(cppProcessor)
-            Log.i(TAG, "Registered C++ language processor")
-            
-            // Register Java processor (basic implementation)
-            val javaProcessor = JavaLanguageProcessor()
-            engine.registerProcessor(javaProcessor)
-            Log.i(TAG, "Registered Java language processor (basic)")
-            
-            // Register Python processor (basic implementation)
-            val pythonProcessor = PythonLanguageProcessor()
-            engine.registerProcessor(pythonProcessor)
-            Log.i(TAG, "Registered Python language processor (basic)")
+            engine.registerProcessor(CppLanguageProcessor())
+            engine.registerProcessor(JavaLanguageProcessor())
+            engine.registerProcessor(PythonLanguageProcessor())
             
             Log.i(TAG, "Initialized completion manager with ${engine.getSupportedLanguages().size} language processors")
             
@@ -63,24 +46,11 @@ class CompletionManager private constructor() {
         }
     }
     
-    /**
-     * Get supported languages list
-     */
-    fun getSupportedLanguages(): Set<String> {
-        return engine.getSupportedLanguages()
-    }
+    fun getSupportedLanguages(): Set<String> = engine.getSupportedLanguages()
     
-    /**
-     * Check if language is supported
-     */
-    fun isLanguageSupported(language: String): Boolean {
-        return engine.isLanguageSupported(language)
-    }
+    fun isLanguageSupported(language: String): Boolean = engine.isLanguageSupported(language)
     
-    /**
-     * Main auto-completion entry point
-     * Compatible with sora-editor Language interface
-     */
+
     fun requireAutoComplete(
         content: ContentReference,
         position: CharPosition,
