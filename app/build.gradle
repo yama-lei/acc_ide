@@ -16,20 +16,22 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
-        externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++17"
-                abiFilters "arm64-v8a"
-            }
-        }
+        // Native build moved to treesitter-core module
+        // externalNativeBuild {
+        //     cmake {
+        //         cppFlags "-std=c++17"
+        //         abiFilters "arm64-v8a"
+        //     }
+        // }
     }
     
-    externalNativeBuild {
-        cmake {
-            path file('src/main/cpp/CMakeLists.txt')
-            version '3.22.1'
-        }
-    }
+    // Native build moved to treesitter-core module
+    // externalNativeBuild {
+    //     cmake {
+    //         path file('src/main/cpp/CMakeLists.txt')
+    //         version '3.22.1'
+    //     }
+    // }
 
     buildTypes {
         release {
@@ -69,8 +71,8 @@ android {
 }
 
 dependencies {
-    // Executor Library - 代码执行器模块
     implementation project(':executor-library')
+    implementation project(':completion-library')
     
     implementation 'androidx.core:core-ktx:1.10.1'
     implementation 'androidx.appcompat:appcompat:1.6.1'
