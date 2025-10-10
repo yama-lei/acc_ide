@@ -1,4 +1,4 @@
-![展示1](img/Display_cn.png)
+![Display1](img/Display_cn.png)
 
 # ACC IDE
 
@@ -6,97 +6,96 @@
 - [English](README_en.md)
 - [简体中文](README.md)
 
-如果你也为OJ平台自带的手机不友好型IDE感到厌烦，如果你也想在手机上把灵光一现的算法写出来，那么你应该试试ACC IDE🤗。
+If you're tired of OJ platforms with their mobile-unfriendly IDEs, or if you've ever wanted to jot down a brilliant algorithm idea on your phone, then ACC IDE is just what you need 🤗.
 
-ACC IDE 是一个专为算法竞赛设计的，基于 Android 的原生集成开发环境。它旨在增强移动设备上的竞赛编程体验，为编写、测试和提交算法解决方案提供功能丰富的环境😋。
+ACC IDE is a native Android integrated development environment designed specifically for algorithm competitions. It aims to enhance the competitive programming experience on mobile devices by providing a feature-rich environment for writing, testing, and submitting algorithmic solutions 😋.
 
-## 项目结构
 
-该项目由安卓原生构建，包含以下主要部分：
+## Project Structure
 
-### 核心结构
+The project is built with native Android and includes the following main components:
+
+### Core Structure
 
 ```
 acc_ide/
-├── app/                          # 主应用模块
+├── app/                          # Main application module
 │   ├── src/main/
-│   │   ├── java/com/acc_ide/    # Kotlin 源代码
-│   │   │   ├── completion/      # 代码补全系统
-│   │   │   ├── ui/              # UI 组件
-│   │   │   ├── util/            # 工具类
-│   │   │   └── view/            # 自定义视图
+│   │   ├── java/com/acc_ide/    # Kotlin source code
+│   │   │   ├── completion/      # Code completion system
+│   │   │   ├── ui/              # UI components
+│   │   │   ├── util/            # Utility classes
+│   │   │   └── view/            # Custom views
 │   │   ├── cpp/                 # Tree-sitter JNI
-│   │   ├── res/                 # 资源文件
-│   │   └── assets/              # 静态资源
+│   │   ├── res/                 # Resources
+│   │   └── assets/              # Static assets
 │   └── build.gradle
-├── executor-library/             # 代码执行器库
+├── executor-library/             # Code executor library
 │   ├── src/main/
-│   │   ├── java/                # 执行器实现
-│   │   └── assets/wasm/         # WASM 资源
+│   │   ├── java/                # Executor implementation
+│   │   └── assets/wasm/         # WASM resources
 │   └── build.gradle
-├── treesitter-build/             # Tree-sitter 构建脚本
-├── wasmClang-build/              # WASM Clang 构建脚本
-└── gradle/                       # Gradle 配置
+├── treesitter-build/             # Tree-sitter build scripts
+├── wasmClang-build/              # WASM Clang build scripts
+└── gradle/                       # Gradle configuration
 ```
 
+## Implemented Features
 
-## 已实现功能
+### Editor Capabilities
+- **Syntax highlighting**: Use `textmate` for syntax highlighting
+- **Code completion**: Code completion based on `CST (tree-siiter)`
+- **Theme Support**: Dark and light modes with appropriate syntax coloring
+- **Gesture Controls**: Adjust font size through zoom gestures
+- **Line Numbers and Block Indentation**: Visual aids for code structure
 
-### 编辑器功能
-- **语法高亮**：使用`textmate`进行语法高亮
-- **代码补全**：基于`CST(tree-siiter)`的代码补全
-- **主题支持**：深色和浅色模式，适当的语法着色
-- **手势控制**：通过缩放手势调整字体大小
-- **行号和代码块缩进**：提供代码结构视觉辅助
+### File Management
+- **File Browser**: Side drawer with a list of available files
+- **Rename and Delete**: File management tools with confirmation dialogs
+- **Automatic Saving**: Changes are automatically saved to prevent data loss, with temporary files stored at `/storage/emulated/0/Android/data/com.acc_ide/files` and templates at `/template`
 
-### 文件管理
-- **文件浏览器**：带有可用文件列表的侧边抽屉
-- **重命名和删除**：带有确认对话框的文件管理工具
-- **自动保存**：自动保存更改，防止数据丢失，临时文件夹的路径为`/storage/emulated/0/Android/data/com.acc_ide/files`，其底下的`/tempalte`为模板文件
+### Customization
+- **Language Selection**: Interface language can be changed in settings
+- **Theme Selection**: Toggle between dark and light themes
+- **Font Size Control**: Adjust editor font size from settings or with gestures
+- **Editor Preferences**: Customize editor behavior through settings, such as cursor width and symbol panel display
 
-### 自定义功能
-- **语言选择**：可以在设置中更改界面语言
-- **主题选择**：在深色和浅色主题之间切换
-- **字体大小控制**：通过设置或手势调整编辑器字体大小
-- **编辑器偏好**：通过设置自定义编辑器行为，如光标粗细、符号面板显示等
+### Input/Output Panel
+- **Input/Output Panel**: Manual input and output viewing
+- **GitHub Action Backend**: Free runtime via GitHub Actions [repository](https://github.com/META-Xiao/accide-code-execution), supports C/C++, Java, and Python
+- **WASM-based Local Environment**: WebAssembly-based compilation environment, though C++ may have some issues as there's no pre-compiled WASM
+- **Memory and Time Limits**: Execution time (2s) and memory (512MB) restrictions via backend
+- **Execution Status Display**: Shows code execution status and runtime (AC, WA, TLE, MLE, RE, CE, RS - Run Successful when no expected output provided), with highlighted compilation errors
 
-### 输入/输出面板
-- **输入/输出面板**：用于手动输入和查看输出
-- **Github Action的运行后端**： 通过 Github Action 提供的免费运行后端[仓库地址](https://github.com/META-Xiao/accide-code-execution)，支持 C/C++、Java 和 Python 的在线编译和执行
-- **基于wasm的本地运行环境**： 基于WebAssembly的编译环境，但由于cpp没有预编译好的wsm，所以运行cpp时可能会有些问题
-- **限制运行内存和时间**： 运行后端限制代码运行时间（2s）和内存（512MB）
-- **运行状态显示**： 显示代码运行状态和运行时间，AC、WA、TLE、MLE、RE、CE、RS（Run successful，当用户未输入`答案输出`时运行成功的标志），编译错误等信息也会高亮显示
+## Planned Features
 
-## 计划实现功能
+### Feature Improvements
+- **Android Error Lens**: Highlight compilation errors in the editor
+- **LSP**: Plan to adopt `tree-sitter+LSP` for precise syntax highlighting and semantic-level code completion
+- **Maintain/Optimize wasm-clang**
 
-### 完善部分功能
-- **安卓版本的Error Lens**： 在编辑器中高亮显示编译错误
-- **LSP**: 计划采用`tree-sitter+LSP`的方案进行精确语法高亮和语义级代码补全  
-- **维护/优化wasm-clang**
-
-### 添加 competitive-companion 
-- Android 版本的 competitive-companion
-- 直接从问题陈述导入测试用例
-- 支持主要竞赛编程平台：
+### competitive-companion Integration
+- Android version of competitive-companion
+- Import test cases directly from problem statements
+- Support for major competitive programming platforms:
   - Codeforces
   - AtCoder
-  - 洛谷
-  - 牛客
+  - Luogu
+  - Niuke
 
-## 安装
+## Installation
 
-- 点击[releases](https://github.com/META-Xiao/acc_ide/releases/latest)安装最新版本
-- 或者 `clone`项目到本地，使用 Android Studio 打开项目并运行
+- Download the latest version from [releases](https://github.com/META-Xiao/acc_ide/releases/latest)
+- Or `clone` the repository locally, open it with Android Studio, and run the project
 
-## 贡献
+## Contributing
 
-如果您在使用的过程中发现任何问题或功能需求，欢迎提交 `issue` 或 `pull request`。
+If you find any problems or feature requests during use, you are welcome to submit an `issue` or a `pull request`.
 
+## Acknowledgements
 
-## 致谢
-
-- [Sora Editor](https://github.com/Rosemoe/sora-editor) 提供代码编辑功能
-- [VSCode TextMate](https://github.com/microsoft/vscode-textmate) 提供语法高亮支持
-- [Tree-sitter](https://github.com/tree-sitter/tree-sitter) 提供`CST`的构建支持  
-- [wasm-clang](https://github.com/binji/wasm-clang) 提供`wasm-clang`demo
-- [pyodide](https://github.com/pyodide/pyodide) 提供开箱即用的`wasm-python`
+- [Sora Editor](https://github.com/Rosemoe/sora-editor) for code editing capabilities
+- [VSCode TextMate](https://github.com/microsoft/vscode-textmate) for syntax highlighting support
+- [Tree-sitter](https://github.com/tree-sitter/tree-sitter) for `CST` build support
+- [wasm-clang](https://github.com/binji/wasm-clang) for `wasm-clang` demo
+- [pyodide](https://github.com/pyodide/pyodide) for out-of-the-box `wasm-python`
