@@ -1,104 +1,80 @@
-# ACC IDE 版本发布记录
+# ACC IDE Release Notes
 
-本文档记录ACC IDE的所有正式版本发布信息。
+This document records all official release information for ACC IDE.
 
-## 版本 1.4.0 (2025-10-02)
+## Version 1.4.0 (2025-10-02)
 
-- **下载链接**: [ACC_IDE_v1.4.0.apk](release/1.4.0/ACC_IDE_v1.4.0.apk)
-- **Git标签**: `v1.4.0`
+### Key Updates
 
-### 主要更新
+- Fixed `GitHub Action` unable to read `" "` and error highlighting issues in IO panel when `CE` occurs
+- Implemented `WebAssembly` as local compiler
 
-- 修复了`GitHub Action`无法读入 `" "` 以及io面板`CE`时错误无法高亮
-- 使用 `WebAssembly` 作为本地编译器
+## Version 1.3.1 (2025-08-22)
 
-## 版本 1.3.1 (2025-08-22)
+### Key Updates
 
-- **下载链接**: [ACC_IDE_v1.3.1.apk](release/1.3.1/ACC_IDE_v1.3.1.apk)
-- **Git标签**: `v1.3.1`
+- Reduced symbol panel height
+- Added haptic feedback for symbol panel
+- Fixed bug where `Github Action` couldn't execute `Java` and `Python`
 
-### 主要更新
+## Version 1.3.0 (2025-08-21)
 
-- 将符号面板的高度减少
-- 添加符号面板的振动反馈
-- 修复`Github Action`无法执行`Java`和`Python`的bug
+### Key Updates
 
-## 版本 1.3.0 (2025-08-21)
-
-- **下载链接**: [ACC_IDE_v1.3.0.apk](release/1.3.0/ACC_IDE_v1.3.0.apk)
-- **Git标签**: `v1.3.0`
-
-### 主要更新
-
-- 添加了基于`treesitter(CST)`的语法补全
-- 修复了一些bug
+- Added syntax completion based on `treesitter(CST)`
+- Fixed various bugs
 
 
-## 版本 1.2.1 (2025-07-28)
+## Version 1.2.1 (2025-07-28)
 
-- **下载链接**: [ACC_IDE_v1.2.1.apk](release/1.2.1/ACC_IDE_v1.2.1.apk)
-- **Git标签**: `v1.2.1`
+### Key Updates
 
-### 主要更新
-
-- 添加了textmate的支持，对语法高亮进行了扩展
-- 加入了贴合ui配色的dark/light主题
-- 删除之前用Java解释器进行的语法高亮
-- 加入了编辑页面对AgaveNerdFont字体的支持
-- 加入自动补全的开关
+- Added TextMate support and extended syntax highlighting
+- Introduced dark/light themes matching UI color scheme
+- Removed previous Java interpreter-based syntax highlighting
+- Added AgaveNerdFont support in editor
+- Added auto-completion toggle
 
 ### TODO
 
-- 修复语言切换、主题切换的界面相应bug
-- 加入语法树
-- 加入treesitter和lsp
-- 修复在GitHub Action不能执行java和py
+- Fix UI response bugs for language switching and theme switching
+- Add syntax tree
+- Add treesitter and LSP
+- Fix Java and Python execution issues in GitHub Action
 
-## 版本 1.2.0 (2025-07-15)
+## Version 1.2.0 (2025-07-15)
 
-- **下载链接**: [ACC_IDE_v1.2.0.apk](release/1.2.0/ACC_IDE_v1.2.0.apk)
-- **Git标签**: `v1.2.0`
+### Key Updates
+- Added undo and redo functionality
+- Added symbol panel for quick symbol input on Android
+- Implemented C++ IO functionality using `Github Action`
 
-### 主要更新
-- 添加了撤回和重做功能
-- 添加了符号面板，便于安卓快速输入符号
-- 使用`Github Action`真正实现了C++的IO功能
+### Bug Fixes
+- Fixed bug where temporary files couldn't be properly deleted after closing
+- Fixed new file naming bug
+- Fixed startup screen white screen issue
 
-### 修复
-- 修复了临时目录下文件关闭后无法正确删除的bug
-- 修复了新建文件名称的bug
-- 修复了启动界面卡白屏的bug
+## Version 1.1.1 (2025-06-20)
 
-## 版本 1.1.1 (2025-06-20)
+### Key Updates
+- Added new icon, improved overall visual experience
+- Optimized symbol panel layout, reduced panel height
+- Fixed multiple UI rendering issues
+- Improved overall app performance
 
-- **下载链接**: [acc_ide-1.1.1-unsigned.apk](release/1.1.1/acc_ide-1.1.1-unsigned.apk)
-- **Git标签**: `v1.1.1`
+## Version 1.1.0 (2025-06-20)
 
-### 主要更新
-- 添加了全新图标，提升了整体视觉体验
-- 优化了符号面板的布局，减小了面板高度
-- 修复了多个UI渲染问题
-- 提升了应用整体性能
+### Key Updates
+- Added customizable cursor width (2dp-14dp)
+- Improved symbol panel layout
+- Optimized editor performance
+- Improved auto-completion stability
 
-## 版本 1.1.0 (2025-06-20)
+## Version 1.0.0 (2025-06-01)
 
-- **下载链接**: [acc_ide-1.1.0-unsigned.apk](release/1.1.0/acc_ide-1.1.0-unsigned.apk) 
-- **Git标签**: `v1.1.0`
+Migrated from Flutter version, built using [sora-editor](https://github.com/Rosemoe/sora-editor) library as template
 
-### 主要更新
-- 添加了光标宽度自定义设置（2dp-14dp）
-- 改进了符号面板布局
-- 优化了编辑器性能
-- 改进了自动完成功能的稳定性
-
-## 版本 1.0.0 (2025-06-01)
-
-本版由flutter版本转化过来，使用[sora-editor](https://github.com/Rosemoe/sora-editor)库进行模板化构建
-
-- **下载链接**: [acc_ide-1.0.0.apk](release/1.0.0/acc_ide-1.0.0.apk)
-- **Git标签**: `v1.0.0`
-
-### 首次发布功能
-- 文件管理系统
-- 明/暗主题支持
-- 输入/输出测试面板 
+### Initial Release Features
+- File management system
+- Light/Dark theme support
+- Input/Output test panel 
