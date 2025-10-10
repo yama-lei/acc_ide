@@ -3,8 +3,8 @@
 # ACC IDE
 
 - [Version list](RELEASE.md)
-- [English](README_en.md)
-- [简体中文](README.md)
+- [English](README.md)
+- [简体中文](README_cn.md)
 
 If you're tired of OJ platforms with their mobile-unfriendly IDEs, or if you've ever wanted to jot down a brilliant algorithm idea on your phone, then ACC IDE is just what you need 🤗.
 

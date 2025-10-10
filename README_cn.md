@@ -3,8 +3,8 @@
 # ACC IDE
 
 - [Version list](RELEASE.md)
-- [English](README_en.md)
-- [简体中文](README.md)
+- [English](README.md)
+- [简体中文](README_cn.md)
 
 如果你也为OJ平台自带的手机不友好型IDE感到厌烦，如果你也想在手机上把灵光一现的算法写出来，那么你应该试试ACC IDE🤗。
 
