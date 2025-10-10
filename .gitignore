@@ -1,22 +1,32 @@
+# Android Studio / IntelliJ IDEA
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.specstory
-.cursorindexingignore
-.DS_Store
-**/build/
-/captures
-/temp_apk
-.externalNativeBuild
-.cxx
-/release
-/app/release
+.idea/
+.gradle/
+
+# Local configuration
 local.properties
-.claude
-.idea
+
+# Build outputs
+**/build/
+.externalNativeBuild/
+.cxx/
+/captures/
+
+# Backup files
+*.backup
+*~
+*.swp
+*.tmp
+
+# Release artifacts
+/release/
+/app/release/
+/temp_apk/
+
+# System files
+.DS_Store
+
+# AI/Development tools
+.specstory/
+.cursorindexingignore
+.claude/
