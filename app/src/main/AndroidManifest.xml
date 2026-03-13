@@ -33,8 +33,9 @@
         
         <activity
             android:name="com.acc_ide.ui.main.MainActivity"
-            android:configChanges="locale|layoutDirection|uiMode"
-            android:exported="false">
+            android:configChanges="locale|layoutDirection|uiMode|screenSize"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize">
         </activity>
     </application>
 

@@ -270,11 +270,7 @@ class SymbolPanelView @JvmOverloads constructor(
             text = label
             setTextAppearance(R.style.SymbolTextStyle)
             gravity = Gravity.CENTER
-            minHeight = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 34f, resources.displayMetrics
-            ).toInt()
-            setPadding(0, 0, 0, 0)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
                 setMargins(2, 2, 2, 2)
             }
             // Add ripple click feedback
