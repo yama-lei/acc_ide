@@ -29,8 +29,8 @@ android {
     
     kotlinOptions {
         jvmTarget = '17'
-        apiVersion = '2.1'
-        languageVersion = '2.1'
+        apiVersion = '2.3'
+        languageVersion = '2.3'
     }
 
     sourceSets {
