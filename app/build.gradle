@@ -1,16 +1,15 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
 }
 
 android {
     namespace 'com.acc_ide'
-    compileSdk 33
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.acc_ide"
         minSdk 24
-        targetSdk 33
+        targetSdk 35
         versionCode 140
         versionName "1.4.0"
 
@@ -50,10 +49,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = '17'
-        apiVersion = '2.1'
-        languageVersion = '2.1'
+    kotlin {
+        jvmToolchain(17)
+        compilerOptions {
+            apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3
+            languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_3
+        }
     }
 
     packaging {
@@ -86,20 +87,19 @@ dependencies {
     constraints {
         implementation("org.jetbrains.kotlin:kotlin-stdlib") {
             version {
-                strictly("2.1.0")
+                strictly("2.3.10")
             }
         }
         implementation("org.jetbrains.kotlin:kotlin-stdlib-common") {
             version {
-                strictly("2.1.0")
+                strictly("2.3.10")
             }
         }
     }
     
-    implementation(platform("io.github.rosemoe:editor-bom:0.23.7"))
+    implementation(platform("io.github.rosemoe:editor-bom:0.24.4"))
     implementation 'io.github.rosemoe:editor'
     implementation 'io.github.rosemoe:language-textmate'
-    implementation("io.github.Rosemoe.sora-editor:textmate-core:0.8.4")
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

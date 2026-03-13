@@ -87,11 +87,23 @@ class MainActivity : AppCompatActivity() {
             themeManager.applyLanguage()
 
             super.onCreate(savedInstanceState)
+            
             setContentView(R.layout.activity_main)
-
+            
+            // Enable system window insets handling
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, true)
+            
             // Set up toolbar
-            val toolbar: Toolbar = findViewById(R.id.toolbar)
+            val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
             setSupportActionBar(toolbar)
+            
+            // Handle IME insets for content frame
+            val contentFrame = findViewById<android.widget.FrameLayout>(R.id.content_frame)
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(contentFrame) { v, insets ->
+                val imeHeight = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime()).bottom
+                v.setPadding(0, 0, 0, imeHeight)
+                insets
+            }
 
             // Initialize drawer layout
             drawerLayout = findViewById(R.id.drawer_layout)
