@@ -96,9 +96,9 @@ dependencies {
         }
     }
     
-    implementation(platform("io.github.rosemoe:editor-bom:0.24.4"))
-    implementation 'io.github.rosemoe:editor'
-    implementation 'io.github.rosemoe:language-textmate'
+    implementation(platform("io.github.Rosemoe.sora-editor:bom:0.23.6"))
+    implementation 'io.github.Rosemoe.sora-editor:editor'
+    implementation 'io.github.Rosemoe.sora-editor:language-textmate'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
