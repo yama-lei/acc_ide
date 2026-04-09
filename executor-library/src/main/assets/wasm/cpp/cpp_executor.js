@@ -104,14 +104,15 @@ async function compileAndRun(sourceCode, input) {
         }
         return;
     }
-    
+
     let programOutput = '';
     let allCompilerOutput = '';
     let executionTimeMs = 0;
     let isExecuting = false;
     let compilationSucceeded = false;
     let originalHostWrite = null;
-    
+    const needsCanvasLibrary = /#\s*include\s*[<\"]canvas\.h[>\"]/.test(sourceCode);
+
     allRuntimeOutput = '';
     
     try {
@@ -159,7 +160,9 @@ async function compileAndRun(sourceCode, input) {
         console.log('Calling api.compileLinkRun()...');
         document.getElementById('status').textContent = 'Compiling and linking...';
         
-        await api.compileLinkRun(sourceCode);
+        await api.compileLinkRun(sourceCode, {
+            extraLibraries: needsCanvasLibrary ? ['-lcanvas'] : []
+        });
         
         if (originalHostWrite) {
             api.hostWrite = originalHostWrite;
