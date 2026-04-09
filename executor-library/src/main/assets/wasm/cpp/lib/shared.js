@@ -742,13 +742,23 @@ class API {
     const contents = options.contents;
     const obj = options.obj;
     const opt = options.opt || '2';
+    const language = options.language || 'c++';
+    const standard = options.standard || (language === 'c++' ? 'c++17' : null);
 
     await this.ready;
     this.memfs.addFile(input, contents);
     const clang = await this.getModule(this.clangFilename);
-    return await this.run(clang, 'clang', '-cc1', '-emit-obj',
-                          ...this.clangCommonArgs, '-O2', '-o', obj, '-x',
-                          'c++', input);
+    const compileArgs = [
+      'clang', '-cc1', '-emit-obj',
+      ...this.clangCommonArgs,
+      '-O2',
+      '-o', obj,
+    ];
+    if (standard) {
+      compileArgs.push('-std=' + standard);
+    }
+    compileArgs.push('-x', language, input);
+    return await this.run(clang, ...compileArgs);
   }
 
   async compileToAssembly(options) {
@@ -758,14 +768,24 @@ class API {
     const obj = options.obj;
     const triple = options.triple || 'x86_64';
     const opt = options.opt || '2';
+    const standard = options.standard || 'c++17';
 
     await this.ready;
     this.memfs.addFile(input, contents);
     const clang = await this.getModule(this.clangFilename);
-    await this.run(clang, 'clang', '-cc1', '-S', ...this.clangCommonArgs,
-                          `-triple=${triple}`, '-mllvm',
-                          '--x86-asm-syntax=intel', `-O${opt}`,
-                          '-o', output, '-x', 'c++', input);
+    const compileArgs = [
+      'clang', '-cc1', '-S',
+      ...this.clangCommonArgs,
+      `-triple=${triple}`,
+      '-mllvm', '--x86-asm-syntax=intel',
+      `-O${opt}`,
+      '-o', output,
+    ];
+    if (standard) {
+      compileArgs.push('-std=' + standard);
+    }
+    compileArgs.push('-x', 'c++', input);
+    await this.run(clang, ...compileArgs);
     return this.memfs.getFileContents(output);
   }
 
@@ -782,8 +802,9 @@ class API {
     return this.memfs.getFileContents(output);
   }
 
-  async link(obj, wasm) {
+  async link(obj, wasm, options = {}) {
     const stackSize = 1024 * 1024;
+    const extraLibraries = options.extraLibraries || [];
 
     const libdir = 'lib/wasm32-wasi';
     const crt1 = `${libdir}/crt1.o`;
@@ -793,7 +814,9 @@ class API {
         lld, 'wasm-ld', '--no-threads',
         '--export-dynamic',  // TODO required?
         '-z', `stack-size=${stackSize}`, `-L${libdir}`, crt1, obj, '-lc',
-        '-lc++', '-lc++abi', '-lcanvas', '-o', wasm)
+        '-lc++', '-lc++abi',
+        '-Llib/clang/8.0.1/lib/wasi', '-lclang_rt.builtins-wasm32',
+        ...extraLibraries, '-o', wasm)
   }
 
   async run(module, ...args) {
@@ -814,12 +837,14 @@ class API {
     return stillRunning ? app : null;
   }
 
-  async compileLinkRun(contents) {
+  async compileLinkRun(contents, options = {}) {
     const input = `test.cc`;
     const obj = `test.o`;
     const wasm = `test.wasm`;
-    await this.compile({input, contents, obj});
-    await this.link(obj, wasm);
+    const language = options.language || 'c++';
+    const standard = options.standard || (language === 'c++' ? 'c++17' : null);
+    await this.compile({input, contents, obj, language, standard});
+    await this.link(obj, wasm, options);
 
     const buffer = this.memfs.getFileContents(wasm);
     const testMod = await this.hostLogAsync(`Compiling ${wasm}`,
